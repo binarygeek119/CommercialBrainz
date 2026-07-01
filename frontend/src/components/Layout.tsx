@@ -22,7 +22,7 @@ export default function Layout() {
             )}
             <NavLink to="/edits">Open Edits</NavLink>
             <NavLink to="/dmca">DMCA</NavLink>
-            {isMod(user) && <NavLink to="/mod">Mod Queue</NavLink>}
+            {isMod(user) && <NavLink to="/mod" className="nav-mod">Mod</NavLink>}
             {isAdmin(user) && <NavLink to="/admin" className="nav-admin">Admin</NavLink>}
             {user ? (
               <>

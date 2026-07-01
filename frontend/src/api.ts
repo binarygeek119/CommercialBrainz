@@ -81,6 +81,27 @@ export interface DuplicateMatch {
   hamming_distance: number;
 }
 
+export interface ModStats {
+  open_edits: number;
+  dmca_submitted: number;
+  dmca_under_review: number;
+  dmca_link_hidden: number;
+  pending_fingerprints: number;
+  failed_fingerprints: number;
+}
+
+export interface DmcaItem {
+  id: string;
+  video_id: string;
+  status: string;
+  claimant_name: string;
+  claimant_email: string;
+  claim_text: string;
+  review_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminStats {
   users: number;
   videos: number;
@@ -258,4 +279,12 @@ export const api = {
 
   adminRetryFingerprint: (id: string) =>
     request<{ status: string }>(`/admin/fingerprints/${id}/retry`, { method: "POST" }),
+
+  modStats: () => request<ModStats>("/mod/stats"),
+
+  modApplyEdit: (editId: string) =>
+    request<Edit>(`/mod/edits/${editId}/apply`, { method: "POST" }),
+
+  modRejectEdit: (editId: string) =>
+    request<Edit>(`/mod/edits/${editId}/reject`, { method: "POST" }),
 };

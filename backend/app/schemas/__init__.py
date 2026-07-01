@@ -348,6 +348,15 @@ class AdminUserActiveUpdate(BaseModel):
     is_active: bool
 
 
+class ModStats(BaseModel):
+    open_edits: int
+    dmca_submitted: int
+    dmca_under_review: int
+    dmca_link_hidden: int
+    pending_fingerprints: int
+    failed_fingerprints: int
+
+
 class AdminFingerprintPublic(BaseModel):
     id: UUID
     edit_id: UUID | None

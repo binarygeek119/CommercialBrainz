@@ -327,6 +327,10 @@ code, .mono {
   color: var(--accent);
 }
 
+.nav-links a.nav-mod {
+  color: var(--success);
+}
+
 .nav-links a.nav-admin {
   color: var(--warning);
 }
