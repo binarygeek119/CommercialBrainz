@@ -1,16 +1,16 @@
 # VM override: Caddy TLS on 80/443, internal web/api only
 services:
   postgres:
-    ports: []
+    ports: !reset []
 
   redis:
-    ports: []
+    ports: !reset []
 
   web:
-    ports: []
+    ports: !reset []
 
   api:
-    ports: []
+    ports: !reset []
 
   caddy:
     image: caddy:2-alpine
