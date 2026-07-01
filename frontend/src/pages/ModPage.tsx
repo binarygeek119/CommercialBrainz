@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type Edit, type DmcaItem } from "../api";
+import { api, type Edit } from "../api";
 
 type Tab = "overview" | "dmca" | "edits";
 
@@ -147,7 +147,7 @@ export default function ModPage() {
 
           {dmcaLoading && <p className="muted">Loading DMCA queue…</p>}
           <div className="stack">
-            {(dmcaQueue?.items as DmcaItem[])?.map((item) => (
+            {dmcaQueue?.items.map((item) => (
               <div key={item.id} className="card">
                 <div className="flex-between">
                   <span className="badge badge-submitted">{item.status}</span>
@@ -203,7 +203,7 @@ export default function ModPage() {
         <div>
           {editsLoading && <p className="muted">Loading open edits…</p>}
           <div className="stack">
-            {(openEdits?.items as Edit[])?.map((edit) => (
+            {openEdits?.items.map((edit) => (
               <div key={edit.id} className="card">
                 <div className="flex-between">
                   <span className="badge badge-open">{edit.status}</span>

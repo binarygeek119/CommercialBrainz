@@ -51,3 +51,15 @@ async def notify_dmca_decision(claimant_email: str, video_id: str, status: str) 
         f"CommercialBrainz DMCA Decision: {status}",
         f"Your DMCA request for video {video_id} has been updated to status: {status}.",
     )
+
+
+async def send_password_reset_email(to: str, username: str, reset_url: str) -> bool:
+    minutes = settings.password_reset_expire_minutes
+    body = (
+        f"Hello {username},\n\n"
+        "We received a request to reset your CommercialBrainz password.\n\n"
+        f"Reset your password (link expires in {minutes} minutes):\n{reset_url}\n\n"
+        "If you did not request this, you can ignore this email.\n\n"
+        "— CommercialBrainz"
+    )
+    return await send_email(to, "Reset your CommercialBrainz password", body)

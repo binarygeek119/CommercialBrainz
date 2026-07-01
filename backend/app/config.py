@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-to-a-long-random-string"
     access_token_expire_minutes: int = 10080
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    app_public_url: str = "http://localhost:5173"
 
     edit_open_days: int = 7
     edit_early_close_votes: int = 3
@@ -30,6 +31,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "noreply@commercialbrainz.org"
     dmca_contact: str = "dmca@commercialbrainz.org"
+
+    password_reset_expire_minutes: int = 60
 
     gcs_dump_bucket: str = ""
     gcp_project_id: str = ""

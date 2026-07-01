@@ -6,7 +6,19 @@ from app.auth.security import authenticate_user, create_access_token, get_user_b
 from app.auth.serializers import user_to_public
 from app.database import get_db
 from app.models import User, UserAccess, UserRole
-from app.schemas import QuizAnswerSubmit, QuizGradeResult, SubmissionTermsPublic, Token, UserCreate, UserLogin, UserPublic
+from app.schemas import (
+    ForgotPasswordRequest,
+    MessageResponse,
+    QuizAnswerSubmit,
+    QuizGradeResult,
+    ResetPasswordRequest,
+    SubmissionTermsPublic,
+    Token,
+    UserCreate,
+    UserLogin,
+    UserPublic,
+)
+from app.services.password_reset import request_password_reset, reset_password_with_token
 from app.services.submission_terms import (
     ensure_submission_terms_seeded,
     fallback_terms_dict,
@@ -50,6 +62,23 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return Token(access_token=create_access_token(user.id))
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    await request_password_reset(db, data.email)
+    return MessageResponse(
+        message="If an account exists for that email, a password reset link has been sent."
+    )
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        await reset_password_with_token(db, data.token, data.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return MessageResponse(message="Password updated. You can log in with your new password.")
 
 
 @router.get("/me", response_model=UserPublic)

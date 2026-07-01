@@ -16,6 +16,8 @@ import ModRoute from "./components/ModRoute";
 import AdminPage from "./pages/AdminPage";
 import AdminRoute from "./components/AdminRoute";
 import LoginPage from "./pages/LoginPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import RegisterPage from "./pages/RegisterPage";
 
 export default function App() {
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="admin" element={<AdminPage />} />
         </Route>
         <Route path="login" element={<LoginPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="register" element={<RegisterPage />} />
       </Route>
     </Routes>

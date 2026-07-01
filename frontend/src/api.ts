@@ -195,6 +195,18 @@ export const api = {
   login: (data: { username: string; password: string }) =>
     request<{ access_token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
+  forgotPassword: (email: string) =>
+    request<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    }),
+
   me: () => request<User>("/auth/me"),
 
   getSubmissionTerms: () => request<SubmissionTerms>("/auth/submission-terms"),
@@ -239,7 +251,7 @@ export const api = {
     request<unknown>("/dmca", { method: "POST", body: JSON.stringify(data) }),
 
   dmcaQueue: (status?: string) =>
-    request<Paginated<Record<string, unknown>>>(
+    request<Paginated<DmcaItem>>(
       `/dmca/queue${status ? `?status=${status}` : ""}`
     ),
 

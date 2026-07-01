@@ -211,6 +211,11 @@ a:hover {
   margin-top: 0.5rem;
 }
 
+.success {
+  color: var(--success, #2ecc71);
+  margin-top: 0.5rem;
+}
+
 .hero {
   text-align: center;
   padding: 3rem 0;
