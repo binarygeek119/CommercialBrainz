@@ -193,7 +193,7 @@ class EditService:
             transcript=state.get("transcript"),
             slogan=state.get("slogan"),
             cta_text=state.get("cta_text"),
-            metadata=state.get("metadata", {}),
+            extra_data=state.get("metadata", {}),
             submitted_by_id=edit.editor_id,
         )
         db.add(video)
@@ -214,6 +214,8 @@ class EditService:
             return
         date_fields = {"upload_date", "first_aired_date", "last_aired_date"}
         for field, val in state.items():
+            if field == "metadata":
+                field = "extra_data"
             if field in date_fields and val:
                 val = date.fromisoformat(val) if isinstance(val, str) else val
             if hasattr(video, field):

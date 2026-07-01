@@ -56,7 +56,7 @@ def _video_public(v: Video) -> VideoPublic:
         "transcript": v.transcript,
         "slogan": v.slogan,
         "cta_text": v.cta_text,
-        "metadata": v.metadata,
+        "metadata": v.extra_data,
         "visibility": v.visibility.value,
         "created_at": v.created_at,
         "updated_at": v.updated_at,

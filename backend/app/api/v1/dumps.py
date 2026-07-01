@@ -79,7 +79,7 @@ async def generate_dump(output_dir: Path | None = None) -> Path:
                     "duration_ms": v.duration_ms,
                     "language": v.language,
                     "region": v.region,
-                    "metadata": v.metadata,
+                    "metadata": v.extra_data,
                 }
             )
 

@@ -168,7 +168,7 @@ class Video(Base):
     transcript: Mapped[str | None] = mapped_column(Text)
     slogan: Mapped[str | None] = mapped_column(String(512))
     cta_text: Mapped[str | None] = mapped_column(String(512))
-    metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     visibility: Mapped[VideoVisibility] = mapped_column(
         Enum(VideoVisibility), default=VideoVisibility.PUBLIC
     )
