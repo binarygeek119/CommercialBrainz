@@ -31,6 +31,17 @@ async def generate_dump(ctx):
     return str(path)
 
 
+async def export_to_archive_org(ctx, actor_id: str | None = None):
+    from uuid import UUID
+
+    from app.services.archive_export_queue import run_archive_export
+
+    triggered_by = UUID(actor_id) if actor_id else None
+    result = await run_archive_export(triggered_by=triggered_by)
+    logger.info("Archive.org export finished: %s", result.get("item_url"))
+    return result
+
+
 async def startup(ctx):
     logger.info("CommercialBrainz worker started")
 
@@ -41,7 +52,7 @@ async def shutdown(ctx):
 
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [expire_edits, generate_dump, hash_media, process_pending_queue]
+    functions = [expire_edits, generate_dump, export_to_archive_org, hash_media, process_pending_queue]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),
         cron(generate_dump, hour=2, minute=0),

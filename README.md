@@ -202,7 +202,7 @@ OpenAPI spec: `/docs` or `/openapi.json`
 
 ## DMCA policy
 
-Copyright holders may submit takedown notices via `/dmca` or `POST /api/v1/dmca`. Valid claims hide the YouTube link from public API responses while preserving archival metadata. Contact: dmca@commercialbrainz.org
+Copyright holders may submit takedown notices via `/dmca` or `POST /api/v1/dmca`. Valid claims hide the YouTube link from public API responses while preserving archival metadata. Contact: commercialbrainz@outlook.com
 
 ## Data license
 

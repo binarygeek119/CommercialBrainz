@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import getpass
+import json
 import sys
 
 from sqlalchemy import select
@@ -26,6 +27,7 @@ async def seed_admin(email: str, username: str, password: str) -> None:
             role=UserRole.ADMIN,
             access_level=UserAccess.SUBMIT_AND_VOTE,
             is_auto_editor=True,
+            email_verified=True,
         )
         db.add(user)
         await db.commit()
@@ -111,6 +113,13 @@ async def generate_dump_cmd() -> None:
     print(f"Dump written to {path}")
 
 
+async def export_archive_org_cmd() -> None:
+    from app.services.archive_export_queue import run_archive_export
+
+    result = await run_archive_export()
+    print(json.dumps(result, indent=2, default=str))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="commercialbrainz", description="CommercialBrainz CLI")
     sub = parser.add_subparsers(dest="command")
@@ -132,6 +141,7 @@ def main() -> None:
 
     sub.add_parser("expire-edits", help="Process expired open edits")
     sub.add_parser("generate-dump", help="Generate public data dump")
+    sub.add_parser("export-archive-org", help="Build dataset bundle and upload to Internet Archive")
 
     args = parser.parse_args()
 
@@ -154,6 +164,8 @@ def main() -> None:
         asyncio.run(expire_edits_cmd())
     elif args.command == "generate-dump":
         asyncio.run(generate_dump_cmd())
+    elif args.command == "export-archive-org":
+        asyncio.run(export_archive_org_cmd())
     else:
         parser.print_help()
         sys.exit(1)

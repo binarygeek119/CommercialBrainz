@@ -216,6 +216,61 @@ a:hover {
   margin-top: 0.5rem;
 }
 
+.verify-banner {
+  background: rgba(241, 196, 15, 0.12);
+  border-bottom: 1px solid rgba(241, 196, 15, 0.35);
+  padding: 0.65rem 0;
+}
+
+.verify-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+.advertiser-picker {
+  position: relative;
+}
+
+.advertiser-picker-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.advertiser-picker-list li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.advertiser-picker-list li button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.advertiser-picker-list li.muted {
+  padding: 0.5rem 0.75rem;
+}
+
 .hero {
   text-align: center;
   padding: 3rem 0;

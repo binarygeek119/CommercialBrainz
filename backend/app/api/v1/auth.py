@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user
-from app.auth.security import authenticate_user, create_access_token, get_user_by_email, get_user_by_username, hash_password, user_can_submit
+from app.auth.security import authenticate_user, create_access_token, get_user_by_email, get_user_by_username, hash_password, user_can_submit, user_email_verified
 from app.auth.serializers import user_to_public
 from app.database import get_db
 from app.models import User, UserAccess, UserRole
@@ -17,6 +17,12 @@ from app.schemas import (
     UserCreate,
     UserLogin,
     UserPublic,
+    VerifyEmailRequest,
+)
+from app.services.email_verification import (
+    resend_verification_email,
+    send_verification_email_for_user,
+    verify_email_with_token,
 )
 from app.services.password_reset import request_password_reset, reset_password_with_token
 from app.services.submission_terms import (
@@ -53,7 +59,8 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     )
     db.add(user)
     await db.flush()
-    return user_to_public(user)
+    await send_verification_email_for_user(db, user)
+    return await user_to_public(db, user)
 
 
 @router.post("/login", response_model=Token)
@@ -81,9 +88,33 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
     return MessageResponse(message="Password updated. You can log in with your new password.")
 
 
+@router.post("/verify-email", response_model=MessageResponse)
+async def verify_email(data: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        await verify_email_with_token(db, data.token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return MessageResponse(message="Email verified. You can vote and submit edits.")
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+async def resend_verification(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        await resend_verification_email(db, user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return MessageResponse(message="If your email is unverified, a new verification link has been sent.")
+
+
 @router.get("/me", response_model=UserPublic)
-async def me(user: User = Depends(get_current_user)):
-    return user_to_public(user)
+async def me(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return await user_to_public(db, user)
 
 
 @router.get("/submission-terms", response_model=SubmissionTermsPublic)
@@ -106,7 +137,7 @@ async def accept_submission_terms(
     user.submission_terms_version = doc.version
     await db.commit()
     await db.refresh(user)
-    return user_to_public(user)
+    return await user_to_public(db, user)
 
 
 @router.get("/submission-quiz")
@@ -124,6 +155,9 @@ async def submission_upgrade(
 ):
     if user_can_submit(user):
         raise HTTPException(status_code=400, detail="You already have submission access")
+
+    if not user_email_verified(user):
+        raise HTTPException(status_code=403, detail="Verify your email address before upgrading.")
 
     score, total, passed = grade_quiz(data.answers)
     if not passed:

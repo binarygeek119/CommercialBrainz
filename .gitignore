@@ -30,8 +30,9 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Dumps
+# Dumps / exports
 dumps/
+exports/
 *.json.gz
 
 # Generated on VM at deploy time

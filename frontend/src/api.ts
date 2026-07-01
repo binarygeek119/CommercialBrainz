@@ -7,6 +7,11 @@ export interface User {
   role: string;
   access_level: string;
   can_submit: boolean;
+  email_verified: boolean;
+  reputation_points: number;
+  submit_slots_max: number;
+  submit_slots_used: number;
+  submit_slots_available: number;
   is_auto_editor: boolean;
   accepted_edits_count: number;
   submission_terms_version: number | null;
@@ -46,10 +51,12 @@ export interface Video {
   commercial_id: string;
   youtube_id: string | null;
   youtube_url: string | null;
+  thumbnail_url?: string | null;
   channel_name: string | null;
   duration_ms: number | null;
   language: string | null;
   region: string | null;
+  sub_region: string | null;
   transcript: string | null;
   slogan: string | null;
   visibility: string;
@@ -72,6 +79,7 @@ export interface FingerprintPreview {
   audio_fingerprint?: string | null;
   duration_sec?: number | null;
   error_message?: string | null;
+  probe?: Record<string, unknown>;
 }
 
 export interface DuplicateMatch {
@@ -130,12 +138,32 @@ export interface AdminFingerprint {
   completed_at?: string | null;
 }
 
+export interface ArchiveExportStatus {
+  status: string;
+  configured: boolean;
+  started_at?: string | null;
+  finished_at?: string | null;
+  triggered_by?: string | null;
+  stage?: string | null;
+  export_id?: string | null;
+  identifier?: string | null;
+  item_url?: string | null;
+  bundle_path?: string | null;
+  video_count?: number | null;
+  brand_count?: number | null;
+  thumbnail_files?: number | null;
+  logo_files?: number | null;
+  youtube_thumbnails_fetched?: number | null;
+  error?: string | null;
+}
+
 export interface Edit {
   id: string;
   edit_type: string;
   status: string;
   entity_type: string;
   entity_id: string | null;
+  before_state?: Record<string, unknown> | null;
   after_state: Record<string, unknown>;
   editor_id: string;
   comment: string | null;
@@ -152,11 +180,96 @@ export interface SearchResult {
   subtitle: string | null;
 }
 
+export interface AdvertiserMetadataUpdate {
+  description?: string | null;
+  website?: string | null;
+  country?: string | null;
+  founded_year?: number | null;
+  industry?: string | null;
+  headquarters?: string | null;
+  parent_company?: string | null;
+  wikipedia_url?: string | null;
+  aliases?: string[];
+  tagline?: string | null;
+  social?: Record<string, string>;
+  notes?: string | null;
+}
+
+export interface Advertiser {
+  sbid: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url?: string | null;
+  main_logo_id?: string | null;
+  website?: string | null;
+  country?: string | null;
+  founded_year?: number | null;
+  industry?: string | null;
+  headquarters?: string | null;
+  parent_company?: string | null;
+  wikipedia_url?: string | null;
+  metadata?: {
+    aliases?: string[];
+    tagline?: string | null;
+    social?: Record<string, string>;
+    notes?: string | null;
+  };
+  external_ids: Record<string, unknown>;
+  status?: string;
+  created_at: string;
+  commercials?: { sbid: string; title: string }[];
+}
+
+export interface AdvertiserLogo {
+  id: string;
+  advertiser_id: string;
+  image_url: string;
+  label: string | null;
+  year: number | null;
+  month: number | null;
+  event: string | null;
+  notes: string | null;
+  popularity_score: number;
+  is_main: boolean;
+  context_label: string;
+  created_at: string;
+  viewer_vote: "up" | "down" | null;
+}
+
+export interface AdvertiserLogoSubmit {
+  label?: string;
+  year?: number;
+  month?: number;
+  event?: string;
+  notes?: string;
+  comment?: string;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;
   offset: number;
   limit: number;
+}
+
+export interface YouTubeMetadataPreview {
+  youtube_id: string;
+  youtube_url: string;
+  title: string | null;
+  channel_name: string | null;
+  upload_date: string | null;
+  duration_ms: number | null;
+  aspect_ratio: string | null;
+  resolution: string | null;
+  language: string | null;
+  tags: string[];
+  transcript: string | null;
+  is_short: boolean;
+  suggested_comment: string | null;
+  thumbnail_url: string | null;
+  metadata: Record<string, unknown>;
+  existing_video_sbid: string | null;
 }
 
 function getToken(): string | null {
@@ -207,6 +320,15 @@ export const api = {
       body: JSON.stringify({ token, password }),
     }),
 
+  verifyEmail: (token: string) =>
+    request<{ message: string }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+
+  resendVerification: () =>
+    request<{ message: string }>("/auth/resend-verification", { method: "POST" }),
+
   me: () => request<User>("/auth/me"),
 
   getSubmissionTerms: () => request<SubmissionTerms>("/auth/submission-terms"),
@@ -225,6 +347,13 @@ export const api = {
   search: (query: string, type = "all") =>
     request<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&type=${type}`),
 
+  searchAdvertisers: (query: string) => api.search(query, "advertiser"),
+
+  listAdvertisers: (q = "", offset = 0, limit = 50) =>
+    request<Paginated<Advertiser>>(
+      `/advertisers?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
+    ),
+
   browseVideos: (offset = 0, limit = 25) =>
     request<Paginated<Video>>(`/browse/videos?offset=${offset}&limit=${limit}`),
 
@@ -232,10 +361,56 @@ export const api = {
 
   getCommercial: (sbid: string) => request<Record<string, unknown>>(`/commercials/${sbid}`),
 
+  getAdvertiser: (sbid: string) => request<Advertiser>(`/advertisers/${sbid}`),
+
   submitVideo: (data: Record<string, unknown> & { terms_agreed?: boolean }) =>
     request<Edit>("/edits/submit-video", { method: "POST", body: JSON.stringify(data) }),
 
-  openEdits: (offset = 0) => request<Paginated<Edit>>(`/edits/open?offset=${offset}`),
+  submitVideoThumbnail: (sbid: string, file: File, comment?: string) => {
+    const body = new FormData();
+    body.append("file", file);
+    if (comment?.trim()) body.append("comment", comment.trim());
+    return request<Edit>(`/videos/${sbid}/submit-thumbnail`, { method: "POST", body });
+  },
+
+  submitAdvertiserLogo: (sbid: string, file: File, meta: AdvertiserLogoSubmit = {}) => {
+    const body = new FormData();
+    body.append("file", file);
+    if (meta.label) body.append("label", meta.label);
+    if (meta.year != null) body.append("year", String(meta.year));
+    if (meta.month != null) body.append("month", String(meta.month));
+    if (meta.event) body.append("event", meta.event);
+    if (meta.notes) body.append("notes", meta.notes);
+    if (meta.comment?.trim()) body.append("comment", meta.comment.trim());
+    return request<Edit>(`/advertisers/${sbid}/submit-logo`, { method: "POST", body });
+  },
+
+  getAdvertiserLogos: (sbid: string) =>
+    request<AdvertiserLogo[]>(`/advertisers/${sbid}/logos`),
+
+  voteAdvertiserLogoPopularity: (
+    sbid: string,
+    logoId: string,
+    choice: "up" | "down" | null
+  ) =>
+    request<AdvertiserLogo>(`/advertisers/${sbid}/logos/${logoId}/popularity-vote`, {
+      method: "POST",
+      body: JSON.stringify({ choice }),
+    }),
+
+  submitAdvertiserMetadata: (sbid: string, data: AdvertiserMetadataUpdate) =>
+    request<Edit>(`/advertisers/${sbid}/submit-metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  fetchYouTubeMetadata: (url: string) =>
+    request<YouTubeMetadataPreview>(
+      `/edits/youtube-metadata?url=${encodeURIComponent(url)}`
+    ),
+
+  openEdits: (offset = 0, limit = 25) =>
+    request<Paginated<Edit>>(`/edits/open?offset=${offset}&limit=${limit}`),
 
   getEdit: (id: string) => request<Edit>(`/edits/${id}`),
 
@@ -291,6 +466,12 @@ export const api = {
 
   adminRetryFingerprint: (id: string) =>
     request<{ status: string }>(`/admin/fingerprints/${id}/retry`, { method: "POST" }),
+
+  adminArchiveExportStatus: () =>
+    request<ArchiveExportStatus>("/admin/exports/archive-org/status"),
+
+  adminTriggerArchiveExport: () =>
+    request<{ status: string }>("/admin/exports/archive-org/trigger", { method: "POST" }),
 
   modStats: () => request<ModStats>("/mod/stats"),
 

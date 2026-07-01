@@ -34,6 +34,7 @@ def fingerprint_to_dict(fp: MediaFingerprint | None) -> dict | None:
         "audio_fingerprint": fp.audio_fingerprint,
         "duration_sec": fp.duration_sec,
         "error_message": fp.error_message,
+        "probe": fp.probe_data or {},
     }
 
 

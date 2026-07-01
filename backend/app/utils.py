@@ -28,6 +28,11 @@ def youtube_watch_url(video_id: str) -> str:
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
+def youtube_thumbnail_url(video_id: str, quality: str = "hqdefault") -> str:
+    """Direct YouTube CDN thumbnail URL (fallback when yt-dlp has no thumbnail field)."""
+    return f"https://i.ytimg.com/vi/{video_id}/{quality}.jpg"
+
+
 def make_unique_slug(base: str, existing: set[str]) -> str:
     slug = slugify(base) or "item"
     if slug not in existing:

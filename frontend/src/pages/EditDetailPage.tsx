@@ -3,6 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth";
 import { api } from "../api";
+import { editVoteThreshold } from "../utils/editDisplay";
+import BrandMetadataDiff, { hasMetadataChanges } from "../components/BrandMetadataDiff";
+import { formatLogoContext } from "../utils/brandLogos";
 
 export default function EditDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,7 +50,9 @@ export default function EditDetailPage() {
 
   const yesVotes = edit.votes.filter((v) => v.choice === "yes").length;
   const noVotes = edit.votes.filter((v) => v.choice === "no").length;
+  const voteThreshold = editVoteThreshold(edit);
   const fp = edit.fingerprint_preview;
+  const brandEditId = edit.after_state.brand_edit_id as string | undefined;
 
   return (
     <div>
@@ -62,8 +67,130 @@ export default function EditDetailPage() {
         {edit.comment && <p style={{ marginTop: "1rem" }}>{edit.comment}</p>}
         <p className="muted">
           Expires: {new Date(edit.expires_at).toLocaleString()} · Yes: {yesVotes} · No: {noVotes}
+          {edit.status === "open" && (
+            <> · needs {voteThreshold} yes (0 no) or mod approval</>
+          )}
         </p>
+        {brandEditId && (
+          <p style={{ marginTop: "0.75rem" }}>
+            This submission includes a{" "}
+            <Link to={`/edits/${brandEditId}`}>new brand awaiting approval</Link>.
+          </p>
+        )}
       </div>
+
+      {edit.edit_type === "create_advertiser" && (
+        <>
+          <div className="card">
+            <h3>Brand proposal</h3>
+            <p>
+              <strong>{(edit.after_state.name as string) || "Unnamed brand"}</strong>
+            </p>
+            <p className="muted" style={{ marginTop: "0.5rem" }}>
+              Approved brands appear in search after {voteThreshold} yes votes with no no votes, or
+              when a mod approves this edit.
+            </p>
+          </div>
+          {hasMetadataChanges({}, edit.after_state) && (
+            <BrandMetadataDiff after={edit.after_state} />
+          )}
+        </>
+      )}
+
+      {edit.edit_type === "edit_advertiser" &&
+        hasMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
+          <BrandMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
+        )}
+
+      {(edit.edit_type === "add_advertiser_logo" ||
+        (edit.edit_type === "edit_advertiser" &&
+          typeof edit.after_state.logo_url === "string")) && (
+        <div className="card">
+          <h3>
+            {edit.edit_type === "add_advertiser_logo"
+              ? "Proposed logo version"
+              : "Proposed brand logo"}
+          </h3>
+          {edit.edit_type === "add_advertiser_logo" && (
+            <p style={{ marginBottom: "0.75rem" }}>
+              <strong>{formatLogoContext(edit.after_state)}</strong>
+            </p>
+          )}
+          {typeof edit.after_state.notes === "string" && edit.after_state.notes && (
+            <p className="muted" style={{ marginBottom: "0.75rem" }}>
+              {edit.after_state.notes}
+            </p>
+          )}
+          <div
+            style={{
+              background:
+                "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
+              padding: "0.75rem",
+              borderRadius: 4,
+              display: "inline-block",
+            }}
+          >
+            <img
+              src={edit.after_state.logo_url as string}
+              alt="Proposed logo"
+              style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
+            />
+          </div>
+          {edit.edit_type === "edit_advertiser" &&
+            typeof edit.before_state?.logo_url === "string" && (
+            <>
+              <p className="muted" style={{ marginTop: "0.75rem" }}>
+                Current main logo:
+              </p>
+              <div
+                style={{
+                  background:
+                    "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
+                  padding: "0.5rem",
+                  borderRadius: 4,
+                  display: "inline-block",
+                  marginTop: "0.35rem",
+                }}
+              >
+                <img
+                  src={edit.before_state.logo_url as string}
+                  alt="Current logo"
+                  style={{ maxWidth: 120, maxHeight: 120, display: "block" }}
+                />
+              </div>
+            </>
+          )}
+          {edit.edit_type === "add_advertiser_logo" && (
+            <p className="muted" style={{ marginTop: "0.75rem" }}>
+              If approved, this joins the brand&apos;s logo gallery. Users then vote on popularity
+              to decide which version is the main logo site-wide.
+            </p>
+          )}
+        </div>
+      )}
+
+      {edit.edit_type === "edit_video" && typeof edit.after_state.thumbnail_url === "string" && (
+        <div className="card">
+          <h3>Proposed thumbnail</h3>
+          <img
+            src={edit.after_state.thumbnail_url as string}
+            alt="Proposed thumbnail"
+            style={{ width: "100%", maxWidth: 480, borderRadius: 4 }}
+          />
+          {typeof edit.before_state?.thumbnail_url === "string" && (
+            <>
+              <p className="muted" style={{ marginTop: "0.75rem" }}>
+                Current thumbnail:
+              </p>
+              <img
+                src={edit.before_state.thumbnail_url as string}
+                alt="Current thumbnail"
+                style={{ width: "100%", maxWidth: 240, borderRadius: 4, marginTop: "0.35rem" }}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       {edit.edit_type === "create_video" && (
         <div className="card">
@@ -72,6 +199,37 @@ export default function EditDetailPage() {
           {fp && (
             <>
               <p className="muted">Status: {fp.status}</p>
+              {fp.duration_sec != null && (
+                <p className="muted">
+                  Duration: {fp.duration_sec.toFixed(1)}s
+                  {typeof fp.probe?.resolution === "string" ? ` · ${fp.probe.resolution}` : ""}
+                  {typeof fp.probe?.fps === "number" ? ` · ${fp.probe.fps} fps` : ""}
+                </p>
+              )}
+              {(fp.probe?.video_codec || fp.probe?.audio_codec) && (
+                <p className="muted" style={{ fontSize: "0.9rem" }}>
+                  {fp.probe?.video_codec ? `Video: ${fp.probe.video_codec}` : ""}
+                  {fp.probe?.video_codec && fp.probe?.audio_codec ? " · " : ""}
+                  {fp.probe?.audio_codec ? `Audio: ${fp.probe.audio_codec}` : ""}
+                  {typeof fp.probe?.audio_channels === "number"
+                    ? ` (${fp.probe.audio_channels}ch`
+                    : ""}
+                  {typeof fp.probe?.audio_sample_rate === "number"
+                    ? ` @ ${fp.probe.audio_sample_rate} Hz)`
+                    : typeof fp.probe?.audio_channels === "number"
+                      ? ")"
+                      : ""}
+                </p>
+              )}
+              {fp.probe?.audio_analysis &&
+                typeof fp.probe.audio_analysis === "object" &&
+                (fp.probe.audio_analysis as Record<string, unknown>).mean_volume_db != null && (
+                  <p className="muted" style={{ fontSize: "0.9rem" }}>
+                    Loudness: mean {(fp.probe.audio_analysis as Record<string, number>).mean_volume_db} dB
+                    {(fp.probe.audio_analysis as Record<string, number>).max_volume_db != null &&
+                      ` · peak ${(fp.probe.audio_analysis as Record<string, number>).max_volume_db} dB`}
+                  </p>
+                )}
               {fp.phash && <p className="mono">pHash: {fp.phash}</p>}
               {fp.file_sha256 && (
                 <p className="mono" style={{ wordBreak: "break-all" }}>

@@ -63,3 +63,16 @@ async def send_password_reset_email(to: str, username: str, reset_url: str) -> b
         "— CommercialBrainz"
     )
     return await send_email(to, "Reset your CommercialBrainz password", body)
+
+
+async def send_verification_email(to: str, username: str, verify_url: str) -> bool:
+    hours = settings.email_verification_expire_minutes // 60
+    expiry = f"{hours} hours" if hours else f"{settings.email_verification_expire_minutes} minutes"
+    body = (
+        f"Hello {username},\n\n"
+        "Welcome to CommercialBrainz! Please verify your email address to vote and submit edits.\n\n"
+        f"Verify your email (link expires in {expiry}):\n{verify_url}\n\n"
+        "If you did not create this account, you can ignore this email.\n\n"
+        "— CommercialBrainz"
+    )
+    return await send_email(to, "Verify your CommercialBrainz email", body)

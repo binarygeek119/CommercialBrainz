@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     edit_open_days: int = 7
     edit_early_close_votes: int = 3
+    brand_early_close_votes: int = 10
     voting_min_account_days: int = 14
     voting_min_accepted_edits: int = 10
     voting_no_vote_extension_hours: int = 72
@@ -29,18 +30,34 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = "noreply@commercialbrainz.org"
-    dmca_contact: str = "dmca@commercialbrainz.org"
+    smtp_from: str = "commercialbrainz@outlook.com"
+    dmca_contact: str = "commercialbrainz@outlook.com"
 
     password_reset_expire_minutes: int = 60
+    email_verification_expire_minutes: int = 1440
+
+    submit_slots_base: int = 1
+    submit_slots_max: int = 20
+    submit_slots_points_per_slot: int = 20
+    reputation_point_value: float = 0.25
 
     gcs_dump_bucket: str = ""
     gcp_project_id: str = ""
 
+    api_public_url: str = "http://localhost:8000"
+    archive_export_dir: str = "exports/archive-org"
+    ia_access_key: str = ""
+    ia_secret_key: str = ""
+    ia_collection: str = "commercialbrainz"
+    ia_skip_upload: bool = False
+
     hash_temp_dir: str = "/tmp/commercialbrainz-hash"
     ytdlp_format: str = "best[height<=480]/best"
     hash_max_file_mb: int = 200
-    phash_duplicate_threshold: int = 10
+    thumbnail_max_bytes: int = 2 * 1024 * 1024
+    thumbnail_upload_dir: str = "/data/thumbnails"
+    logo_upload_dir: str = "/data/logos"
+    logo_max_bytes: int = 5 * 1024 * 1024
 
     @property
     def cors_origin_list(self) -> list[str]:

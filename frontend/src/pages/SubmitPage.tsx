@@ -1,11 +1,74 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth, canSubmit } from "../auth";
-import { api, type SubmissionTerms } from "../api";
+import { api, type SubmissionTerms, type YouTubeMetadataPreview } from "../api";
 import SubmissionTermsView from "../components/SubmissionTermsView";
+import AdvertiserPicker, { type AdvertiserSelection } from "../components/AdvertiserPicker";
+import {
+  RegionSelect,
+  SubRegionSelect,
+  regionHasSubRegionPicker,
+  regionSelectionToPayload,
+  subRegionFieldLabel,
+  type RegionSelection,
+} from "../components/RegionPicker";
+import { nextSlotAtPoints } from "../utils/editDisplay";
+import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
+import { extractYouTubeId, formatDurationMs } from "../utils/youtube";
+import { youtubeIdThumbnail } from "../utils/videoThumbnail";
+
+const EMPTY_FORM = {
+  youtube_url: "",
+  commercial_title: "",
+  year: "",
+  decade: "",
+  language: "",
+  transcript: "",
+  slogan: "",
+  tags: "",
+  comment: "",
+};
+
+function applyYouTubePrefill(
+  prev: typeof EMPTY_FORM,
+  meta: YouTubeMetadataPreview
+): typeof EMPTY_FORM {
+  const tagStr = meta.tags.length ? meta.tags.join(", ") : "";
+  return {
+    ...prev,
+    commercial_title: prev.commercial_title || meta.title || "",
+    language: prev.language || meta.language || "",
+    tags: prev.tags || tagStr,
+    transcript: prev.transcript || meta.transcript || "",
+    comment: prev.comment || meta.suggested_comment || "",
+  };
+}
+
+async function suggestAdvertiserFromChannel(
+  channel: string
+): Promise<AdvertiserSelection> {
+  const trimmed = channel.trim();
+  if (!trimmed) return {};
+  try {
+    const matches = await api.searchAdvertisers(trimmed);
+    const exact = matches.find((m) => m.title.toLowerCase() === trimmed.toLowerCase());
+    if (exact) {
+      return { advertiser_id: exact.sbid, advertiser_name: exact.title };
+    }
+    const partial = matches.find((m) =>
+      m.title.toLowerCase().includes(trimmed.toLowerCase())
+    );
+    if (partial) {
+      return { advertiser_id: partial.sbid, advertiser_name: partial.title };
+    }
+  } catch {
+    /* ignore lookup errors */
+  }
+  return { advertiser_name: trimmed };
+}
 
 export default function SubmitPage() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -13,18 +76,60 @@ export default function SubmitPage() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [termsLoading, setTermsLoading] = useState(true);
 
-  const [form, setForm] = useState({
-    youtube_url: "",
-    commercial_title: "",
-    advertiser_name: "",
-    year: "",
-    language: "",
-    region: "",
-    transcript: "",
-    slogan: "",
-    tags: "",
-    comment: "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+
+  const [advertiser, setAdvertiser] = useState<AdvertiserSelection>({});
+  const [regionSelection, setRegionSelection] = useState<RegionSelection>({});
+  const [ytMeta, setYtMeta] = useState<YouTubeMetadataPreview | null>(null);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState("");
+  const lastFetchedId = useRef<string | null>(null);
+  const advertiserTouched = useRef(false);
+
+  useEffect(() => {
+    const youtubeId = extractYouTubeId(form.youtube_url);
+    if (!youtubeId) {
+      setYtMeta(null);
+      setYtError("");
+      setYtLoading(false);
+      lastFetchedId.current = null;
+      return;
+    }
+    if (youtubeId === lastFetchedId.current) return;
+
+    const timer = window.setTimeout(() => {
+      setYtLoading(true);
+      setYtError("");
+      api
+        .fetchYouTubeMetadata(form.youtube_url)
+        .then(async (meta) => {
+          lastFetchedId.current = meta.youtube_id;
+          setYtMeta(meta);
+          setForm((prev) => applyYouTubePrefill(prev, meta));
+          if (!advertiserTouched.current && meta.channel_name) {
+            const suggestion = await suggestAdvertiserFromChannel(meta.channel_name);
+            if (!advertiserTouched.current) {
+              setAdvertiser(suggestion);
+            }
+          }
+        })
+        .catch((err) => {
+          lastFetchedId.current = null;
+          setYtMeta(null);
+          setYtError((err as Error).message);
+        })
+        .finally(() => setYtLoading(false));
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [form.youtube_url]);
+
+  useEffect(() => {
+    if (user?.can_submit) {
+      refresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh slot counts when opening submit
+  }, [user?.id, user?.can_submit]);
 
   useEffect(() => {
     if (!user || !canSubmit(user)) {
@@ -62,6 +167,9 @@ export default function SubmitPage() {
     terms != null &&
     (user.submission_terms_version == null || user.submission_terms_version < terms.version);
 
+  const atSlotCap = user.submit_slots_available <= 0;
+  const nextSlot = nextSlotAtPoints(user.reputation_points);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -73,13 +181,29 @@ export default function SubmitPage() {
     try {
       const edit = await api.submitVideo({
         youtube_url: form.youtube_url,
+        ...(ytMeta
+          ? {
+              channel_name: ytMeta.channel_name || undefined,
+              upload_date: ytMeta.upload_date || undefined,
+              duration_ms: ytMeta.duration_ms ?? undefined,
+              aspect_ratio: ytMeta.aspect_ratio || undefined,
+              resolution: ytMeta.resolution || undefined,
+              thumbnail_url: ytMeta.thumbnail_url || undefined,
+              metadata: ytMeta.metadata,
+            }
+          : {}),
         commercial: {
           title: form.commercial_title,
-          advertiser_name: form.advertiser_name || undefined,
-          year: form.year ? parseInt(form.year) : undefined,
+          ...(advertiser.advertiser_id
+            ? { advertiser_id: advertiser.advertiser_id }
+            : advertiser.advertiser_name
+              ? { advertiser_name: advertiser.advertiser_name }
+              : {}),
+          year: form.year ? parseInt(form.year, 10) : undefined,
+          decade: form.decade ? parseInt(form.decade, 10) : undefined,
         },
-        language: form.language || undefined,
-        region: form.region || undefined,
+        language: form.language || ytMeta?.language || undefined,
+        ...regionSelectionToPayload(regionSelection),
         transcript: form.transcript || undefined,
         slogan: form.slogan || undefined,
         tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
@@ -87,6 +211,7 @@ export default function SubmitPage() {
         terms_agreed: true,
       });
       navigate(`/edits/${edit.id}`);
+      await refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -97,9 +222,28 @@ export default function SubmitPage() {
   return (
     <div style={{ maxWidth: 760 }}>
       <h1 className="page-title">Submit Commercial Video</h1>
-      <p className="muted" style={{ marginBottom: "1.5rem" }}>
+      <p className="muted" style={{ marginBottom: "1rem" }}>
         Submissions enter the edit queue for community voting. Review the terms before submitting.
       </p>
+
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <p style={{ margin: 0 }}>
+          <strong>Submit slots:</strong> {user.submit_slots_used} / {user.submit_slots_max} in use
+          {" · "}
+          <strong>{user.reputation_points.toFixed(2)}</strong> reputation pts
+        </p>
+        {nextSlot != null && (
+          <p className="muted" style={{ margin: "0.5rem 0 0" }}>
+            Next slot unlocks at {nextSlot} points (earn +0.25 per approval, like, quality, or version
+            when your submission is approved).
+          </p>
+        )}
+        {atSlotCap && (
+          <p className="error" style={{ margin: "0.5rem 0 0" }}>
+            All submit slots are in use. Wait for open submissions to close or earn more reputation.
+          </p>
+        )}
+      </div>
 
       {termsLoading && <p className="muted">Loading terms...</p>}
 
@@ -126,9 +270,97 @@ export default function SubmitPage() {
           <input
             required
             value={form.youtube_url}
-            onChange={(e) => setForm({ ...form, youtube_url: e.target.value })}
+            onChange={(e) => {
+              const youtube_url = e.target.value;
+              setForm((prev) => ({ ...prev, youtube_url }));
+              if (!extractYouTubeId(youtube_url)) {
+                lastFetchedId.current = null;
+                setYtMeta(null);
+                setYtError("");
+              }
+            }}
             placeholder="https://www.youtube.com/watch?v=..."
           />
+          {ytLoading && (
+            <p className="muted" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
+              Fetching YouTube metadata…
+            </p>
+          )}
+          {ytError && !ytLoading && (
+            <p className="error" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
+              {ytError}
+            </p>
+          )}
+          {ytMeta && !ytLoading && (
+            <div style={{ marginTop: "0.75rem" }}>
+              {(ytMeta.thumbnail_url || ytMeta.youtube_id) && (
+                <img
+                  src={ytMeta.thumbnail_url || youtubeIdThumbnail(ytMeta.youtube_id)}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    maxHeight: 280,
+                    objectFit: "cover",
+                    borderRadius: 4,
+                    marginBottom: "0.75rem",
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  position: "relative",
+                  paddingBottom: "56.25%",
+                  height: 0,
+                  overflow: "hidden",
+                  borderRadius: 4,
+                  background: "#000",
+                }}
+              >
+                <iframe
+                  title="YouTube preview"
+                  src={`https://www.youtube-nocookie.com/embed/${ytMeta.youtube_id}`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    border: 0,
+                  }}
+                />
+              </div>
+              <div className="card" style={{ marginTop: "0.75rem", padding: "0.75rem" }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>
+                  {ytMeta.title}
+                  {ytMeta.is_short && (
+                    <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.85rem" }}>
+                      Short
+                    </span>
+                  )}
+                </p>
+                {ytMeta.channel_name && (
+                  <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>
+                    {ytMeta.channel_name}
+                    {ytMeta.duration_ms ? ` · ${formatDurationMs(ytMeta.duration_ms)}` : ""}
+                    {ytMeta.resolution ? ` · ${ytMeta.resolution}` : ""}
+                    {ytMeta.aspect_ratio ? ` · ${ytMeta.aspect_ratio}` : ""}
+                    {ytMeta.upload_date ? ` · uploaded ${ytMeta.upload_date}` : ""}
+                  </p>
+                )}
+                <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                  Pulled title, language, tags, captions, channel, and video details from YouTube.
+                </p>
+                {ytMeta.existing_video_sbid && (
+                  <p className="error" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                    This video is already in the database —{" "}
+                    <Link to={`/video/${ytMeta.existing_video_sbid}`}>view existing entry</Link>.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <div className="form-group">
           <label>Commercial Title *</label>
@@ -140,17 +372,40 @@ export default function SubmitPage() {
         </div>
         <div className="form-group">
           <label>Advertiser / Brand</label>
-          <input
-            value={form.advertiser_name}
-            onChange={(e) => setForm({ ...form, advertiser_name: e.target.value })}
+          <AdvertiserPicker
+            value={advertiser}
+            onChange={(next) => {
+              advertiserTouched.current = true;
+              setAdvertiser(next);
+            }}
           />
+          <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
+            Search an existing brand or enter a new one. New brands are shared for all submitters.
+          </p>
         </div>
         <div className="form-group">
-          <label>Year</label>
+          <label>Decade aired (rough estimate)</label>
+          <select
+            value={form.decade}
+            onChange={(e) => setForm({ ...form, decade: e.target.value })}
+          >
+            <option value="">Unknown / not sure</option>
+            {COMMERCIAL_DECADES.map((d) => (
+              <option key={d} value={d}>
+                {d}s
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Exact year (if known)</label>
           <input
             type="number"
+            min={1900}
+            max={2100}
             value={form.year}
             onChange={(e) => setForm({ ...form, year: e.target.value })}
+            placeholder="e.g. 1997"
           />
         </div>
         <div className="form-group">
@@ -162,13 +417,17 @@ export default function SubmitPage() {
           />
         </div>
         <div className="form-group">
-          <label>Region</label>
-          <input
-            value={form.region}
-            onChange={(e) => setForm({ ...form, region: e.target.value })}
-            placeholder="US"
-          />
+          <label htmlFor="region-select">Region</label>
+          <RegionSelect value={regionSelection} onChange={setRegionSelection} />
         </div>
+        {regionHasSubRegionPicker(regionSelection.region) && (
+          <div className="form-group">
+            <label htmlFor="sub-region-select">
+              {subRegionFieldLabel(regionSelection.region)}
+            </label>
+            <SubRegionSelect value={regionSelection} onChange={setRegionSelection} />
+          </div>
+        )}
         <div className="form-group">
           <label>Slogan</label>
           <input
@@ -215,7 +474,11 @@ export default function SubmitPage() {
         </label>
 
         {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-primary" disabled={loading || !termsAgreed}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={loading || !termsAgreed || atSlotCap}
+        >
           {loading ? "Submitting..." : "Submit for review"}
         </button>
       </form>

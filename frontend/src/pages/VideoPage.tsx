@@ -2,9 +2,14 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { useAuth, canSubmit } from "../auth";
+import VideoThumbnailUpload from "../components/VideoThumbnailUpload";
+import { formatRegionDisplay } from "../data/regions";
+import { videoThumbnailUrl } from "../utils/videoThumbnail";
 
 export default function VideoPage() {
   const { sbid } = useParams<{ sbid: string }>();
+  const { user } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ["video", sbid],
     queryFn: () => api.getVideo(sbid!),
@@ -15,9 +20,21 @@ export default function VideoPage() {
   if (error) return <p className="error">{(error as Error).message}</p>;
   if (!data) return null;
 
+  const thumb = videoThumbnailUrl(data);
+
   return (
     <div>
       <h1 className="page-title">{data.commercial?.title || data.slogan || "Video"}</h1>
+
+      {thumb && (
+        <div className="card" style={{ marginBottom: "1rem", padding: 0, overflow: "hidden" }}>
+          <img
+            src={thumb}
+            alt=""
+            style={{ width: "100%", display: "block", maxHeight: 420, objectFit: "cover" }}
+          />
+        </div>
+      )}
 
       {data.youtube_url && (
         <div className="card" style={{ marginBottom: "1rem" }}>
@@ -25,6 +42,10 @@ export default function VideoPage() {
             Watch on YouTube ({data.youtube_id})
           </a>
         </div>
+      )}
+
+      {user && canSubmit(user) && data.visibility === "public" && sbid && (
+        <VideoThumbnailUpload videoSbid={sbid} />
       )}
 
       {data.visibility !== "public" && (
@@ -47,7 +68,9 @@ export default function VideoPage() {
             </p>
           )}
           {data.language && <p>Language: {data.language}</p>}
-          {data.region && <p>Region: {data.region}</p>}
+          {formatRegionDisplay(data.region, data.sub_region) && (
+            <p>Region: {formatRegionDisplay(data.region, data.sub_region)}</p>
+          )}
           {data.duration_ms && <p>Duration: {Math.round(data.duration_ms / 1000)}s</p>}
           {data.slogan && <p>Slogan: {data.slogan}</p>}
         </div>

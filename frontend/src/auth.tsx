@@ -74,3 +74,7 @@ export function canSubmit(user: User | null) {
 export function isVoteOnly(user: User | null) {
   return !!user && user.access_level === "vote_only" && !user.can_submit;
 }
+
+export function isEmailVerified(user: User | null) {
+  return !!user?.email_verified;
+}

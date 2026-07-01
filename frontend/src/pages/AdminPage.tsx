@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type AdminUser, type AdminFingerprint } from "../api";
+import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus } from "../api";
 
-type Tab = "overview" | "users" | "fingerprints";
+type Tab = "overview" | "users" | "fingerprints" | "exports";
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [userQuery, setUserQuery] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [fpStatus, setFpStatus] = useState<string>("");
+  const [exportError, setExportError] = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -27,6 +29,14 @@ export default function AdminPage() {
     queryKey: ["admin-fingerprints", fpStatus],
     queryFn: () => api.adminFingerprints(fpStatus || undefined),
     enabled: tab === "fingerprints",
+  });
+
+  const { data: archiveExport, refetch: refetchArchiveExport } = useQuery({
+    queryKey: ["admin-archive-export"],
+    queryFn: () => api.adminArchiveExportStatus(),
+    enabled: tab === "exports",
+    refetchInterval: (query) =>
+      query.state.data?.status === "running" ? 5000 : false,
   });
 
   const refreshAll = () => {
@@ -57,6 +67,20 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
   };
 
+  const handleTriggerArchiveExport = async () => {
+    if (!confirm("Start Archive.org dataset export? This may take several minutes.")) return;
+    setExportLoading(true);
+    setExportError("");
+    try {
+      await api.adminTriggerArchiveExport();
+      await refetchArchiveExport();
+    } catch (err) {
+      setExportError((err as Error).message);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between" style={{ marginBottom: "1.5rem" }}>
@@ -74,6 +98,7 @@ export default function AdminPage() {
             ["overview", "Overview"],
             ["users", "Users"],
             ["fingerprints", "Fingerprints"],
+            ["exports", "Archive.org export"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -255,6 +280,105 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {tab === "exports" && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Internet Archive export</h2>
+          <p className="muted">
+            Builds a CC0 dataset with full video and brand metadata, site links, custom
+            thumbnails, brand logos, and YouTube preview images, then uploads to archive.org.
+          </p>
+
+          <ArchiveExportPanel
+            status={archiveExport}
+            loading={exportLoading}
+            error={exportError}
+            onTrigger={handleTriggerArchiveExport}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArchiveExportPanel({
+  status,
+  loading,
+  error,
+  onTrigger,
+}: {
+  status?: ArchiveExportStatus;
+  loading: boolean;
+  error: string;
+  onTrigger: () => void;
+}) {
+  const running = status?.status === "running";
+
+  return (
+    <div>
+      <p>
+        IA credentials:{" "}
+        <strong>{status?.configured ? "configured" : "not configured"}</strong>
+      </p>
+      <p>
+        Status: <span className={`badge badge-${running ? "open" : status?.status === "completed" ? "applied" : status?.status === "failed" ? "rejected" : "open"}`}>
+          {status?.status ?? "idle"}
+        </span>
+        {status?.stage && running && (
+          <span className="muted" style={{ marginLeft: "0.5rem" }}>
+            ({status.stage})
+          </span>
+        )}
+      </p>
+
+      {status?.started_at && (
+        <p className="muted">Started: {new Date(status.started_at).toLocaleString()}</p>
+      )}
+      {status?.finished_at && (
+        <p className="muted">Finished: {new Date(status.finished_at).toLocaleString()}</p>
+      )}
+
+      {(status?.video_count != null || status?.brand_count != null) && (
+        <ul style={{ margin: "0.75rem 0" }}>
+          {status.video_count != null && <li>{status.video_count} videos</li>}
+          {status.brand_count != null && <li>{status.brand_count} brands</li>}
+          {status.thumbnail_files != null && (
+            <li>{status.thumbnail_files} hosted thumbnails copied</li>
+          )}
+          {status.youtube_thumbnails_fetched != null && (
+            <li>{status.youtube_thumbnails_fetched} YouTube thumbnails fetched</li>
+          )}
+          {status.logo_files != null && <li>{status.logo_files} logo images copied</li>}
+        </ul>
+      )}
+
+      {status?.item_url && (
+        <p>
+          Archive item:{" "}
+          <a href={status.item_url} target="_blank" rel="noreferrer">
+            {status.identifier ?? status.item_url}
+          </a>
+        </p>
+      )}
+
+      {status?.bundle_path && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Bundle path: {status.bundle_path}
+        </p>
+      )}
+
+      {status?.error && <p className="error">{status.error}</p>}
+      {error && <p className="error">{error}</p>}
+
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={loading || running}
+        onClick={onTrigger}
+        style={{ marginTop: "0.75rem" }}
+      >
+        {loading ? "Queueing…" : running ? "Export running…" : "Export to Archive.org"}
+      </button>
     </div>
   );
 }

@@ -1,14 +1,15 @@
+import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_current_user_optional, require_submitter
-from app.auth.security import user_can_vote
+from app.auth.security import user_can_vote, user_email_verified
 from app.database import get_db
-from app.models import Edit, EditStatus, EditType, User, VoteChoice
+from app.models import Edit, EditStatus, EditType, User, Video, VoteChoice
 from app.schemas import (
     DuplicateMatchPublic,
     EditCreate,
@@ -17,12 +18,15 @@ from app.schemas import (
     VideoCreate,
     VoteCreate,
     VotePublic,
+    YouTubeMetadataPreview,
 )
 from app.services import EditService
+from app.services.advertisers import resolve_commercial_advertiser
 from app.services.edit_response import build_edit_public
 from app.services.fingerprint_queries import find_phash_duplicates, get_preview_fingerprint
 from app.services.hash_queue import create_preview_fingerprint, enqueue_hash_job
 from app.services.submission_terms import validate_and_record_terms_acceptance
+from app.services.youtube_metadata import fetch_youtube_metadata
 from app.utils import extract_youtube_id
 
 router = APIRouter(prefix="/edits", tags=["edits"])
@@ -54,17 +58,20 @@ async def create_edit(
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid edit type") from e
 
-    edit = await EditService.create_edit(
-        db,
-        user,
-        edit_type,
-        data.entity_type,
-        data.after_state,
-        before_state=data.before_state,
-        entity_id=data.entity_id,
-        comment=data.comment,
-        force_votable=data.force_votable,
-    )
+    try:
+        edit = await EditService.create_edit(
+            db,
+            user,
+            edit_type,
+            data.entity_type,
+            data.after_state,
+            before_state=data.before_state,
+            entity_id=data.entity_id,
+            comment=data.comment,
+            force_votable=data.force_votable,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     _schedule_pending_hash(background_tasks, edit)
     await db.refresh(edit, ["votes"])
     return await build_edit_public(db, edit)
@@ -94,31 +101,69 @@ async def submit_video(
     after_state["youtube_url"] = data.youtube_url
 
     if data.commercial:
-        after_state["commercial"] = data.commercial.model_dump()
+        commercial = data.commercial.model_dump()
         if data.commercial.products:
-            after_state["commercial"]["products"] = data.commercial.products
+            commercial["products"] = data.commercial.products
         if data.commercial.advertiser_id:
-            after_state["commercial"]["advertiser_id"] = str(data.commercial.advertiser_id)
+            commercial["advertiser_id"] = str(data.commercial.advertiser_id)
         if data.commercial.agency_id:
-            after_state["commercial"]["agency_id"] = str(data.commercial.agency_id)
+            commercial["agency_id"] = str(data.commercial.agency_id)
+        try:
+            resolved = await resolve_commercial_advertiser(
+                db,
+                user,
+                commercial,
+                brand_comment=data.comment,
+            )
+            commercial = resolved.commercial
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        after_state["commercial"] = commercial
+        if resolved.brand_edit:
+            after_state["brand_edit_id"] = str(resolved.brand_edit.id)
 
     if data.commercial_id:
         after_state["commercial_id"] = str(data.commercial_id)
 
-    edit = await EditService.create_edit(
-        db,
-        user,
-        EditType.CREATE_VIDEO,
-        "video",
-        after_state,
-        comment=data.comment,
-        force_votable=data.force_votable,
-    )
+    try:
+        edit = await EditService.create_edit(
+            db,
+            user,
+            EditType.CREATE_VIDEO,
+            "video",
+            after_state,
+            comment=data.comment,
+            force_votable=data.force_votable,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     if edit.status == EditStatus.OPEN:
         background_tasks.add_task(_schedule_preview_fingerprint, edit.id, youtube_id)
     _schedule_pending_hash(background_tasks, edit)
     await db.refresh(edit, ["votes"])
     return await build_edit_public(db, edit)
+
+
+@router.get("/youtube-metadata", response_model=YouTubeMetadataPreview)
+async def lookup_youtube_metadata(
+    url: str = Query(min_length=11, max_length=512),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_submitter),
+):
+    try:
+        youtube_id = extract_youtube_id(url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    try:
+        data = await asyncio.to_thread(fetch_youtube_metadata, url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    existing = await db.scalar(select(Video.sbid).where(Video.youtube_id == youtube_id))
+    return YouTubeMetadataPreview(**data, existing_video_sbid=existing)
 
 
 @router.get("/open", response_model=PaginatedResponse)
@@ -134,12 +179,15 @@ async def list_open_edits(
         .where(Edit.status == EditStatus.OPEN)
         .order_by(Edit.created_at.desc())
     )
+    total = await db.scalar(
+        select(func.count()).select_from(Edit).where(Edit.status == EditStatus.OPEN)
+    )
     result = await db.execute(stmt.offset(offset).limit(limit))
     edits = result.scalars().all()
     items = []
     for edit in edits:
         items.append((await build_edit_public(db, edit)).model_dump())
-    return PaginatedResponse(items=items, total=len(items), offset=offset, limit=limit)
+    return PaginatedResponse(items=items, total=total or 0, offset=offset, limit=limit)
 
 
 @router.get("/{edit_id}/duplicates", response_model=list[DuplicateMatchPublic])
@@ -176,6 +224,8 @@ async def vote_on_edit(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if not user_email_verified(user):
+        raise HTTPException(status_code=403, detail="Verify your email address before voting.")
     if not user_can_vote(user):
         raise HTTPException(status_code=403, detail="Not eligible to vote yet")
 

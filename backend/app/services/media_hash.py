@@ -16,28 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import async_session_factory
-from app.models import FingerprintStatus, MediaFingerprint, Video, VideoHashStatus
+from app.models import Edit, EditStatus, EditType, FingerprintStatus, MediaFingerprint, Video, VideoHashStatus
+from app.services.media_probe import merge_probe_into_state, probe_media_file, probe_video_fields
 from app.services.phash import compute_phash
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-
-
-def probe_duration(video_path: Path) -> float:
-    cmd = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        str(video_path),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr or "ffprobe failed")
-    return float(result.stdout.strip())
 
 
 def sha256_file(path: Path) -> str:
@@ -85,12 +69,23 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
     return max(files, key=lambda p: p.stat().st_size)
 
 
-def compute_all_hashes(video_path: Path) -> tuple[int, str, str, float]:
-    duration = probe_duration(video_path)
-    phash = compute_phash(video_path, duration)
+def compute_all_hashes(video_path: Path, probe: dict) -> tuple[int, str, str, float]:
+    duration_sec = float(probe.get("duration_sec") or 0)
+    if duration_sec <= 0:
+        raise RuntimeError("Could not determine media duration from ffprobe")
+    phash = compute_phash(video_path, duration_sec)
     file_hash = sha256_file(video_path)
     audio_fp = fpcalc_fingerprint(video_path)
-    return phash, file_hash, audio_fp, duration
+    return phash, file_hash, audio_fp, duration_sec
+
+
+async def _merge_probe_into_edit(db: AsyncSession, edit_id: UUID, probe: dict) -> None:
+    edit = await db.get(Edit, edit_id)
+    if not edit or edit.status != EditStatus.OPEN:
+        return
+    if edit.edit_type not in (EditType.CREATE_VIDEO, EditType.EDIT_VIDEO):
+        return
+    edit.after_state = merge_probe_into_state(edit.after_state or {}, probe)
 
 
 async def run_fingerprint_job(fingerprint_id: UUID) -> None:
@@ -113,7 +108,8 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
             (await _get_youtube_id(fingerprint_id)),
             temp_dir,
         )
-        phash, file_hash, audio_fp, duration = compute_all_hashes(video_path)
+        probe = probe_media_file(video_path)
+        phash, file_hash, audio_fp, duration = compute_all_hashes(video_path, probe)
 
         async with async_session_factory() as db:
             fp = await db.get(MediaFingerprint, fingerprint_id)
@@ -123,9 +119,13 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
             fp.file_sha256 = file_hash
             fp.audio_fingerprint = audio_fp
             fp.duration_sec = duration
+            fp.probe_data = probe
             fp.status = FingerprintStatus.COMPLETED
             fp.completed_at = datetime.now(UTC)
             fp.error_message = None
+
+            if fp.edit_id:
+                await _merge_probe_into_edit(db, fp.edit_id, probe)
 
             if fp.video_id:
                 await _copy_to_video(db, fp.video_id, fp)
@@ -159,6 +159,24 @@ async def _get_youtube_id(fingerprint_id: UUID) -> str:
         return fp.youtube_id
 
 
+def _apply_probe_to_video(video: Video, probe: dict) -> None:
+    derived = probe_video_fields(probe)
+    if derived.get("duration_ms") and not video.duration_ms:
+        video.duration_ms = derived["duration_ms"]
+    if derived.get("aspect_ratio") and not video.aspect_ratio:
+        video.aspect_ratio = derived["aspect_ratio"]
+    if derived.get("resolution") and not video.resolution:
+        video.resolution = derived["resolution"]
+    if derived.get("language") and not video.language:
+        video.language = derived["language"]
+
+    extra = dict(video.extra_data or {})
+    media_probe = dict(extra.get("media_probe") or {})
+    media_probe.update(probe)
+    extra["media_probe"] = media_probe
+    video.extra_data = extra
+
+
 async def _copy_to_video(db: AsyncSession, video_id: UUID, fp: MediaFingerprint) -> None:
     video = await db.get(Video, video_id)
     if not video:
@@ -170,6 +188,12 @@ async def _copy_to_video(db: AsyncSession, video_id: UUID, fp: MediaFingerprint)
     video.hashed_at = datetime.now(UTC)
     if fp.duration_sec and not video.duration_ms:
         video.duration_ms = int(fp.duration_sec * 1000)
+    if fp.probe_data:
+        _apply_probe_to_video(video, fp.probe_data)
+    if not video.thumbnail_url and fp.youtube_id:
+        from app.utils import youtube_thumbnail_url
+
+        video.thumbnail_url = youtube_thumbnail_url(fp.youtube_id)
 
 
 async def copy_preview_to_video(db: AsyncSession, edit_id: UUID, video_id: UUID) -> bool:

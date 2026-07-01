@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
-from app.auth.serializers import user_to_public
+from app.auth.serializers import user_to_public_basic
 from app.database import get_db
 from app.models import (
     DMCATakedown,
@@ -26,8 +26,15 @@ from app.schemas import (
     AdminStats,
     AdminUserActiveUpdate,
     AdminUserPublic,
+    ArchiveExportStatus,
     PaginatedResponse,
 )
+from app.services.archive_export_queue import (
+    enqueue_archive_export,
+    get_archive_export_status,
+    is_archive_export_running,
+)
+from app.services.archive_org_upload import archive_org_configured
 from app.services.hash_queue import enqueue_hash_job
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -92,7 +99,7 @@ async def list_users(
     users = result.scalars().all()
     items = [
         AdminUserPublic(
-            **user_to_public(u).model_dump(),
+            **user_to_public_basic(u).model_dump(),
             is_active=u.is_active,
         ).model_dump()
         for u in users
@@ -125,7 +132,7 @@ async def set_user_role(
     if new_role in (UserRole.MOD, UserRole.ADMIN):
         user.access_level = UserAccess.SUBMIT_AND_VOTE
     await db.flush()
-    return AdminUserPublic(**user_to_public(user).model_dump(), is_active=user.is_active)
+    return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
 
 
 @router.post("/users/{user_id}/access/{access}", response_model=AdminUserPublic)
@@ -150,7 +157,7 @@ async def set_user_access(
 
     user.access_level = new_access
     await db.flush()
-    return AdminUserPublic(**user_to_public(user).model_dump(), is_active=user.is_active)
+    return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
 
 
 @router.post("/users/{user_id}/active", response_model=AdminUserPublic)
@@ -170,7 +177,7 @@ async def set_user_active(
 
     user.is_active = data.is_active
     await db.flush()
-    return AdminUserPublic(**user_to_public(user).model_dump(), is_active=user.is_active)
+    return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
 
 
 @router.get("/fingerprints", response_model=PaginatedResponse)
@@ -218,3 +225,32 @@ async def retry_fingerprint(
     await db.flush()
     await enqueue_hash_job(fingerprint_id)
     return {"status": "queued", "id": str(fingerprint_id)}
+
+
+@router.get("/exports/archive-org/status", response_model=ArchiveExportStatus)
+async def archive_export_status(_admin: User = Depends(require_admin)):
+    payload = get_archive_export_status()
+    payload["configured"] = archive_org_configured()
+    return ArchiveExportStatus(**payload)
+
+
+@router.post("/exports/archive-org/trigger")
+async def trigger_archive_export(
+    admin: User = Depends(require_admin),
+):
+    if is_archive_export_running():
+        raise HTTPException(status_code=409, detail="An Archive.org export is already running")
+    if not archive_org_configured():
+        from app.config import get_settings
+
+        settings = get_settings()
+        if not settings.ia_skip_upload:
+            raise HTTPException(
+                status_code=400,
+                detail="Configure IA_ACCESS_KEY and IA_SECRET_KEY, or set IA_SKIP_UPLOAD=true for local bundles only",
+            )
+    try:
+        await enqueue_archive_export(admin.id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "queued"}

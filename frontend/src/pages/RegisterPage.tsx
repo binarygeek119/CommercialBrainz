@@ -13,7 +13,7 @@ export default function RegisterPage() {
     setError("");
     try {
       await register(form.username, form.email, form.password);
-      navigate("/");
+      navigate("/verify-email/pending");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -23,8 +23,9 @@ export default function RegisterPage() {
     <div style={{ maxWidth: 400, margin: "2rem auto" }}>
       <h1 className="page-title">Register</h1>
       <p className="muted" style={{ marginBottom: "1rem" }}>
-        New accounts start as <strong>vote-only</strong>. You can upgrade to submit commercial links
-        after passing a short quiz on our submission terms.
+        New accounts start as <strong>vote-only</strong>. We&apos;ll email you a verification link
+        — confirm your address to vote and submit. You can upgrade to submit access after passing a
+        short quiz on our submission terms.
       </p>
       <form onSubmit={handleSubmit} className="card">
         <div className="form-group">

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ORMModel(BaseModel):
@@ -31,6 +31,10 @@ class ResetPasswordRequest(BaseModel):
     password: str = Field(min_length=8)
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=10)
+
+
 class MessageResponse(BaseModel):
     message: str
 
@@ -42,6 +46,11 @@ class UserPublic(ORMModel):
     role: str
     access_level: str
     can_submit: bool
+    email_verified: bool
+    reputation_points: float = 0
+    submit_slots_max: int = 1
+    submit_slots_used: int = 0
+    submit_slots_available: int = 1
     is_auto_editor: bool
     accepted_edits_count: int
     submission_terms_version: int | None = None
@@ -98,7 +107,33 @@ class SubmissionTermsPublic(BaseModel):
 class AdvertiserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
+    website: str | None = Field(default=None, max_length=512)
+    country: str | None = Field(default=None, max_length=64)
+    founded_year: int | None = Field(default=None, ge=1800, le=2100)
+    industry: str | None = Field(default=None, max_length=128)
+    headquarters: str | None = Field(default=None, max_length=255)
+    parent_company: str | None = Field(default=None, max_length=255)
+    wikipedia_url: str | None = Field(default=None, max_length=512)
+    aliases: list[str] = Field(default_factory=list)
+    tagline: str | None = Field(default=None, max_length=512)
+    social: dict[str, str] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=4000)
     external_ids: dict = Field(default_factory=dict)
+
+
+class AdvertiserMetadataUpdate(BaseModel):
+    description: str | None = None
+    website: str | None = Field(default=None, max_length=512)
+    country: str | None = Field(default=None, max_length=64)
+    founded_year: int | None = Field(default=None, ge=1800, le=2100)
+    industry: str | None = Field(default=None, max_length=128)
+    headquarters: str | None = Field(default=None, max_length=255)
+    parent_company: str | None = Field(default=None, max_length=255)
+    wikipedia_url: str | None = Field(default=None, max_length=512)
+    aliases: list[str] = Field(default_factory=list)
+    tagline: str | None = Field(default=None, max_length=512)
+    social: dict[str, str] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=4000)
 
 
 class AdvertiserPublic(ORMModel):
@@ -106,7 +141,18 @@ class AdvertiserPublic(ORMModel):
     name: str
     slug: str
     description: str | None
+    logo_url: str | None = None
+    main_logo_id: UUID | None = None
+    website: str | None = None
+    country: str | None = None
+    founded_year: int | None = None
+    industry: str | None = None
+    headquarters: str | None = None
+    parent_company: str | None = None
+    wikipedia_url: str | None = None
+    metadata: dict = Field(default_factory=dict)
     external_ids: dict
+    status: str
     created_at: datetime
 
 
@@ -131,11 +177,19 @@ class CommercialCreate(BaseModel):
     advertiser_name: str | None = None
     agency_id: UUID | None = None
     agency_name: str | None = None
-    year: int | None = None
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    decade: int | None = Field(default=None, ge=1900, le=2100)
     campaign_name: str | None = None
     description: str | None = None
     external_ids: dict = Field(default_factory=dict)
     products: list[str] = Field(default_factory=list)
+
+    @field_validator("decade")
+    @classmethod
+    def validate_decade(cls, value: int | None) -> int | None:
+        if value is not None and value % 10 != 0:
+            raise ValueError("Decade must be a multiple of 10 (e.g. 1990 for the 1990s)")
+        return value
 
 
 class CommercialPublic(ORMModel):
@@ -144,6 +198,7 @@ class CommercialPublic(ORMModel):
     advertiser_id: UUID | None
     agency_id: UUID | None
     year: int | None
+    decade: int | None
     campaign_name: str | None
     description: str | None
     external_ids: dict
@@ -160,6 +215,7 @@ class VideoCreate(BaseModel):
     commercial: CommercialCreate | None = None
     youtube_url: str
     youtube_id: str | None = None
+    thumbnail_url: str | None = None
     channel_name: str | None = None
     upload_date: str | None = None
     duration_ms: int | None = None
@@ -167,6 +223,7 @@ class VideoCreate(BaseModel):
     resolution: str | None = None
     language: str | None = None
     region: str | None = None
+    sub_region: str | None = None
     market: str | None = None
     first_aired_date: str | None = None
     last_aired_date: str | None = None
@@ -187,6 +244,7 @@ class VideoPublic(ORMModel):
     commercial_id: UUID
     youtube_id: str | None = None
     youtube_url: str | None = None
+    thumbnail_url: str | None = None
     channel_name: str | None
     upload_date: str | None = None
     duration_ms: int | None
@@ -194,6 +252,7 @@ class VideoPublic(ORMModel):
     resolution: str | None
     language: str | None
     region: str | None
+    sub_region: str | None
     market: str | None
     first_aired_date: str | None = None
     last_aired_date: str | None = None
@@ -231,6 +290,39 @@ class AdvertiserDetail(AdvertiserPublic):
     commercials: list[CommercialPublic] = Field(default_factory=list)
 
 
+class AdvertiserLogoPublic(BaseModel):
+    id: UUID
+    advertiser_id: UUID
+    image_url: str
+    label: str | None = None
+    year: int | None = None
+    month: int | None = None
+    event: str | None = None
+    notes: str | None = None
+    popularity_score: int = 0
+    is_main: bool = False
+    context_label: str
+    created_at: datetime
+    viewer_vote: str | None = None
+
+
+class AdvertiserLogoPopularityVoteCreate(BaseModel):
+    choice: str | None = Field(
+        default=None,
+        description='Use "up", "down", or null to clear your vote.',
+    )
+
+    @field_validator("choice")
+    @classmethod
+    def validate_choice(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in ("up", "down"):
+            raise ValueError('choice must be "up", "down", or null')
+        return normalized
+
+
 # --- Edits ---
 
 
@@ -264,6 +356,7 @@ class FingerprintPreviewPublic(BaseModel):
     audio_fingerprint: str | None = None
     duration_sec: float | None = None
     error_message: str | None = None
+    probe: dict = Field(default_factory=dict)
 
 
 class DuplicateMatchPublic(BaseModel):
@@ -361,6 +454,27 @@ class AdminUserActiveUpdate(BaseModel):
     is_active: bool
 
 
+class ArchiveExportStatus(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    status: str = "idle"
+    configured: bool = False
+    started_at: str | None = None
+    finished_at: str | None = None
+    triggered_by: str | None = None
+    stage: str | None = None
+    export_id: str | None = None
+    identifier: str | None = None
+    item_url: str | None = None
+    bundle_path: str | None = None
+    video_count: int | None = None
+    brand_count: int | None = None
+    thumbnail_files: int | None = None
+    logo_files: int | None = None
+    youtube_thumbnails_fetched: int | None = None
+    error: str | None = None
+
+
 class ModStats(BaseModel):
     open_edits: int
     dmca_submitted: int
@@ -368,6 +482,25 @@ class ModStats(BaseModel):
     dmca_link_hidden: int
     pending_fingerprints: int
     failed_fingerprints: int
+
+
+class YouTubeMetadataPreview(BaseModel):
+    youtube_id: str
+    youtube_url: str
+    title: str | None = None
+    channel_name: str | None = None
+    upload_date: str | None = None
+    duration_ms: int | None = None
+    aspect_ratio: str | None = None
+    resolution: str | None = None
+    language: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    transcript: str | None = None
+    is_short: bool = False
+    suggested_comment: str | None = None
+    thumbnail_url: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    existing_video_sbid: UUID | None = None
 
 
 class AdminFingerprintPublic(BaseModel):

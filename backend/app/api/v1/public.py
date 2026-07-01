@@ -10,6 +10,7 @@ from app.auth.deps import get_current_user_optional
 from app.database import get_db
 from app.models import (
     Advertiser,
+    AdvertiserStatus,
     Agency,
     Commercial,
     CommercialProduct,
@@ -30,19 +31,24 @@ from app.schemas import (
     VideoPublic,
 )
 from app.services import SearchService
+from app.services.advertiser_metadata import advertiser_public_dict
 from app.services.fingerprint_queries import format_phash_hex
 from app.services.rate_limit import check_rate_limit, compute_etag
-from app.utils import extract_youtube_id
+from app.utils import youtube_thumbnail_url
 
 router = APIRouter(tags=["public"])
 
 
 def _video_public(v: Video) -> VideoPublic:
+    thumb = v.thumbnail_url
+    if not thumb and v.youtube_id and v.visibility == VideoVisibility.PUBLIC:
+        thumb = youtube_thumbnail_url(v.youtube_id)
     data = {
         "sbid": v.sbid,
         "commercial_id": v.commercial_id,
         "youtube_id": v.youtube_id if v.visibility == VideoVisibility.PUBLIC else None,
         "youtube_url": v.youtube_url if v.visibility == VideoVisibility.PUBLIC else None,
+        "thumbnail_url": thumb if v.visibility == VideoVisibility.PUBLIC else None,
         "channel_name": v.channel_name,
         "upload_date": v.upload_date.isoformat() if v.upload_date else None,
         "duration_ms": v.duration_ms,
@@ -50,6 +56,7 @@ def _video_public(v: Video) -> VideoPublic:
         "resolution": v.resolution,
         "language": v.language,
         "region": v.region,
+        "sub_region": v.sub_region,
         "market": v.market,
         "first_aired_date": v.first_aired_date.isoformat() if v.first_aired_date else None,
         "last_aired_date": v.last_aired_date.isoformat() if v.last_aired_date else None,
@@ -87,7 +94,7 @@ async def get_video(
     detail = VideoDetail(
         **_video_public(video).model_dump(),
         commercial=CommercialPublic.model_validate(video.commercial) if video.commercial else None,
-        advertiser=AdvertiserPublic.model_validate(video.commercial.advertiser)
+        advertiser=AdvertiserPublic(**advertiser_public_dict(video.commercial.advertiser))
         if video.commercial and video.commercial.advertiser
         else None,
         agency=AgencyPublic.model_validate(video.commercial.agency)
@@ -128,11 +135,43 @@ async def get_commercial(
     public_videos = [v for v in commercial.videos if v.visibility == VideoVisibility.PUBLIC]
     return CommercialDetail(
         **CommercialPublic.model_validate(commercial).model_dump(),
-        advertiser=AdvertiserPublic.model_validate(commercial.advertiser) if commercial.advertiser else None,
+        advertiser=AdvertiserPublic(**advertiser_public_dict(commercial.advertiser))
+        if commercial.advertiser
+        else None,
         agency=AgencyPublic.model_validate(commercial.agency) if commercial.agency else None,
         videos=[_video_public(v) for v in public_videos],
         products=[p.name for p in commercial.products],
     )
+
+
+@router.get("/advertisers", response_model=PaginatedResponse)
+async def list_advertisers(
+    request: Request,
+    q: str = Query(default="", max_length=255),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    """List advertisers/brands for submission metadata (searchable)."""
+    await check_rate_limit(request, user is not None)
+    stmt = select(Advertiser).where(Advertiser.status == AdvertiserStatus.APPROVED)
+    count_stmt = select(func.count()).select_from(Advertiser).where(
+        Advertiser.status == AdvertiserStatus.APPROVED
+    )
+    if q.strip():
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(Advertiser.name.ilike(pattern))
+        count_stmt = count_stmt.where(Advertiser.name.ilike(pattern))
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(Advertiser.name).offset(offset).limit(limit)
+    )
+    items = [
+        AdvertiserPublic(**advertiser_public_dict(a)).model_dump()
+        for a in result.scalars().all()
+    ]
+    return PaginatedResponse(items=items, total=total, offset=offset, limit=limit)
 
 
 @router.get("/advertisers/{sbid}", response_model=AdvertiserDetail)
@@ -147,10 +186,10 @@ async def get_advertiser(
         select(Advertiser).options(selectinload(Advertiser.commercials)).where(Advertiser.sbid == sbid)
     )
     advertiser = result.scalar_one_or_none()
-    if not advertiser:
+    if not advertiser or advertiser.status != AdvertiserStatus.APPROVED:
         raise HTTPException(status_code=404, detail="Advertiser not found")
     return AdvertiserDetail(
-        **AdvertiserPublic.model_validate(advertiser).model_dump(),
+        **AdvertiserPublic(**advertiser_public_dict(advertiser)).model_dump(),
         commercials=[CommercialPublic.model_validate(c) for c in advertiser.commercials],
     )
 

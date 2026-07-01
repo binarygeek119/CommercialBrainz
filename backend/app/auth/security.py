@@ -60,6 +60,12 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
     return user
 
 
+def user_email_verified(user: User) -> bool:
+    if user.role in (UserRole.MOD, UserRole.ADMIN) or user.is_auto_editor:
+        return True
+    return user.email_verified
+
+
 def user_can_submit(user: User) -> bool:
     if user.role in (UserRole.MOD, UserRole.ADMIN) or user.is_auto_editor:
         return True
@@ -69,6 +75,8 @@ def user_can_submit(user: User) -> bool:
 def user_can_vote(user: User) -> bool:
     if user.role in (UserRole.MOD, UserRole.ADMIN) or user.is_auto_editor:
         return True
+    if not user.email_verified:
+        return False
     account_age = datetime.now(UTC) - user.created_at.replace(tzinfo=UTC)
     return (
         account_age.days >= settings.voting_min_account_days

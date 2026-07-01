@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 
+import { formatCommercialPeriod } from "../utils/commercialPeriod";
+
 export default function CommercialPage() {
   const { sbid } = useParams<{ sbid: string }>();
   const { data, isLoading, error } = useQuery({
@@ -20,12 +22,14 @@ export default function CommercialPage() {
   const title = data.title as string;
   const description = data.description as string | undefined;
   const year = data.year as number | undefined;
+  const decade = data.decade as number | undefined;
+  const period = formatCommercialPeriod(year, decade);
 
   return (
     <div>
       <h1 className="page-title">{title}</h1>
       {description && <p className="muted">{description}</p>}
-      {year && <p>Year: {year}</p>}
+      {period && <p>Aired: {period}</p>}
 
       <h2 style={{ marginTop: "1.5rem" }}>Videos</h2>
       <div className="stack">

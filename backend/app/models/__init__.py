@@ -11,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -50,9 +51,23 @@ class EditType(str, enum.Enum):
     CREATE_COMMERCIAL = "create_commercial"
     EDIT_COMMERCIAL = "edit_commercial"
     MERGE_COMMERCIAL = "merge_commercial"
+    CREATE_ADVERTISER = "create_advertiser"
+    EDIT_ADVERTISER = "edit_advertiser"
+    ADD_ADVERTISER_LOGO = "add_advertiser_logo"
     REMOVE_VIDEO = "remove_video"
     ADD_CREDIT = "add_credit"
     ADD_TAG = "add_tag"
+
+
+class AdvertiserStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class LogoPopularityChoice(str, enum.Enum):
+    UP = "up"
+    DOWN = "down"
 
 
 class EditStatus(str, enum.Enum):
@@ -98,6 +113,13 @@ class VideoHashStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class ReputationCategory(str, enum.Enum):
+    APPROVAL = "approval"
+    LIKE = "like"
+    QUALITY = "quality"
+    VERSION = "version"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -112,14 +134,56 @@ class User(Base):
     submission_terms_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_auto_editor: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     accepted_edits_count: Mapped[int] = mapped_column(Integer, default=0)
+    reputation_points: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     edits: Mapped[list["Edit"]] = relationship(back_populates="editor")
     votes: Mapped[list["Vote"]] = relationship(back_populates="voter")
+    reputation_events: Mapped[list["ReputationEvent"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="email_verification_tokens")
+
+
+class ReputationEvent(Base):
+    __tablename__ = "reputation_events"
+    __table_args__ = (UniqueConstraint("edit_id", "category", name="uq_reputation_events_edit_category"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    edit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("edits.id", ondelete="CASCADE"))
+    category: Mapped[ReputationCategory] = mapped_column(
+        pg_enum(ReputationCategory, name="reputationcategory")
+    )
+    points: Mapped[float] = mapped_column(Numeric(10, 2))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="reputation_events")
 
 
 class PasswordResetToken(Base):
@@ -144,10 +208,87 @@ class Advertiser(Base):
     name: Mapped[str] = mapped_column(String(255), index=True)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(String(512))
+    main_logo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("advertiser_logos.id", ondelete="SET NULL"), nullable=True
+    )
+    website: Mapped[str | None] = mapped_column(String(512))
+    country: Mapped[str | None] = mapped_column(String(64))
+    founded_year: Mapped[int | None] = mapped_column(Integer)
+    industry: Mapped[str | None] = mapped_column(String(128))
+    headquarters: Mapped[str | None] = mapped_column(String(255))
+    parent_company: Mapped[str | None] = mapped_column(String(255))
+    wikipedia_url: Mapped[str | None] = mapped_column(String(512))
     external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    status: Mapped[AdvertiserStatus] = mapped_column(
+        pg_enum(AdvertiserStatus, name="advertiserstatus"),
+        default=AdvertiserStatus.APPROVED,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     commercials: Mapped[list["Commercial"]] = relationship(back_populates="advertiser")
+    logos: Mapped[list["AdvertiserLogo"]] = relationship(
+        back_populates="advertiser",
+        foreign_keys="AdvertiserLogo.advertiser_id",
+        cascade="all, delete-orphan",
+    )
+    main_logo: Mapped["AdvertiserLogo | None"] = relationship(
+        foreign_keys=[main_logo_id],
+        post_update=True,
+    )
+
+
+class AdvertiserLogo(Base):
+    __tablename__ = "advertiser_logos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    advertiser_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("advertisers.sbid", ondelete="CASCADE"), index=True
+    )
+    image_url: Mapped[str] = mapped_column(String(512))
+    label: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)
+    month: Mapped[int | None] = mapped_column(Integer)
+    event: Mapped[str | None] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id", ondelete="SET NULL"), nullable=True
+    )
+    popularity_score: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    advertiser: Mapped["Advertiser"] = relationship(
+        back_populates="logos", foreign_keys=[advertiser_id]
+    )
+    submitter: Mapped["User | None"] = relationship(foreign_keys=[submitted_by])
+    popularity_votes: Mapped[list["AdvertiserLogoVote"]] = relationship(
+        back_populates="logo", cascade="all, delete-orphan"
+    )
+
+
+class AdvertiserLogoVote(Base):
+    __tablename__ = "advertiser_logo_votes"
+    __table_args__ = (UniqueConstraint("logo_id", "voter_id", name="uq_logo_voter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    logo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("advertiser_logos.id", ondelete="CASCADE"), index=True
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[LogoPopularityChoice] = mapped_column(
+        pg_enum(LogoPopularityChoice, name="logopopularitychoice")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    logo: Mapped["AdvertiserLogo"] = relationship(back_populates="popularity_votes")
+    voter: Mapped["User"] = relationship()
 
 
 class Agency(Base):
@@ -175,6 +316,7 @@ class Commercial(Base):
         UUID(as_uuid=True), ForeignKey("agencies.sbid"), index=True
     )
     year: Mapped[int | None] = mapped_column(Integer)
+    decade: Mapped[int | None] = mapped_column(Integer)
     campaign_name: Mapped[str | None] = mapped_column(String(512))
     description: Mapped[str | None] = mapped_column(Text)
     external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
@@ -207,6 +349,7 @@ class Video(Base):
     )
     youtube_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     youtube_url: Mapped[str] = mapped_column(String(512))
+    thumbnail_url: Mapped[str | None] = mapped_column(String(512))
     channel_name: Mapped[str | None] = mapped_column(String(255))
     upload_date: Mapped[date | None] = mapped_column(Date)
     duration_ms: Mapped[int | None] = mapped_column(Integer)
@@ -214,6 +357,7 @@ class Video(Base):
     resolution: Mapped[str | None] = mapped_column(String(32))
     language: Mapped[str | None] = mapped_column(String(16))
     region: Mapped[str | None] = mapped_column(String(64))
+    sub_region: Mapped[str | None] = mapped_column(String(64))
     market: Mapped[str | None] = mapped_column(String(64))
     first_aired_date: Mapped[date | None] = mapped_column(Date)
     last_aired_date: Mapped[date | None] = mapped_column(Date)
@@ -375,6 +519,7 @@ class MediaFingerprint(Base):
     file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     audio_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+    probe_data: Mapped[dict] = mapped_column(JSONB, default=dict)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

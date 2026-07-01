@@ -9,6 +9,8 @@ from sqlalchemy.orm import selectinload
 from app.config import get_settings
 from app.models import (
     Advertiser,
+    AdvertiserLogo,
+    AdvertiserStatus,
     Agency,
     AuditLog,
     Commercial,
@@ -32,7 +34,8 @@ from app.models import (
     VoteChoice,
 )
 from app.services.media_hash import copy_preview_to_video
-from app.utils import extract_youtube_id, make_unique_slug, youtube_watch_url
+from app.services.reputation import assert_can_submit, award_reputation_for_applied_edit
+from app.utils import extract_youtube_id, make_unique_slug, youtube_thumbnail_url, youtube_watch_url
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -55,6 +58,9 @@ class EditService:
             editor.role in (UserRole.MOD, UserRole.ADMIN) or editor.is_auto_editor
         ) and not force_votable
 
+        if not is_auto:
+            await assert_can_submit(db, editor)
+
         expires_at = datetime.now(UTC) + timedelta(days=settings.edit_open_days)
         edit = Edit(
             edit_type=edit_type,
@@ -70,6 +76,11 @@ class EditService:
         db.add(edit)
         await db.flush()
 
+        if edit_type == EditType.CREATE_ADVERTISER:
+            from app.services.advertisers import prepare_create_advertiser_edit
+
+            await prepare_create_advertiser_edit(db, edit)
+
         if is_auto:
             edit.status = EditStatus.AUTOMATICALLY_APPLIED
             edit.closed_at = datetime.now(UTC)
@@ -79,6 +90,15 @@ class EditService:
                 edit._pending_hash_job = pending_hash  # noqa: SLF001
 
         return edit
+
+    @staticmethod
+    async def _complete_applied_edit(db: AsyncSession, edit: Edit) -> UUID | None:
+        pending_hash = await EditService.apply_edit(db, edit)
+        editor = await db.get(User, edit.editor_id)
+        if editor:
+            editor.accepted_edits_count += 1
+        await award_reputation_for_applied_edit(db, edit)
+        return pending_hash
 
     @staticmethod
     async def apply_edit(db: AsyncSession, edit: Edit) -> UUID | None:
@@ -102,6 +122,12 @@ class EditService:
             await EditService._apply_add_credit(db, edit, state)
         elif et == EditType.MERGE_COMMERCIAL:
             await EditService._apply_merge_commercial(db, edit, state)
+        elif et == EditType.CREATE_ADVERTISER:
+            await EditService._apply_create_advertiser(db, edit, state)
+        elif et == EditType.EDIT_ADVERTISER:
+            await EditService._apply_edit_advertiser(db, edit, state)
+        elif et == EditType.ADD_ADVERTISER_LOGO:
+            await EditService._apply_add_advertiser_logo(db, edit, state)
 
         if edit.status == EditStatus.OPEN:
             edit.status = EditStatus.APPLIED
@@ -111,16 +137,9 @@ class EditService:
 
     @staticmethod
     async def _apply_create_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
-        slug_result = await db.execute(select(Advertiser.slug))
-        existing_slugs = {r[0] for r in slug_result.all()}
-
         advertiser_id = state.get("advertiser_id")
         if state.get("advertiser_name") and not advertiser_id:
-            slug = make_unique_slug(state["advertiser_name"], existing_slugs)
-            adv = Advertiser(name=state["advertiser_name"], slug=slug)
-            db.add(adv)
-            await db.flush()
-            advertiser_id = str(adv.sbid)
+            raise ValueError("New brands must be approved before use — use advertiser_id")
 
         agency_id = state.get("agency_id")
         if state.get("agency_name") and not agency_id:
@@ -137,6 +156,7 @@ class EditService:
             advertiser_id=UUID(advertiser_id) if advertiser_id else None,
             agency_id=UUID(agency_id) if agency_id else None,
             year=state.get("year"),
+            decade=state.get("decade"),
             campaign_name=state.get("campaign_name"),
             description=state.get("description"),
             external_ids=state.get("external_ids", {}),
@@ -155,7 +175,7 @@ class EditService:
         if not commercial:
             edit.status = EditStatus.FAILED
             return
-        for field in ("title", "year", "campaign_name", "description", "advertiser_id", "agency_id"):
+        for field in ("title", "year", "decade", "campaign_name", "description", "advertiser_id", "agency_id"):
             if field in state:
                 val = state[field]
                 if field.endswith("_id") and val:
@@ -185,6 +205,7 @@ class EditService:
             commercial_id=UUID(commercial_id) if isinstance(commercial_id, str) else commercial_id,
             youtube_id=youtube_id,
             youtube_url=youtube_watch_url(youtube_id),
+            thumbnail_url=state.get("thumbnail_url") or youtube_thumbnail_url(youtube_id),
             channel_name=state.get("channel_name"),
             upload_date=date.fromisoformat(state["upload_date"]) if state.get("upload_date") else None,
             duration_ms=state.get("duration_ms"),
@@ -192,6 +213,7 @@ class EditService:
             resolution=state.get("resolution"),
             language=state.get("language"),
             region=state.get("region"),
+            sub_region=state.get("sub_region"),
             market=state.get("market"),
             first_aired_date=date.fromisoformat(state["first_aired_date"])
             if state.get("first_aired_date")
@@ -237,6 +259,19 @@ class EditService:
         if not video:
             edit.status = EditStatus.FAILED
             return
+
+        state = dict(state)
+        staging = state.pop("thumbnail_staging_file", None)
+        if staging:
+            from app.services.thumbnail_storage import finalize_staged_thumbnail
+
+            try:
+                state["thumbnail_url"] = finalize_staged_thumbnail(staging, video.sbid)
+            except (ValueError, FileNotFoundError) as exc:
+                edit.status = EditStatus.FAILED
+                logger.error("Thumbnail finalize failed for edit %s: %s", edit.id, exc)
+                return
+
         date_fields = {"upload_date", "first_aired_date", "last_aired_date"}
         for field, val in state.items():
             if field == "metadata":
@@ -260,6 +295,169 @@ class EditService:
     @staticmethod
     async def _apply_add_credit(db: AsyncSession, edit: Edit, state: dict) -> None:
         db.add(VideoCredit(video_id=edit.entity_id, role=state["role"], name=state["name"]))
+
+    @staticmethod
+    async def _apply_create_advertiser(db: AsyncSession, edit: Edit, state: dict) -> None:
+        advertiser_id = edit.entity_id
+        if not advertiser_id:
+            raw = state.get("advertiser_id")
+            advertiser_id = UUID(raw) if isinstance(raw, str) else raw
+        if not advertiser_id:
+            edit.status = EditStatus.FAILED
+            return
+
+        advertiser = await db.get(Advertiser, advertiser_id)
+        if not advertiser:
+            edit.status = EditStatus.FAILED
+            return
+
+        advertiser.status = AdvertiserStatus.APPROVED
+        from app.services.advertiser_metadata import apply_advertiser_state
+
+        apply_advertiser_state(advertiser, state)
+        if state.get("external_ids"):
+            advertiser.external_ids = state.get("external_ids", {})
+        edit.entity_id = advertiser.sbid
+
+    @staticmethod
+    async def _apply_edit_advertiser(db: AsyncSession, edit: Edit, state: dict) -> None:
+        advertiser_id = edit.entity_id
+        if not advertiser_id:
+            raw = state.get("advertiser_id")
+            advertiser_id = UUID(raw) if isinstance(raw, str) else raw
+        if not advertiser_id:
+            edit.status = EditStatus.FAILED
+            return
+
+        advertiser = await db.get(Advertiser, advertiser_id)
+        if not advertiser:
+            edit.status = EditStatus.FAILED
+            return
+
+        state = dict(state)
+        staging = state.pop("logo_staging_file", None)
+        if staging:
+            from app.services.advertiser_logos import recompute_main_logo
+            from app.services.logo_storage import finalize_staged_logo
+
+            logo = AdvertiserLogo(
+                advertiser_id=advertiser.sbid,
+                image_url=state.get("logo_url") or "",
+                label=state.get("label"),
+                year=state.get("year"),
+                month=state.get("month"),
+                event=state.get("event"),
+                notes=state.get("notes"),
+                submitted_by=edit.editor_id,
+                edit_id=edit.id,
+            )
+            db.add(logo)
+            await db.flush()
+            try:
+                logo.image_url = finalize_staged_logo(staging, advertiser.sbid, logo.id)
+            except (ValueError, FileNotFoundError) as exc:
+                edit.status = EditStatus.FAILED
+                logger.error("Logo finalize failed for edit %s: %s", edit.id, exc)
+                return
+            await recompute_main_logo(db, advertiser.sbid)
+            state.pop("logo_url", None)
+
+        from app.services.advertiser_metadata import apply_advertiser_state
+
+        apply_advertiser_state(advertiser, state)
+
+    @staticmethod
+    async def _apply_add_advertiser_logo(db: AsyncSession, edit: Edit, state: dict) -> None:
+        advertiser_id = edit.entity_id
+        if not advertiser_id:
+            raw = state.get("advertiser_id")
+            advertiser_id = UUID(raw) if isinstance(raw, str) else raw
+        if not advertiser_id:
+            edit.status = EditStatus.FAILED
+            return
+
+        advertiser = await db.get(Advertiser, advertiser_id)
+        if not advertiser:
+            edit.status = EditStatus.FAILED
+            return
+
+        state = dict(state)
+        staging = state.pop("logo_staging_file", None)
+        if not staging:
+            edit.status = EditStatus.FAILED
+            return
+
+        from app.services.advertiser_logos import create_logo_from_edit
+        from app.services.logo_storage import finalize_staged_logo
+
+        logo = await create_logo_from_edit(
+            db,
+            advertiser_id=advertiser.sbid,
+            image_url=state.get("logo_url") or "",
+            editor_id=edit.editor_id,
+            edit_id=edit.id,
+            label=state.get("label"),
+            year=state.get("year"),
+            month=state.get("month"),
+            event=state.get("event"),
+            notes=state.get("notes"),
+        )
+        try:
+            logo.image_url = finalize_staged_logo(staging, advertiser.sbid, logo.id)
+        except (ValueError, FileNotFoundError) as exc:
+            edit.status = EditStatus.FAILED
+            logger.error("Logo finalize failed for edit %s: %s", edit.id, exc)
+            await db.delete(logo)
+            return
+
+        from app.services.advertiser_logos import recompute_main_logo
+
+        await recompute_main_logo(db, advertiser.sbid)
+
+    @staticmethod
+    async def _reject_create_advertiser(db: AsyncSession, edit: Edit) -> None:
+        if not edit.entity_id:
+            return
+        advertiser = await db.get(Advertiser, edit.entity_id)
+        if advertiser and advertiser.status == AdvertiserStatus.PENDING:
+            advertiser.status = AdvertiserStatus.REJECTED
+
+    @staticmethod
+    async def reject_edit(db: AsyncSession, edit: Edit) -> None:
+        if edit.status != EditStatus.OPEN:
+            return
+        edit.status = EditStatus.REJECTED
+        edit.closed_at = datetime.now(UTC)
+        if edit.edit_type == EditType.CREATE_ADVERTISER:
+            await EditService._reject_create_advertiser(db, edit)
+        elif edit.edit_type == EditType.EDIT_VIDEO:
+            staging = (edit.after_state or {}).get("thumbnail_staging_file")
+            if staging:
+                from app.services.thumbnail_storage import discard_staged_thumbnail
+
+                discard_staged_thumbnail(staging)
+        elif edit.edit_type == EditType.EDIT_ADVERTISER:
+            staging = (edit.after_state or {}).get("logo_staging_file")
+            if staging:
+                from app.services.logo_storage import discard_staged_logo
+
+                discard_staged_logo(staging)
+        elif edit.edit_type == EditType.ADD_ADVERTISER_LOGO:
+            staging = (edit.after_state or {}).get("logo_staging_file")
+            if staging:
+                from app.services.logo_storage import discard_staged_logo
+
+                discard_staged_logo(staging)
+
+    @staticmethod
+    def _vote_threshold(edit: Edit) -> int:
+        if edit.edit_type in (
+            EditType.CREATE_ADVERTISER,
+            EditType.EDIT_ADVERTISER,
+            EditType.ADD_ADVERTISER_LOGO,
+        ):
+            return settings.brand_early_close_votes
+        return settings.edit_early_close_votes
 
     @staticmethod
     async def _apply_merge_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
@@ -304,20 +502,16 @@ class EditService:
         votes = result.scalars().all()
         yes = sum(1 for v in votes if v.choice == VoteChoice.YES)
         no = sum(1 for v in votes if v.choice == VoteChoice.NO)
-        threshold = settings.edit_early_close_votes
+        threshold = EditService._vote_threshold(edit)
 
         if yes >= threshold and no == 0:
             edit.status = EditStatus.APPLIED
             edit.closed_at = datetime.now(UTC)
-            pending_hash = await EditService.apply_edit(db, edit)
+            pending_hash = await EditService._complete_applied_edit(db, edit)
             if pending_hash is not None:
                 edit._pending_hash_job = pending_hash  # noqa: SLF001
-            editor = await db.get(User, edit.editor_id)
-            if editor:
-                editor.accepted_edits_count += 1
         elif no >= threshold and yes == 0:
-            edit.status = EditStatus.REJECTED
-            edit.closed_at = datetime.now(UTC)
+            await EditService.reject_edit(db, edit)
 
     @staticmethod
     async def expire_open_edits(db: AsyncSession) -> tuple[int, list[UUID]]:
@@ -335,15 +529,12 @@ class EditService:
             no = sum(1 for v in votes if v.choice == VoteChoice.NO)
 
             if no >= yes and no > 0:
-                edit.status = EditStatus.REJECTED
+                await EditService.reject_edit(db, edit)
             else:
                 edit.status = EditStatus.APPLIED
-                pending_hash = await EditService.apply_edit(db, edit)
+                pending_hash = await EditService._complete_applied_edit(db, edit)
                 if pending_hash is not None:
                     pending_jobs.append(pending_hash)
-                editor = await db.get(User, edit.editor_id)
-                if editor:
-                    editor.accepted_edits_count += 1
 
             edit.closed_at = now
             count += 1
@@ -438,7 +629,14 @@ class SearchService:
                 results.append({"type": "commercial", "sbid": c.sbid, "title": c.title, "subtitle": None})
 
         if entity_type in ("advertiser", "all"):
-            stmt = select(Advertiser).where(func.lower(Advertiser.name).like(q)).limit(limit)
+            stmt = (
+                select(Advertiser)
+                .where(
+                    func.lower(Advertiser.name).like(q),
+                    Advertiser.status == AdvertiserStatus.APPROVED,
+                )
+                .limit(limit)
+            )
             rows = await db.execute(stmt)
             for a in rows.scalars().all():
                 results.append({"type": "advertiser", "sbid": a.sbid, "title": a.name, "subtitle": None})

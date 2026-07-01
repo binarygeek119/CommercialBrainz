@@ -74,11 +74,7 @@ async def mod_apply_edit(
 
     edit.status = EditStatus.APPLIED
     edit.closed_at = datetime.now(UTC)
-    pending_hash = await EditService.apply_edit(db, edit)
-
-    editor = await db.get(User, edit.editor_id)
-    if editor:
-        editor.accepted_edits_count += 1
+    pending_hash = await EditService._complete_applied_edit(db, edit)
 
     await db.flush()
 
@@ -103,7 +99,6 @@ async def mod_reject_edit(
     if not edit or edit.status != EditStatus.OPEN:
         raise HTTPException(status_code=404, detail="Open edit not found")
 
-    edit.status = EditStatus.REJECTED
-    edit.closed_at = datetime.now(UTC)
+    await EditService.reject_edit(db, edit)
     await db.flush()
     return await build_edit_public(db, edit)
