@@ -81,6 +81,34 @@ export interface DuplicateMatch {
   hamming_distance: number;
 }
 
+export interface AdminStats {
+  users: number;
+  videos: number;
+  open_edits: number;
+  pending_fingerprints: number;
+  failed_fingerprints: number;
+  pending_video_hashes: number;
+  open_dmca: number;
+}
+
+export interface AdminUser extends User {
+  is_active: boolean;
+}
+
+export interface AdminFingerprint {
+  id: string;
+  edit_id: string | null;
+  video_id: string | null;
+  youtube_id: string;
+  phase: string;
+  status: string;
+  phash?: string | null;
+  file_sha256?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+}
+
 export interface Edit {
   id: string;
   edit_type: string;
@@ -202,4 +230,32 @@ export const api = {
 
   setUserRole: (userId: string, role: string) =>
     request<User>(`/admin/users/${userId}/role/${role}`, { method: "POST" }),
+
+  adminStats: () =>
+    request<AdminStats>("/admin/stats"),
+
+  adminUsers: (q?: string, offset = 0) =>
+    request<Paginated<AdminUser>>(
+      `/admin/users?offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ""}`
+    ),
+
+  adminSetUserRole: (userId: string, role: string) =>
+    request<AdminUser>(`/admin/users/${userId}/role/${role}`, { method: "POST" }),
+
+  adminSetUserAccess: (userId: string, access: string) =>
+    request<AdminUser>(`/admin/users/${userId}/access/${access}`, { method: "POST" }),
+
+  adminSetUserActive: (userId: string, isActive: boolean) =>
+    request<AdminUser>(`/admin/users/${userId}/active`, {
+      method: "POST",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+
+  adminFingerprints: (status?: string, offset = 0) =>
+    request<Paginated<AdminFingerprint>>(
+      `/admin/fingerprints?offset=${offset}${status ? `&status=${status}` : ""}`
+    ),
+
+  adminRetryFingerprint: (id: string) =>
+    request<{ status: string }>(`/admin/fingerprints/${id}/retry`, { method: "POST" }),
 };

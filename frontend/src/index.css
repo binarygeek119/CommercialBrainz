@@ -314,3 +314,19 @@ code, .mono {
 .terms-view-compact h3 {
   font-size: 0.95rem;
 }
+
+.admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.admin-stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.nav-links a.nav-admin {
+  color: var(--warning);
+}

@@ -325,3 +325,56 @@ class PaginatedResponse(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+# --- Admin ---
+
+
+class AdminStats(BaseModel):
+    users: int
+    videos: int
+    open_edits: int
+    pending_fingerprints: int
+    failed_fingerprints: int
+    pending_video_hashes: int
+    open_dmca: int
+
+
+class AdminUserPublic(UserPublic):
+    is_active: bool
+
+
+class AdminUserActiveUpdate(BaseModel):
+    is_active: bool
+
+
+class AdminFingerprintPublic(BaseModel):
+    id: UUID
+    edit_id: UUID | None
+    video_id: UUID | None
+    youtube_id: str
+    phase: str
+    status: str
+    phash: str | None = None
+    file_sha256: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+
+    @classmethod
+    def from_row(cls, row) -> "AdminFingerprintPublic":
+        from app.services.fingerprint_queries import format_phash_hex
+
+        return cls(
+            id=row.id,
+            edit_id=row.edit_id,
+            video_id=row.video_id,
+            youtube_id=row.youtube_id,
+            phase=row.phase.value,
+            status=row.status.value,
+            phash=format_phash_hex(row.phash),
+            file_sha256=row.file_sha256,
+            error_message=row.error_message,
+            created_at=row.created_at,
+            completed_at=row.completed_at,
+        )

@@ -1,25 +1,115 @@
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
 from app.auth.serializers import user_to_public
 from app.database import get_db
-from app.models import User, UserRole, UserAccess
-from app.schemas import UserPublic
+from app.models import (
+    DMCATakedown,
+    DMCAStatus,
+    Edit,
+    EditStatus,
+    FingerprintStatus,
+    MediaFingerprint,
+    User,
+    UserAccess,
+    UserRole,
+    Video,
+    VideoHashStatus,
+)
+from app.schemas import (
+    AdminFingerprintPublic,
+    AdminStats,
+    AdminUserActiveUpdate,
+    AdminUserPublic,
+    PaginatedResponse,
+)
+from app.services.hash_queue import enqueue_hash_job
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.post("/users/{user_id}/role/{role}", response_model=UserPublic)
+@router.get("/stats", response_model=AdminStats)
+async def admin_stats(
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    users = await db.scalar(select(func.count()).select_from(User))
+    videos = await db.scalar(select(func.count()).select_from(Video))
+    open_edits = await db.scalar(
+        select(func.count()).select_from(Edit).where(Edit.status == EditStatus.OPEN)
+    )
+    pending_fp = await db.scalar(
+        select(func.count())
+        .select_from(MediaFingerprint)
+        .where(MediaFingerprint.status == FingerprintStatus.PENDING)
+    )
+    failed_fp = await db.scalar(
+        select(func.count())
+        .select_from(MediaFingerprint)
+        .where(MediaFingerprint.status == FingerprintStatus.FAILED)
+    )
+    pending_hash = await db.scalar(
+        select(func.count()).select_from(Video).where(Video.hash_status == VideoHashStatus.PENDING)
+    )
+    dmca_open = await db.scalar(
+        select(func.count())
+        .select_from(DMCATakedown)
+        .where(DMCATakedown.status.in_([DMCAStatus.SUBMITTED, DMCAStatus.UNDER_REVIEW]))
+    )
+    return AdminStats(
+        users=users or 0,
+        videos=videos or 0,
+        open_edits=open_edits or 0,
+        pending_fingerprints=pending_fp or 0,
+        failed_fingerprints=failed_fp or 0,
+        pending_video_hashes=pending_hash or 0,
+        open_dmca=dmca_open or 0,
+    )
+
+
+@router.get("/users", response_model=PaginatedResponse)
+async def list_users(
+    q: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, le=100),
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    stmt = select(User).order_by(User.created_at.desc())
+    count_stmt = select(func.count()).select_from(User)
+    if q:
+        pattern = f"%{q.strip()}%"
+        filt = (User.username.ilike(pattern)) | (User.email.ilike(pattern))
+        stmt = stmt.where(filt)
+        count_stmt = count_stmt.where(filt)
+    total = await db.scalar(count_stmt)
+    result = await db.execute(stmt.offset(offset).limit(limit))
+    users = result.scalars().all()
+    items = [
+        AdminUserPublic(
+            **user_to_public(u).model_dump(),
+            is_active=u.is_active,
+        ).model_dump()
+        for u in users
+    ]
+    return PaginatedResponse(items=items, total=total or len(items), offset=offset, limit=limit)
+
+
+@router.post("/users/{user_id}/role/{role}", response_model=AdminUserPublic)
 async def set_user_role(
     user_id: UUID,
     role: str,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
+    if user_id == admin.id and role != UserRole.ADMIN.value:
+        raise HTTPException(status_code=400, detail="Cannot demote yourself")
+
     try:
         new_role = UserRole(role)
     except ValueError as e:
@@ -35,4 +125,96 @@ async def set_user_role(
     if new_role in (UserRole.MOD, UserRole.ADMIN):
         user.access_level = UserAccess.SUBMIT_AND_VOTE
     await db.flush()
-    return user_to_public(user)
+    return AdminUserPublic(**user_to_public(user).model_dump(), is_active=user.is_active)
+
+
+@router.post("/users/{user_id}/access/{access}", response_model=AdminUserPublic)
+async def set_user_access(
+    user_id: UUID,
+    access: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    try:
+        new_access = UserAccess(access)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid access level") from e
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role in (UserRole.MOD, UserRole.ADMIN):
+        raise HTTPException(status_code=400, detail="Use role change for mods/admins")
+
+    user.access_level = new_access
+    await db.flush()
+    return AdminUserPublic(**user_to_public(user).model_dump(), is_active=user.is_active)
+
+
+@router.post("/users/{user_id}/active", response_model=AdminUserPublic)
+async def set_user_active(
+    user_id: UUID,
+    data: AdminUserActiveUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    if user_id == admin.id and not data.is_active:
+        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_active = data.is_active
+    await db.flush()
+    return AdminUserPublic(**user_to_public(user).model_dump(), is_active=user.is_active)
+
+
+@router.get("/fingerprints", response_model=PaginatedResponse)
+async def list_fingerprints(
+    status: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, le=100),
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    stmt = select(MediaFingerprint).order_by(MediaFingerprint.created_at.desc())
+    if status:
+        try:
+            fp_status = FingerprintStatus(status)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid status") from e
+        stmt = stmt.where(MediaFingerprint.status == fp_status)
+        count_stmt = select(func.count()).select_from(MediaFingerprint).where(
+            MediaFingerprint.status == fp_status
+        )
+    else:
+        count_stmt = select(func.count()).select_from(MediaFingerprint)
+
+    total = await db.scalar(count_stmt)
+    result = await db.execute(stmt.offset(offset).limit(limit))
+    rows = result.scalars().all()
+    items = [AdminFingerprintPublic.from_row(r).model_dump() for r in rows]
+    return PaginatedResponse(items=items, total=total or len(items), offset=offset, limit=limit)
+
+
+@router.post("/fingerprints/{fingerprint_id}/retry")
+async def retry_fingerprint(
+    fingerprint_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    fp = await db.get(MediaFingerprint, fingerprint_id)
+    if not fp:
+        raise HTTPException(status_code=404, detail="Fingerprint job not found")
+
+    fp.status = FingerprintStatus.PENDING
+    fp.error_message = None
+    fp.started_at = None
+    fp.completed_at = None
+    await db.flush()
+    await enqueue_hash_job(fingerprint_id)
+    return {"status": "queued", "id": str(fingerprint_id)}

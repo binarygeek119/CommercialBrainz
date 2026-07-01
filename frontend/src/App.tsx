@@ -12,6 +12,8 @@ import EditsPage from "./pages/EditsPage";
 import EditDetailPage from "./pages/EditDetailPage";
 import DMCAPage from "./pages/DMCAPage";
 import ModQueuePage from "./pages/ModQueuePage";
+import AdminPage from "./pages/AdminPage";
+import AdminRoute from "./components/AdminRoute";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 
@@ -31,6 +33,9 @@ export default function App() {
         <Route path="edits/:id" element={<EditDetailPage />} />
         <Route path="dmca" element={<DMCAPage />} />
         <Route path="mod" element={<ModQueuePage />} />
+        <Route element={<AdminRoute />}>
+          <Route path="admin" element={<AdminPage />} />
+        </Route>
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
       </Route>

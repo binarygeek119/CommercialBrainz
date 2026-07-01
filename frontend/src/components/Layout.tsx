@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { useAuth, isMod, isVoteOnly, canSubmit } from "../auth";
+import { useAuth, isMod, isAdmin, isVoteOnly, canSubmit } from "../auth";
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -23,6 +23,7 @@ export default function Layout() {
             <NavLink to="/edits">Open Edits</NavLink>
             <NavLink to="/dmca">DMCA</NavLink>
             {isMod(user) && <NavLink to="/mod">Mod Queue</NavLink>}
+            {isAdmin(user) && <NavLink to="/admin" className="nav-admin">Admin</NavLink>}
             {user ? (
               <>
                 <span className="muted">
