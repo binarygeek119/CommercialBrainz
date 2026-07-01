@@ -31,6 +31,36 @@ async def seed_admin(email: str, username: str, password: str) -> None:
         print(f"Admin user '{username}' created successfully.")
 
 
+async def set_user_role(
+    *,
+    username: str | None,
+    email: str | None,
+    role: str,
+) -> None:
+    try:
+        new_role = UserRole(role)
+    except ValueError as e:
+        raise SystemExit(f"Invalid role '{role}'. Use: user, mod, admin") from e
+
+    async with async_session_factory() as db:
+        user = None
+        if username:
+            user = await get_user_by_username(db, username)
+        elif email:
+            user = await get_user_by_email(db, email)
+        else:
+            raise SystemExit("Provide --username or --email")
+
+        if not user:
+            label = username or email
+            raise SystemExit(f"User not found: {label}")
+
+        user.role = new_role
+        user.is_auto_editor = new_role in (UserRole.MOD, UserRole.ADMIN)
+        await db.commit()
+        print(f"User '{user.username}' role set to {new_role.value}.")
+
+
 async def expire_edits_cmd() -> None:
     from app.services import EditService
 
@@ -56,6 +86,11 @@ def main() -> None:
     seed.add_argument("--username", required=True)
     seed.add_argument("--password")
 
+    role_cmd = sub.add_parser("set-role", help="Change an existing user's role")
+    role_cmd.add_argument("--username")
+    role_cmd.add_argument("--email")
+    role_cmd.add_argument("--role", required=True, choices=["user", "mod", "admin"])
+
     sub.add_parser("expire-edits", help="Process expired open edits")
     sub.add_parser("generate-dump", help="Generate public data dump")
 
@@ -64,6 +99,12 @@ def main() -> None:
     if args.command == "seed-admin":
         password = args.password or getpass.getpass("Admin password: ")
         asyncio.run(seed_admin(args.email, args.username, password))
+    elif args.command == "set-role":
+        if not args.username and not args.email:
+            parser.error("set-role requires --username or --email")
+        asyncio.run(
+            set_user_role(username=args.username, email=args.email, role=args.role)
+        )
     elif args.command == "expire-edits":
         asyncio.run(expire_edits_cmd())
     elif args.command == "generate-dump":
