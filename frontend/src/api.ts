@@ -58,17 +58,17 @@ export interface Paginated<T> {
 }
 
 function getToken(): string | null {
-  return localStorage.getItem("spotbrainz_token");
+  return localStorage.getItem("commercialbrainz_token");
 }
 
 export function setToken(token: string | null) {
-  if (token) localStorage.setItem("spotbrainz_token", token);
-  else localStorage.removeItem("spotbrainz_token");
+  if (token) localStorage.setItem("commercialbrainz_token", token);
+  else localStorage.removeItem("commercialbrainz_token");
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
-    "User-Agent": "SpotBrainz-Web/0.1.0 (https://spotbrainz.org)",
+    "User-Agent": "CommercialBrainz-Web/0.1.0 (https://commercialbrainz.org)",
     ...(options.headers as Record<string, string>),
   };
   const token = getToken();

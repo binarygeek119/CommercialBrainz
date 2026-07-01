@@ -48,7 +48,7 @@ async def generate_dump_cmd() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="spotbrainz", description="SpotBrainz CLI")
+    parser = argparse.ArgumentParser(prog="commercialbrainz", description="CommercialBrainz CLI")
     sub = parser.add_subparsers(dest="command")
 
     seed = sub.add_parser("seed-admin", help="Create admin user")

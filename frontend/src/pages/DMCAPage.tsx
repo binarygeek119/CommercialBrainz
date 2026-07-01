@@ -40,12 +40,12 @@ export default function DMCAPage() {
       <h1 className="page-title">DMCA Takedown Notice</h1>
       <p className="muted" style={{ marginBottom: "1.5rem" }}>
         Submit a DMCA takedown request to hide a YouTube link from public view.
-        Metadata is preserved for archival purposes. Contact: dmca@spotbrainz.org
+        Metadata is preserved for archival purposes. Contact: dmca@commercialbrainz.org
       </p>
 
       <form onSubmit={handleSubmit} className="card" style={{ maxWidth: 600 }}>
         <div className="form-group">
-          <label>Video SBID *</label>
+          <label>Video CBID *</label>
           <input
             required
             value={form.video_sbid}

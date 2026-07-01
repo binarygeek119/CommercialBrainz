@@ -1,0 +1,15 @@
+# VM override: expose web on port 80, keep DB/Redis internal-only
+services:
+  postgres:
+    ports: []
+
+  redis:
+    ports: []
+
+  web:
+    ports:
+      - "80:80"
+
+  api:
+    ports:
+      - "8000:8000"

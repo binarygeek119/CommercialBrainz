@@ -6,7 +6,7 @@ export default function AdvertiserPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["advertiser", sbid],
     queryFn: () => fetch(`/api/v1/advertisers/${sbid}`, {
-      headers: { "User-Agent": "SpotBrainz-Web/0.1.0" },
+      headers: { "User-Agent": "CommercialBrainz-Web/0.1.0" },
     }).then((r) => r.json()),
     enabled: !!sbid,
   });

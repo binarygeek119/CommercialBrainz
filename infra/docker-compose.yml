@@ -2,16 +2,16 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: spotbrainz
-      POSTGRES_PASSWORD: spotbrainz
-      POSTGRES_DB: spotbrainz
+      POSTGRES_USER: commercialbrainz
+      POSTGRES_PASSWORD: commercialbrainz
+      POSTGRES_DB: commercialbrainz
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./gcloud/cloudsql-init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U spotbrainz"]
+      test: ["CMD-SHELL", "pg_isready -U commercialbrainz"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -35,8 +35,8 @@ services:
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://spotbrainz:spotbrainz@postgres:5432/spotbrainz
-      DATABASE_URL_SYNC: postgresql://spotbrainz:spotbrainz@postgres:5432/spotbrainz
+      DATABASE_URL: postgresql+asyncpg://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz
+      DATABASE_URL_SYNC: postgresql://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
@@ -54,8 +54,8 @@ services:
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://spotbrainz:spotbrainz@postgres:5432/spotbrainz
-      DATABASE_URL_SYNC: postgresql://spotbrainz:spotbrainz@postgres:5432/spotbrainz
+      DATABASE_URL: postgresql+asyncpg://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz
+      DATABASE_URL_SYNC: postgresql://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:

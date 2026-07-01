@@ -9,7 +9,7 @@ export default function Layout() {
       <nav className="navbar">
         <div className="container navbar-inner">
           <Link to="/" className="logo">
-            Spot<span>Brainz</span>
+            Commercial<span>Brainz</span>
           </Link>
           <div className="nav-links">
             <NavLink to="/browse">Browse</NavLink>

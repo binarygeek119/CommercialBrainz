@@ -1,7 +1,7 @@
 [project]
-name = "spotbrainz"
+name = "commercialbrainz"
 version = "0.1.0"
-description = "SpotBrainz — open commercial video database"
+description = "CommercialBrainz — open commercial video database"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -32,7 +32,7 @@ dev = [
 ]
 
 [project.scripts]
-spotbrainz = "app.cli:main"
+commercialbrainz = "app.cli:main"
 
 [build-system]
 requires = ["setuptools>=75.0"]

@@ -1,6 +1,6 @@
-# SpotBrainz
+# CommercialBrainz
 
-**SpotBrainz** is an open commercial video database modeled after [MusicBrainz](https://musicbrainz.org). Each entry represents one YouTube video of a single commercial, with rich metadata, community edits, voting, and a scrape-friendly public API.
+**CommercialBrainz** is an open commercial video database modeled after [MusicBrainz](https://musicbrainz.org). Each entry represents one YouTube video of a single commercial, with rich metadata, community edits, voting, and a scrape-friendly public API.
 
 ## Features
 
@@ -26,7 +26,7 @@ Seed an admin user:
 
 ```bash
 docker compose -f infra/docker-compose.yml exec api \
-  spotbrainz seed-admin --email admin@example.com --username admin --password yourpassword
+  commercialbrainz seed-admin --email admin@example.com --username admin --password yourpassword
 ```
 
 ## Linux setup
@@ -47,7 +47,65 @@ cd backend && arq app.workers.settings.WorkerSettings   # worker
 cd frontend && npm run dev                               # frontend
 ```
 
-## Google Cloud deployment
+## Google Cloud — free VM (e2-micro)
+
+The cheapest way to run CommercialBrainz on GCP uses the **Always Free** e2-micro instance (1 vCPU, 1 GB RAM) in `us-west1`, `us-central1`, or `us-east1`. Everything runs on one VM via Docker Compose.
+
+Prerequisites: `gcloud` CLI, billing account (free tier still requires one).
+
+```bash
+chmod +x scripts/setup-gcloud-vm.sh
+GCP_PROJECT_ID=your-project ./scripts/setup-gcloud-vm.sh
+```
+
+Optional admin seed on first boot:
+
+```bash
+GCP_PROJECT_ID=your-project \
+ADMIN_EMAIL=admin@example.com \
+ADMIN_USERNAME=admin \
+ADMIN_PASSWORD=yourpassword \
+./scripts/setup-gcloud-vm.sh
+```
+
+After 10–20 minutes (Docker build on e2-micro is slow):
+
+- Web UI: `http://EXTERNAL_IP/`
+- API docs: `http://EXTERNAL_IP:8000/docs`
+
+Monitor startup:
+
+```bash
+gcloud compute ssh commercialbrainz-vm --zone=us-central1-a \
+  --command='sudo tail -f /var/log/commercialbrainz-startup.log'
+```
+
+See [scripts/setup-gcloud-vm.sh](scripts/setup-gcloud-vm.sh) and [infra/gcloud/vm-startup.sh](infra/gcloud/vm-startup.sh).
+
+### DuckDNS (free hostname for your VM)
+
+1. Create a subdomain at [duckdns.org](https://www.duckdns.org/) and copy your token.
+2. Deploy the VM with DuckDNS (updates DNS immediately + every 5 min on the VM):
+
+```bash
+GCP_PROJECT_ID=your-project \
+DUCKDNS_DOMAIN=commercialbrainz \
+DUCKDNS_TOKEN=your-duckdns-token \
+./scripts/setup-gcloud-vm.sh
+```
+
+3. After startup: `http://commercialbrainz.duckdns.org/` (web) and `:8000/docs` (API).
+
+Add DuckDNS to an **existing** VM:
+
+```bash
+DUCKDNS_DOMAIN=commercialbrainz DUCKDNS_TOKEN=your-token \
+GCP_PROJECT_ID=your-project ./scripts/setup-duckdns-gcloud.sh
+```
+
+DuckDNS is ideal with ephemeral GCE IPs (no static IP cost). For HTTPS, add a reverse proxy (e.g. Caddy + Let's Encrypt) in front of port 80.
+
+## Google Cloud — production (Cloud Run)
 
 Prerequisites: `gcloud` CLI, billing enabled, Docker.
 
@@ -107,11 +165,11 @@ OpenAPI spec: `/docs` or `/openapi.json`
 
 ## DMCA policy
 
-Copyright holders may submit takedown notices via `/dmca` or `POST /api/v1/dmca`. Valid claims hide the YouTube link from public API responses while preserving archival metadata. Contact: dmca@spotbrainz.org
+Copyright holders may submit takedown notices via `/dmca` or `POST /api/v1/dmca`. Valid claims hide the YouTube link from public API responses while preserving archival metadata. Contact: dmca@commercialbrainz.org
 
 ## Data license
 
-SpotBrainz data is released under **[CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/)** (public domain dedication).
+CommercialBrainz data is released under **[CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/)** (public domain dedication).
 
 ## Development
 
@@ -135,9 +193,9 @@ cd backend
 arq app.workers.settings.WorkerSettings
 
 # CLI
-spotbrainz seed-admin --email admin@example.com --username admin
-spotbrainz expire-edits
-spotbrainz generate-dump
+commercialbrainz seed-admin --email admin@example.com --username admin
+commercialbrainz expire-edits
+commercialbrainz generate-dump
 ```
 
 ## Project structure
@@ -150,9 +208,9 @@ spotbrainz generate-dump
 └── .github/workflows/ CI pipeline
 ```
 
-## Identifiers (SBID)
+## Identifiers (CBID)
 
-Every entity has a **SpotBrainz ID** (SBID) — UUID v4 used in URLs and API:
+Every entity has a **CommercialBrainz ID** (CBID) — UUID v4 used in URLs and API:
 
 ```
 /commercial/550e8400-e29b-41d4-a716-446655440000

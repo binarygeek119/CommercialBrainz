@@ -1,1 +1,1 @@
-"""SpotBrainz backend application."""
+"""CommercialBrainz backend application."""

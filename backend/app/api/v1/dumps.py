@@ -19,7 +19,7 @@ async def latest_dump_info():
     dumps_dir = Path("dumps")
     if not dumps_dir.exists():
         return {"available": False, "message": "No dumps generated yet"}
-    files = sorted(dumps_dir.glob("spotbrainz-*.json.gz"), reverse=True)
+    files = sorted(dumps_dir.glob("commercialbrainz-*.json.gz"), reverse=True)
     if not files:
         return {"available": False, "message": "No dumps generated yet"}
     latest = files[0]
@@ -47,7 +47,7 @@ async def generate_dump(output_dir: Path | None = None) -> Path:
     output_dir = output_dir or Path("dumps")
     output_dir.mkdir(parents=True, exist_ok=True)
     date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-    output_path = output_dir / f"spotbrainz-{date_str}.json.gz"
+    output_path = output_dir / f"commercialbrainz-{date_str}.json.gz"
 
     async with async_session_factory() as db:
         result = await db.execute(

@@ -22,4 +22,4 @@ async def test_health(client):
 async def test_openapi(client):
     response = await client.get("/openapi.json")
     assert response.status_code == 200
-    assert "SpotBrainz" in response.json()["info"]["title"]
+    assert "CommercialBrainz" in response.json()["info"]["title"]

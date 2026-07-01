@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 export default function HomePage() {
   return (
     <div className="hero">
-      <h1>SpotBrainz</h1>
+      <h1>CommercialBrainz</h1>
       <p>
         The open commercial video database. One entry per YouTube video, rich metadata,
         community edits, and MusicBrainz-style voting.

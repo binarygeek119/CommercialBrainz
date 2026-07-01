@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# SpotBrainz Linux setup script (Ubuntu 22.04+ / Debian)
+# CommercialBrainz Linux setup script (Ubuntu 22.04+ / Debian)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-echo "==> SpotBrainz setup for Linux"
+echo "==> CommercialBrainz setup for Linux"
 
 if [[ $EUID -ne 0 ]]; then
   SUDO="sudo"
@@ -28,11 +28,11 @@ if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d v) -lt 20
 fi
 
 echo "==> Configuring PostgreSQL..."
-$SUDO -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='spotbrainz'" | grep -q 1 || \
-  $SUDO -u postgres psql -c "CREATE USER spotbrainz WITH PASSWORD 'spotbrainz';"
-$SUDO -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='spotbrainz'" | grep -q 1 || \
-  $SUDO -u postgres psql -c "CREATE DATABASE spotbrainz OWNER spotbrainz;"
-$SUDO -u postgres psql -d spotbrainz -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" 2>/dev/null || true
+$SUDO -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='commercialbrainz'" | grep -q 1 || \
+  $SUDO -u postgres psql -c "CREATE USER commercialbrainz WITH PASSWORD 'commercialbrainz';"
+$SUDO -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='commercialbrainz'" | grep -q 1 || \
+  $SUDO -u postgres psql -c "CREATE DATABASE commercialbrainz OWNER commercialbrainz;"
+$SUDO -u postgres psql -d commercialbrainz -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" 2>/dev/null || true
 
 echo "==> Starting Redis..."
 $SUDO systemctl enable redis-server 2>/dev/null || true
@@ -69,7 +69,7 @@ if [[ "${SEED_ADMIN:-}" == "1" ]]; then
   echo
   source .venv/bin/activate
   cd backend
-  spotbrainz seed-admin --email "$ADMIN_EMAIL" --username "$ADMIN_USERNAME" --password "$ADMIN_PASSWORD"
+  commercialbrainz seed-admin --email "$ADMIN_EMAIL" --username "$ADMIN_USERNAME" --password "$ADMIN_PASSWORD"
   cd "$ROOT"
 else
   echo "==> To seed admin: SEED_ADMIN=1 ./scripts/setup-linux.sh"

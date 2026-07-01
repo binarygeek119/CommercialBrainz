@@ -35,7 +35,7 @@ async def send_email(to: str, subject: str, body: str) -> bool:
 async def notify_dmca_submitted(claimant_email: str, video_id: str) -> None:
     await send_email(
         claimant_email,
-        "SpotBrainz DMCA Notice Received",
+        "CommercialBrainz DMCA Notice Received",
         f"Your DMCA takedown request for video {video_id} has been received and is under review.",
     )
     await send_email(
@@ -48,6 +48,6 @@ async def notify_dmca_submitted(claimant_email: str, video_id: str) -> None:
 async def notify_dmca_decision(claimant_email: str, video_id: str, status: str) -> None:
     await send_email(
         claimant_email,
-        f"SpotBrainz DMCA Decision: {status}",
+        f"CommercialBrainz DMCA Decision: {status}",
         f"Your DMCA request for video {video_id} has been updated to status: {status}.",
     )

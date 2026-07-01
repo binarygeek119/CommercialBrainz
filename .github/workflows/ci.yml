@@ -13,9 +13,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: spotbrainz
-          POSTGRES_PASSWORD: spotbrainz
-          POSTGRES_DB: spotbrainz
+          POSTGRES_USER: commercialbrainz
+          POSTGRES_PASSWORD: commercialbrainz
+          POSTGRES_DB: commercialbrainz
         ports:
           - 5432:5432
         options: >-
@@ -54,15 +54,15 @@ jobs:
 
       - name: Run migrations
         env:
-          DATABASE_URL_SYNC: postgresql://spotbrainz:spotbrainz@localhost:5432/spotbrainz
-          DATABASE_URL: postgresql+asyncpg://spotbrainz:spotbrainz@localhost:5432/spotbrainz
+          DATABASE_URL_SYNC: postgresql://commercialbrainz:commercialbrainz@localhost:5432/commercialbrainz
+          DATABASE_URL: postgresql+asyncpg://commercialbrainz:commercialbrainz@localhost:5432/commercialbrainz
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-test-secret-key
         run: alembic upgrade head
 
       - name: Pytest
         env:
-          DATABASE_URL: postgresql+asyncpg://spotbrainz:spotbrainz@localhost:5432/spotbrainz
+          DATABASE_URL: postgresql+asyncpg://commercialbrainz:commercialbrainz@localhost:5432/commercialbrainz
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-test-secret-key
         run: pytest -v
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build API image
-        run: docker build -f infra/Dockerfile.api -t spotbrainz-api:ci .
+        run: docker build -f infra/Dockerfile.api -t commercialbrainz-api:ci .
 
       - name: Build web image
-        run: docker build -f infra/Dockerfile.web -t spotbrainz-web:ci .
+        run: docker build -f infra/Dockerfile.web -t commercialbrainz-web:ci .

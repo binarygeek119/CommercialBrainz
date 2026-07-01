@@ -29,11 +29,11 @@ async def generate_dump(ctx):
 
 
 async def startup(ctx):
-    logger.info("SpotBrainz worker started")
+    logger.info("CommercialBrainz worker started")
 
 
 async def shutdown(ctx):
-    logger.info("SpotBrainz worker stopped")
+    logger.info("CommercialBrainz worker stopped")
 
 
 class WorkerSettings:
