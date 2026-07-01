@@ -52,7 +52,9 @@ class Settings(BaseSettings):
     ia_skip_upload: bool = False
 
     hash_temp_dir: str = "/tmp/commercialbrainz-hash"
-    ytdlp_format: str = "best[height<=480]/best"
+    ytdlp_format: str = (
+        "bv*[height<=480]+ba/b[height<=480]/bv*+ba/b"
+    )
     hash_max_file_mb: int = 200
     thumbnail_max_bytes: int = 2 * 1024 * 1024
     thumbnail_upload_dir: str = "/data/thumbnails"

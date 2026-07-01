@@ -78,7 +78,9 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
     cd /opt/commercialbrainz
     echo '--- git rev ---'
     sudo git rev-parse --short HEAD 2>/dev/null || echo '(unknown)'
-    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps
+    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps -a
+    echo '--- api container state ---'
+    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps api web worker postgres 2>/dev/null || true
     echo '--- migration fix in api image? ---'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml run --rm --no-deps api \
       grep -q 'videohashstatus AS ENUM' alembic/versions/004_media_fingerprints.py \
@@ -86,7 +88,11 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
       || echo 'MISSING: rebuild api with ./scripts/deploy-gcloud-vm.sh'
     echo '--- localhost via caddy ---'
     curl -sf http://127.0.0.1/health && echo 'OK: localhost/health via caddy' \
-      || echo 'FAIL: localhost/health (try: docker compose restart caddy)'
+      || echo 'FAIL: localhost/health (run: sudo bash scripts/fix-gcloud-vm.sh)'
+    echo '--- caddy -> api direct ---'
+    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml exec -T caddy \
+      wget -qO- http://api:8000/health 2>/dev/null && echo 'OK: caddy can reach api:8000' \
+      || echo 'FAIL: caddy cannot reach api (recreate stack: scripts/fix-gcloud-vm.sh)'
     echo '--- recent caddy logs ---'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs caddy --tail=10
     echo '--- recent api logs ---'

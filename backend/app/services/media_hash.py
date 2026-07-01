@@ -48,25 +48,51 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     output_template = str(dest_dir / "%(id)s.%(ext)s")
-    cmd = [
-        "yt-dlp",
-        "--no-playlist",
-        "-f",
-        settings.ytdlp_format,
-        "--max-filesize",
-        f"{settings.hash_max_file_mb}M",
-        "-o",
-        output_template,
-        url,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr or result.stdout or "yt-dlp download failed")
 
-    files = [p for p in dest_dir.iterdir() if p.is_file()]
-    if not files:
-        raise RuntimeError("yt-dlp produced no output file")
-    return max(files, key=lambda p: p.stat().st_size)
+    format_candidates = [
+        settings.ytdlp_format,
+        "bestvideo[height<=480]+bestaudio/best[height<=480]",
+        "bestvideo+bestaudio/best",
+        "b/w",
+    ]
+    seen: set[str] = set()
+    last_error = "yt-dlp download failed"
+
+    for fmt in format_candidates:
+        if fmt in seen:
+            continue
+        seen.add(fmt)
+
+        cmd = [
+            "yt-dlp",
+            "--no-playlist",
+            "-f",
+            fmt,
+            "--merge-output-format",
+            "mp4",
+            "--max-filesize",
+            f"{settings.hash_max_file_mb}M",
+            "-o",
+            output_template,
+            url,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            last_error = (result.stderr or result.stdout or last_error).strip()
+            logger.warning(
+                "yt-dlp format %r failed for %s: %s",
+                fmt,
+                youtube_id,
+                last_error.splitlines()[-1] if last_error else "",
+            )
+            continue
+
+        files = [p for p in dest_dir.iterdir() if p.is_file()]
+        if files:
+            return max(files, key=lambda p: p.stat().st_size)
+        last_error = "yt-dlp produced no output file"
+
+    raise RuntimeError(last_error)
 
 
 def compute_all_hashes(video_path: Path, probe: dict) -> tuple[int, str, str, float]:

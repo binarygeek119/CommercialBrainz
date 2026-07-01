@@ -8,39 +8,19 @@
 
 (commercialbrainz_proxy) {
 	handle /api/* {
-		reverse_proxy http://api:8000 {
-			health_uri /health
-			health_interval 15s
-			health_timeout 5s
-		}
+		reverse_proxy http://api:8000
 	}
 	handle /docs* {
-		reverse_proxy http://api:8000 {
-			health_uri /health
-			health_interval 15s
-			health_timeout 5s
-		}
+		reverse_proxy http://api:8000
 	}
 	handle /redoc* {
-		reverse_proxy http://api:8000 {
-			health_uri /health
-			health_interval 15s
-			health_timeout 5s
-		}
+		reverse_proxy http://api:8000
 	}
 	handle /openapi.json {
-		reverse_proxy http://api:8000 {
-			health_uri /health
-			health_interval 15s
-			health_timeout 5s
-		}
+		reverse_proxy http://api:8000
 	}
 	handle /health {
-		reverse_proxy http://api:8000 {
-			health_uri /health
-			health_interval 15s
-			health_timeout 5s
-		}
+		reverse_proxy http://api:8000
 	}
 	handle {
 		reverse_proxy http://web:80
