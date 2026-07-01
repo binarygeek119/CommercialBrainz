@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.submission_terms_v1 import SUBMISSION_TERMS_V1
-from app.models import SubmissionTermsDocument
+from app.models import SubmissionTermsDocument, User
 
 
 async def get_active_submission_terms(db: AsyncSession) -> SubmissionTermsDocument | None:
