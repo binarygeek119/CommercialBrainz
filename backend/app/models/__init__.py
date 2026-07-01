@@ -20,6 +20,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+def pg_enum(enum_cls: type[enum.Enum], *, name: str) -> Enum:
+    """Map Python enums to existing PostgreSQL ENUM types by value, not member name."""
+    return Enum(enum_cls, name=name, values_callable=lambda x: [e.value for e in x])
+
+
 class UserRole(str, enum.Enum):
     USER = "user"
     MOD = "mod"
@@ -74,7 +79,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER)
+    role: Mapped[UserRole] = mapped_column(pg_enum(UserRole, name="userrole"), default=UserRole.USER)
     is_auto_editor: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     accepted_edits_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -170,7 +175,7 @@ class Video(Base):
     cta_text: Mapped[str | None] = mapped_column(String(512))
     extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     visibility: Mapped[VideoVisibility] = mapped_column(
-        Enum(VideoVisibility), default=VideoVisibility.PUBLIC
+        pg_enum(VideoVisibility, name="videovisibility"), default=VideoVisibility.PUBLIC
     )
     submitted_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
@@ -233,8 +238,10 @@ class Edit(Base):
     __tablename__ = "edits"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    edit_type: Mapped[EditType] = mapped_column(Enum(EditType))
-    status: Mapped[EditStatus] = mapped_column(Enum(EditStatus), default=EditStatus.OPEN)
+    edit_type: Mapped[EditType] = mapped_column(pg_enum(EditType, name="edittype"))
+    status: Mapped[EditStatus] = mapped_column(
+        pg_enum(EditStatus, name="editstatus"), default=EditStatus.OPEN
+    )
     entity_type: Mapped[str] = mapped_column(String(64))
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     before_state: Mapped[dict | None] = mapped_column(JSONB)
@@ -258,7 +265,7 @@ class Vote(Base):
         UUID(as_uuid=True), ForeignKey("edits.id", ondelete="CASCADE"), index=True
     )
     voter_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
-    choice: Mapped[VoteChoice] = mapped_column(Enum(VoteChoice))
+    choice: Mapped[VoteChoice] = mapped_column(pg_enum(VoteChoice, name="votechoice"))
     comment: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -273,7 +280,9 @@ class DMCATakedown(Base):
     video_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("videos.sbid"), index=True
     )
-    status: Mapped[DMCAStatus] = mapped_column(Enum(DMCAStatus), default=DMCAStatus.SUBMITTED)
+    status: Mapped[DMCAStatus] = mapped_column(
+        pg_enum(DMCAStatus, name="dmcstatus"), default=DMCAStatus.SUBMITTED
+    )
     claimant_name: Mapped[str] = mapped_column(String(255))
     claimant_email: Mapped[str] = mapped_column(String(255))
     claimant_address: Mapped[str | None] = mapped_column(Text)
