@@ -1,0 +1,54 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: spotbrainz-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cloudsql-instances: "${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"
+    spec:
+      containerConcurrency: 80
+      containers:
+        - image: ${REGION}-docker.pkg.dev/${PROJECT_ID}/spotbrainz/api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: spotbrainz-database-url
+                  key: latest
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: spotbrainz-redis-url
+                  key: latest
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spotbrainz-secret-key
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: spotbrainz-web
+spec:
+  template:
+    spec:
+      containers:
+        - image: ${REGION}-docker.pkg.dev/${PROJECT_ID}/spotbrainz/web:latest
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: "1"
+              memory: 256Mi

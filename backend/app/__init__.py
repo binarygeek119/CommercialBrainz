@@ -1,0 +1,1 @@
+"""SpotBrainz backend application."""

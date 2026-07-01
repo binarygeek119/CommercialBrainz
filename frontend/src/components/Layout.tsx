@@ -1,0 +1,42 @@
+import { Link, NavLink, Outlet } from "react-router-dom";
+import { useAuth, isMod } from "../auth";
+
+export default function Layout() {
+  const { user, logout } = useAuth();
+
+  return (
+    <>
+      <nav className="navbar">
+        <div className="container navbar-inner">
+          <Link to="/" className="logo">
+            Spot<span>Brainz</span>
+          </Link>
+          <div className="nav-links">
+            <NavLink to="/browse">Browse</NavLink>
+            <NavLink to="/search">Search</NavLink>
+            <NavLink to="/submit">Submit</NavLink>
+            <NavLink to="/edits">Open Edits</NavLink>
+            <NavLink to="/dmca">DMCA</NavLink>
+            {isMod(user) && <NavLink to="/mod">Mod Queue</NavLink>}
+            {user ? (
+              <>
+                <span className="muted">{user.username}</span>
+                <button className="btn btn-secondary" onClick={logout}>
+                  Log out
+                </button>
+              </>
+            ) : (
+              <>
+                <NavLink to="/login">Log in</NavLink>
+                <NavLink to="/register">Register</NavLink>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
+      <main className="container">
+        <Outlet />
+      </main>
+    </>
+  );
+}
