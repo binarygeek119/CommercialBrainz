@@ -58,6 +58,12 @@ chmod +x scripts/setup-gcloud-vm.sh
 GCP_PROJECT_ID=your-project ./scripts/setup-gcloud-vm.sh
 ```
 
+The script **automatically tries alternate free-tier zones** if `us-central1-a` (or your chosen zone) has no e2-micro capacity. To pin a specific zone:
+
+```bash
+GCP_ZONE=us-east1-b GCP_AUTO_ZONE=0 GCP_PROJECT_ID=your-project ./scripts/setup-gcloud-vm.sh
+```
+
 Optional admin seed on first boot:
 
 ```bash
