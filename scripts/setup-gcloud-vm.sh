@@ -27,6 +27,7 @@
 #   CREATE_STATIC_IP  Set to 1 to reserve a static external IP
 #   DUCKDNS_DOMAIN    DuckDNS subdomain only (e.g. commercialbrainz → commercialbrainz.duckdns.org)
 #   DUCKDNS_TOKEN     DuckDNS token from https://www.duckdns.org/
+#   ACME_EMAIL        Email for Let's Encrypt (enables HTTPS when DuckDNS is set)
 #
 set -euo pipefail
 
@@ -180,7 +181,7 @@ gcloud config set project "$PROJECT_ID"
 echo "==> Enabling Compute Engine API..."
 gcloud services enable compute.googleapis.com
 
-echo "==> Creating firewall rule (HTTP + API)..."
+echo "==> Ensuring firewall rules (HTTP + HTTPS)..."
 if ! gcloud compute firewall-rules describe commercialbrainz-allow-web --project="$PROJECT_ID" &>/dev/null; then
   gcloud compute firewall-rules create commercialbrainz-allow-web \
     --project="$PROJECT_ID" \
@@ -188,12 +189,27 @@ if ! gcloud compute firewall-rules describe commercialbrainz-allow-web --project
     --priority=1000 \
     --network=default \
     --action=ALLOW \
-    --rules=tcp:80,tcp:8000 \
+    --rules=tcp:80 \
     --source-ranges=0.0.0.0/0 \
     --target-tags="$FIREWALL_TAG" \
-    --description="CommercialBrainz web UI (80) and API (8000)"
+    --description="CommercialBrainz HTTP (Caddy + Let's Encrypt challenge)"
 else
-  echo "    Firewall rule already exists."
+  echo "    HTTP firewall rule already exists."
+fi
+
+if ! gcloud compute firewall-rules describe commercialbrainz-allow-https --project="$PROJECT_ID" &>/dev/null; then
+  gcloud compute firewall-rules create commercialbrainz-allow-https \
+    --project="$PROJECT_ID" \
+    --direction=INGRESS \
+    --priority=1000 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:443 \
+    --source-ranges=0.0.0.0/0 \
+    --target-tags="$FIREWALL_TAG" \
+    --description="CommercialBrainz HTTPS (Let's Encrypt via Caddy)"
+else
+  echo "    HTTPS firewall rule already exists."
 fi
 
 STATIC_IP_FLAG=()
@@ -214,6 +230,11 @@ METADATA="repo-url=$REPO_URL,repo-branch=$REPO_BRANCH"
 [[ -n "${ADMIN_PASSWORD:-}" ]] && METADATA+=",admin-password=$ADMIN_PASSWORD"
 [[ -n "${DUCKDNS_DOMAIN:-}" ]] && METADATA+=",duckdns-domain=$DUCKDNS_DOMAIN"
 [[ -n "${DUCKDNS_TOKEN:-}" ]] && METADATA+=",duckdns-token=$DUCKDNS_TOKEN"
+[[ -n "${ACME_EMAIL:-}" ]] && METADATA+=",acme-email=$ACME_EMAIL"
+
+if [[ -n "${DUCKDNS_DOMAIN:-}" && -n "${DUCKDNS_TOKEN:-}" && -z "${ACME_EMAIL:-}" ]]; then
+  echo "NOTE: Set ACME_EMAIL to enable free HTTPS (Let's Encrypt) for ${DUCKDNS_DOMAIN}.duckdns.org"
+fi
 
 if [[ -n "${DUCKDNS_DOMAIN:-}" && -z "${DUCKDNS_TOKEN:-}" ]] || [[ -z "${DUCKDNS_DOMAIN:-}" && -n "${DUCKDNS_TOKEN:-}" ]]; then
   echo "ERROR: Set both DUCKDNS_DOMAIN and DUCKDNS_TOKEN, or neither."
@@ -311,6 +332,10 @@ if [[ -n "${DUCKDNS_DOMAIN:-}" ]]; then
   echo ""
   echo "    DuckDNS:      http://${DUCKDNS_DOMAIN}.duckdns.org/"
   echo "    DuckDNS docs: http://${DUCKDNS_DOMAIN}.duckdns.org/docs"
+  if [[ -n "${ACME_EMAIL:-}" ]]; then
+    echo "    HTTPS:        https://${DUCKDNS_DOMAIN}.duckdns.org/"
+    echo "    HTTPS docs:   https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
+  fi
 fi
 echo ""
 echo "Monitor startup progress:"

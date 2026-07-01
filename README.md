@@ -111,7 +111,34 @@ DUCKDNS_DOMAIN=commercialbrainz DUCKDNS_TOKEN=your-token \
 GCP_PROJECT_ID=your-project ./scripts/setup-duckdns-gcloud.sh
 ```
 
-DuckDNS is ideal with ephemeral GCE IPs (no static IP cost). For HTTPS, add a reverse proxy (e.g. Caddy + Let's Encrypt) in front of port 80.
+DuckDNS is ideal with ephemeral GCE IPs (no static IP cost).
+
+### HTTPS (free Let's Encrypt via Caddy)
+
+Requires DuckDNS pointing at your VM and port **443** open in GCP firewall.
+
+**New VM** — include your email when deploying:
+
+```bash
+GCP_PROJECT_ID=your-project \
+DUCKDNS_DOMAIN=commercialbrainz \
+DUCKDNS_TOKEN=your-token \
+ACME_EMAIL=you@example.com \
+./scripts/setup-gcloud-vm.sh
+```
+
+**Existing VM:**
+
+```bash
+ACME_EMAIL=you@example.com DUCKDNS_DOMAIN=commercialbrainz \
+GCP_PROJECT_ID=your-project ./scripts/setup-https-gcloud.sh
+```
+
+Then use:
+- **https://commercialbrainz.duckdns.org/**
+- **https://commercialbrainz.duckdns.org/docs**
+
+Caddy obtains and renews certificates automatically (HTTP-01 challenge on port 80).
 
 **Troubleshooting:** run `GCP_PROJECT_ID=your-project ./scripts/diagnose-gcloud-vm.sh`
 

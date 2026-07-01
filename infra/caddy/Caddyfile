@@ -1,0 +1,38 @@
+# Caddy — automatic HTTPS via Let's Encrypt (HTTP-01 challenge)
+# Requires DOMAIN and ACME_EMAIL in environment (.env)
+# https://caddyserver.com/docs/automatic-https
+
+{
+	email {$ACME_EMAIL}
+}
+
+(commercialbrainz_proxy) {
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /docs* {
+		reverse_proxy api:8000
+	}
+	handle /redoc* {
+		reverse_proxy api:8000
+	}
+	handle /openapi.json {
+		reverse_proxy api:8000
+	}
+	handle /health {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy web:80
+	}
+}
+
+# HTTPS for DuckDNS / custom domain (Let's Encrypt)
+{$DOMAIN} {
+	import commercialbrainz_proxy
+}
+
+# HTTP fallback when accessing by IP (no TLS)
+:80 {
+	import commercialbrainz_proxy
+}

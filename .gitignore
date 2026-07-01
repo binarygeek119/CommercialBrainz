@@ -34,5 +34,8 @@ Thumbs.db
 dumps/
 *.json.gz
 
+# Generated on VM at deploy time
+infra/caddy/Caddyfile.runtime
+
 # Docker
 *.log

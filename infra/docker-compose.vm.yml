@@ -1,4 +1,4 @@
-# VM override: expose web on port 80, keep DB/Redis internal-only
+# VM override: Caddy TLS on 80/443, internal web/api only
 services:
   postgres:
     ports: []
@@ -7,12 +7,31 @@ services:
     ports: []
 
   web:
+    ports: []
+
+  api:
+    ports: []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./caddy/Caddyfile.runtime:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       api:
         condition: service_healthy
+      web:
+        condition: service_started
 
-  api:
-    ports:
-      - "8000:8000"
+volumes:
+  caddy_data:
+  caddy_config:

@@ -65,22 +65,66 @@ if [[ ! -f .env ]]; then
   sed -i "s/change-me-to-a-long-random-string/$SECRET/" .env
 fi
 
+set_env() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    echo "${key}=${value}" >> .env
+  fi
+}
+
+DUCKDNS_DOMAIN="$(get_meta duckdns-domain)"
+DUCKDNS_TOKEN="$(get_meta duckdns-token)"
+ACME_EMAIL="$(get_meta acme-email)"
+
+EXTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
+  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
+
+if [[ -n "$DUCKDNS_DOMAIN" ]]; then
+  FQDN="${DUCKDNS_DOMAIN}.duckdns.org"
+  set_env "DOMAIN" "$FQDN"
+  if [[ -n "$ACME_EMAIL" ]]; then
+    set_env "ACME_EMAIL" "$ACME_EMAIL"
+    set_env "CORS_ORIGINS" "https://${FQDN},http://${FQDN},http://${EXTERNAL_IP}"
+    echo "==> HTTPS enabled for ${FQDN} (Let's Encrypt via Caddy)"
+  else
+    set_env "CORS_ORIGINS" "http://${FQDN},http://${EXTERNAL_IP}"
+    echo "==> WARNING: ACME_EMAIL not set — HTTPS disabled. Set metadata acme-email and redeploy."
+  fi
+fi
+
+bash "$APP_DIR/infra/gcloud/generate-caddyfile.sh" \
+  "$APP_DIR/infra/caddy/Caddyfile.runtime" \
+  "${DUCKDNS_DOMAIN:+$DUCKDNS_DOMAIN.duckdns.org}" \
+  "${ACME_EMAIL:-}"
+
 echo "==> Building and starting containers (this may take 10–20 min on e2-micro)..."
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml build
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml up -d
 
-echo "==> Waiting for API health..."
-for i in $(seq 1 60); do
-  if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
-    echo "API is healthy."
+echo "==> Waiting for services (Caddy + API)..."
+for i in $(seq 1 90); do
+  if curl -sf http://localhost/health >/dev/null 2>&1; then
+    echo "    Stack is healthy."
     break
   fi
   sleep 5
 done
 
-echo "==> Verifying public endpoints..."
-curl -sf http://localhost/health >/dev/null && echo "    Port 80 /health OK" || echo "    WARNING: Port 80 /health failed"
-curl -sf http://localhost/docs >/dev/null && echo "    Port 80 /docs OK" || echo "    WARNING: Port 80 /docs failed (rebuild web: docker compose up -d --build web)"
+echo "==> Verifying endpoints..."
+curl -sf http://localhost/health >/dev/null && echo "    HTTP  /health OK" || echo "    WARNING: /health failed"
+curl -sf http://localhost/docs >/dev/null && echo "    HTTP  /docs OK" || echo "    WARNING: /docs failed"
+if [[ -n "${DUCKDNS_DOMAIN:-}" && -n "${ACME_EMAIL:-}" ]]; then
+  for i in $(seq 1 30); do
+    if curl -sf "https://${DUCKDNS_DOMAIN}.duckdns.org/health" >/dev/null 2>&1; then
+      echo "    HTTPS /health OK"
+      break
+    fi
+    echo "    Waiting for Let's Encrypt certificate (attempt $i)..."
+    sleep 10
+  done
+fi
 
 # Optional admin seed from instance metadata
 ADMIN_EMAIL=$(curl -sf -H "Metadata-Flavor: Google" \
@@ -98,55 +142,33 @@ if [[ -n "$ADMIN_EMAIL" && -n "$ADMIN_USERNAME" && -n "$ADMIN_PASSWORD" ]]; then
     --password "$ADMIN_PASSWORD" || true
 fi
 
-EXTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
-
-# --- DuckDNS (optional) ---
-DUCKDNS_DOMAIN="$(get_meta duckdns-domain)"
-DUCKDNS_TOKEN="$(get_meta duckdns-token)"
-
-setup_duckdns() {
-  if [[ -z "$DUCKDNS_DOMAIN" || -z "$DUCKDNS_TOKEN" ]]; then
-    return 0
-  fi
-
-  echo "==> Configuring DuckDNS (${DUCKDNS_DOMAIN}.duckdns.org)..."
+# --- DuckDNS cron (optional) ---
+if [[ -n "$DUCKDNS_DOMAIN" && -n "$DUCKDNS_TOKEN" ]]; then
+  echo "==> Configuring DuckDNS cron (${DUCKDNS_DOMAIN}.duckdns.org)..."
   mkdir -p /etc/commercialbrainz
   cat > /etc/commercialbrainz/duckdns.env <<EOF
 DUCKDNS_DOMAIN=$DUCKDNS_DOMAIN
 DUCKDNS_TOKEN=$DUCKDNS_TOKEN
 EOF
   chmod 600 /etc/commercialbrainz/duckdns.env
-
   install -m 0755 "$APP_DIR/infra/gcloud/duckdns-update.sh" /usr/local/bin/duckdns-update
-
   cat > /etc/cron.d/commercialbrainz-duckdns <<'CRON'
 # Refresh DuckDNS when GCE ephemeral IP changes (every 5 minutes)
 */5 * * * * root /usr/local/bin/duckdns-update
 CRON
-
   /usr/local/bin/duckdns-update || true
-
-  DUCKDNS_URL="http://${DUCKDNS_DOMAIN}.duckdns.org"
-  if [[ -f "$APP_DIR/.env" ]]; then
-    if grep -q '^CORS_ORIGINS=' "$APP_DIR/.env"; then
-      sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=${DUCKDNS_URL},http://${EXTERNAL_IP},http://localhost:5173|" "$APP_DIR/.env"
-    else
-      echo "CORS_ORIGINS=${DUCKDNS_URL},http://${EXTERNAL_IP},http://localhost:5173" >> "$APP_DIR/.env"
-    fi
-    docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml up -d api web 2>/dev/null || true
-  fi
-}
-
-setup_duckdns
+fi
 
 echo ""
 echo "==> CommercialBrainz VM setup complete!"
-echo "    Web UI:  http://${EXTERNAL_IP}:${WEB_PORT}"
+echo "    Web UI:  http://${EXTERNAL_IP}/"
 echo "    Docs:    http://${EXTERNAL_IP}/docs"
-echo "    API:     http://${EXTERNAL_IP}/api/v1/ (via nginx)"
 if [[ -n "$DUCKDNS_DOMAIN" ]]; then
   echo "    DuckDNS: http://${DUCKDNS_DOMAIN}.duckdns.org/"
   echo "    Docs:    http://${DUCKDNS_DOMAIN}.duckdns.org/docs"
+  if [[ -n "$ACME_EMAIL" ]]; then
+    echo "    HTTPS:   https://${DUCKDNS_DOMAIN}.duckdns.org/"
+    echo "    Docs:    https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
+  fi
 fi
 echo "    Log:     $LOG"

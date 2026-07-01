@@ -63,7 +63,7 @@ check_url "Web UI" "http://${EXTERNAL_IP}/" || true
 check_url "API health" "http://${EXTERNAL_IP}/health" || true
 check_url "API docs" "http://${EXTERNAL_IP}/docs" || true
 if [[ -n "$DUCKDNS_IP" ]]; then
-  check_url "DuckDNS docs" "http://${DUCKDNS_DOMAIN}.duckdns.org/docs" || true
+  check_url "HTTPS docs" "https://${DUCKDNS_DOMAIN}.duckdns.org/docs" || true
 fi
 
 echo ""
@@ -87,6 +87,5 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
 
 echo ""
 echo "==> Recommended URLs"
-echo "    Web:  http://${DUCKDNS_DOMAIN}.duckdns.org/"
-echo "    Docs: http://${DUCKDNS_DOMAIN}.duckdns.org/docs"
-echo "    (Do not use :8000 unless port 80 /docs fails and firewall allows it)"
+echo "    Web:  https://${DUCKDNS_DOMAIN}.duckdns.org/"
+echo "    Docs: https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
