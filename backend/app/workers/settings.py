@@ -5,6 +5,7 @@ from arq.connections import RedisSettings
 
 from app.config import get_settings
 from app.database import async_session_factory
+from app.services.hash_queue import enqueue_hash_job, hash_media, process_pending_queue
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -14,10 +15,12 @@ async def expire_edits(ctx):
     from app.services import EditService
 
     async with async_session_factory() as db:
-        count = await EditService.expire_open_edits(db)
+        count, pending_jobs = await EditService.expire_open_edits(db)
         await db.commit()
-        logger.info("Expired %d edits", count)
-        return count
+    for job_id in pending_jobs:
+        await enqueue_hash_job(job_id)
+    logger.info("Expired %d edits", count)
+    return count
 
 
 async def generate_dump(ctx):
@@ -38,10 +41,12 @@ async def shutdown(ctx):
 
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [expire_edits, generate_dump]
+    functions = [expire_edits, generate_dump, hash_media, process_pending_queue]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),
         cron(generate_dump, hour=2, minute=0),
+        cron(process_pending_queue, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),
     ]
+    max_jobs = 1
     on_startup = startup
     on_shutdown = shutdown

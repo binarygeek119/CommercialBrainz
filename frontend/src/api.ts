@@ -53,11 +53,32 @@ export interface Video {
   transcript: string | null;
   slogan: string | null;
   visibility: string;
+  phash?: string | null;
+  file_sha256?: string | null;
+  audio_fingerprint?: string | null;
+  hash_status?: string | null;
+  hashed_at?: string | null;
   created_at: string;
   commercial?: { sbid: string; title: string };
   advertiser?: { sbid: string; name: string };
   tags?: string[];
   credits?: { role: string; name: string }[];
+}
+
+export interface FingerprintPreview {
+  status: string;
+  phash?: string | null;
+  file_sha256?: string | null;
+  audio_fingerprint?: string | null;
+  duration_sec?: number | null;
+  error_message?: string | null;
+}
+
+export interface DuplicateMatch {
+  video_sbid: string;
+  youtube_id: string;
+  phash?: string | null;
+  hamming_distance: number;
 }
 
 export interface Edit {
@@ -72,6 +93,7 @@ export interface Edit {
   expires_at: string;
   created_at: string;
   votes: { id: string; voter_id: string; choice: string; comment: string | null }[];
+  fingerprint_preview?: FingerprintPreview | null;
 }
 
 export interface SearchResult {
@@ -155,6 +177,8 @@ export const api = {
   openEdits: (offset = 0) => request<Paginated<Edit>>(`/edits/open?offset=${offset}`),
 
   getEdit: (id: string) => request<Edit>(`/edits/${id}`),
+
+  getEditDuplicates: (id: string) => request<DuplicateMatch[]>(`/edits/${id}/duplicates`),
 
   vote: (editId: string, choice: string, comment?: string) =>
     request<unknown>(`/edits/${editId}/vote`, {

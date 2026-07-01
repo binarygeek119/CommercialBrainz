@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     gcs_dump_bucket: str = ""
     gcp_project_id: str = ""
 
+    hash_temp_dir: str = "/tmp/commercialbrainz-hash"
+    ytdlp_format: str = "best[height<=480]/best"
+    hash_max_file_mb: int = 200
+    phash_duplicate_threshold: int = 10
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

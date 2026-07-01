@@ -18,15 +18,20 @@ from app.models import (
     Edit,
     EditStatus,
     EditType,
+    FingerprintPhase,
+    FingerprintStatus,
+    MediaFingerprint,
     User,
     UserRole,
     Video,
     VideoCredit,
+    VideoHashStatus,
     VideoTag,
     VideoVisibility,
     Vote,
     VoteChoice,
 )
+from app.services.media_hash import copy_preview_to_video
 from app.utils import extract_youtube_id, make_unique_slug, youtube_watch_url
 
 logger = logging.getLogger(__name__)
@@ -68,22 +73,25 @@ class EditService:
         if is_auto:
             edit.status = EditStatus.AUTOMATICALLY_APPLIED
             edit.closed_at = datetime.now(UTC)
-            await EditService.apply_edit(db, edit)
+            pending_hash = await EditService.apply_edit(db, edit)
             editor.accepted_edits_count += 1
+            if pending_hash is not None:
+                edit._pending_hash_job = pending_hash  # noqa: SLF001
 
         return edit
 
     @staticmethod
-    async def apply_edit(db: AsyncSession, edit: Edit) -> None:
+    async def apply_edit(db: AsyncSession, edit: Edit) -> UUID | None:
         state = edit.after_state
         et = edit.edit_type
+        pending_hash: UUID | None = None
 
         if et == EditType.CREATE_COMMERCIAL:
             await EditService._apply_create_commercial(db, edit, state)
         elif et == EditType.EDIT_COMMERCIAL:
             await EditService._apply_edit_commercial(db, edit, state)
         elif et == EditType.CREATE_VIDEO:
-            await EditService._apply_create_video(db, edit, state)
+            pending_hash = await EditService._apply_create_video(db, edit, state)
         elif et == EditType.EDIT_VIDEO:
             await EditService._apply_edit_video(db, edit, state)
         elif et == EditType.REMOVE_VIDEO:
@@ -98,6 +106,8 @@ class EditService:
         if edit.status == EditStatus.OPEN:
             edit.status = EditStatus.APPLIED
             edit.closed_at = datetime.now(UTC)
+
+        return pending_hash
 
     @staticmethod
     async def _apply_create_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
@@ -153,7 +163,7 @@ class EditService:
                 setattr(commercial, field, val)
 
     @staticmethod
-    async def _apply_create_video(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_create_video(db: AsyncSession, edit: Edit, state: dict) -> UUID | None:
         commercial_id = state.get("commercial_id")
         if not commercial_id and state.get("commercial"):
             sub_edit = Edit(
@@ -204,6 +214,21 @@ class EditService:
             db.add(VideoCredit(video_id=video.sbid, role=credit["role"], name=credit["name"]))
         for tag in state.get("tags", []):
             db.add(VideoTag(video_id=video.sbid, tag=tag.lower()))
+
+        if await copy_preview_to_video(db, edit.id, video.sbid):
+            return None
+
+        video.hash_status = VideoHashStatus.PENDING
+        fp = MediaFingerprint(
+            edit_id=edit.id,
+            video_id=video.sbid,
+            youtube_id=youtube_id,
+            phase=FingerprintPhase.FINAL,
+            status=FingerprintStatus.PENDING,
+        )
+        db.add(fp)
+        await db.flush()
+        return fp.id
 
     @staticmethod
     async def _apply_edit_video(db: AsyncSession, edit: Edit, state: dict) -> None:
@@ -284,7 +309,9 @@ class EditService:
         if yes >= threshold and no == 0:
             edit.status = EditStatus.APPLIED
             edit.closed_at = datetime.now(UTC)
-            await EditService.apply_edit(db, edit)
+            pending_hash = await EditService.apply_edit(db, edit)
+            if pending_hash is not None:
+                edit._pending_hash_job = pending_hash  # noqa: SLF001
             editor = await db.get(User, edit.editor_id)
             if editor:
                 editor.accepted_edits_count += 1
@@ -293,8 +320,9 @@ class EditService:
             edit.closed_at = datetime.now(UTC)
 
     @staticmethod
-    async def expire_open_edits(db: AsyncSession) -> int:
+    async def expire_open_edits(db: AsyncSession) -> tuple[int, list[UUID]]:
         now = datetime.now(UTC)
+        pending_jobs: list[UUID] = []
         result = await db.execute(
             select(Edit).where(Edit.status == EditStatus.OPEN, Edit.expires_at <= now)
         )
@@ -310,14 +338,16 @@ class EditService:
                 edit.status = EditStatus.REJECTED
             else:
                 edit.status = EditStatus.APPLIED
-                await EditService.apply_edit(db, edit)
+                pending_hash = await EditService.apply_edit(db, edit)
+                if pending_hash is not None:
+                    pending_jobs.append(pending_hash)
                 editor = await db.get(User, edit.editor_id)
                 if editor:
                     editor.accepted_edits_count += 1
 
             edit.closed_at = now
             count += 1
-        return count
+        return count, pending_jobs
 
 
 class DMCAService:

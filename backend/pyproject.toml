@@ -20,6 +20,8 @@ dependencies = [
     "arq>=0.26.1",
     "httpx>=0.28.0",
     "python-slugify>=8.0.4",
+    "Pillow>=11.0.0",
+    "imagehash>=4.3.0",
 ]
 
 [project.optional-dependencies]

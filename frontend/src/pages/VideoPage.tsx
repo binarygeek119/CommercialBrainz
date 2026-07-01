@@ -65,6 +65,36 @@ export default function VideoPage() {
         </div>
       </div>
 
+      <div className="card" style={{ marginTop: "1rem" }}>
+        <h3>Media Fingerprints</h3>
+        <p className="muted" style={{ marginBottom: "0.75rem" }}>
+          Status: {data.hash_status || "pending"}
+          {data.hashed_at && ` · computed ${new Date(data.hashed_at).toLocaleString()}`}
+        </p>
+        {data.phash && (
+          <p className="mono" style={{ fontSize: "0.85rem" }}>
+            pHash: {data.phash}
+          </p>
+        )}
+        {data.file_sha256 && (
+          <p className="mono" style={{ fontSize: "0.85rem", wordBreak: "break-all" }}>
+            SHA256: {data.file_sha256}
+          </p>
+        )}
+        {data.audio_fingerprint && (
+          <p className="mono" style={{ fontSize: "0.85rem", wordBreak: "break-all" }}>
+            Chromaprint: {data.audio_fingerprint.slice(0, 80)}
+            {data.audio_fingerprint.length > 80 ? "…" : ""}
+          </p>
+        )}
+        {!data.phash && data.hash_status !== "failed" && (
+          <p className="muted">Fingerprinting in progress or not yet started.</p>
+        )}
+        {data.hash_status === "failed" && (
+          <p className="error">Fingerprinting failed. It will be retried automatically.</p>
+        )}
+      </div>
+
       {data.transcript && (
         <div className="card">
           <h3>Transcript</h3>

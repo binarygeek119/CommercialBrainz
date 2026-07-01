@@ -30,6 +30,7 @@ from app.schemas import (
     VideoPublic,
 )
 from app.services import SearchService
+from app.services.fingerprint_queries import format_phash_hex
 from app.services.rate_limit import check_rate_limit, compute_etag
 from app.utils import extract_youtube_id
 
@@ -58,6 +59,11 @@ def _video_public(v: Video) -> VideoPublic:
         "cta_text": v.cta_text,
         "metadata": v.extra_data,
         "visibility": v.visibility.value,
+        "phash": format_phash_hex(v.phash),
+        "file_sha256": v.file_sha256,
+        "audio_fingerprint": v.audio_fingerprint,
+        "hash_status": v.hash_status.value if v.hash_status else None,
+        "hashed_at": v.hashed_at,
         "created_at": v.created_at,
         "updated_at": v.updated_at,
     }

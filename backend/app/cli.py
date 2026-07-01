@@ -94,10 +94,13 @@ async def set_user_access(
 
 async def expire_edits_cmd() -> None:
     from app.services import EditService
+    from app.services.hash_queue import enqueue_hash_job
 
     async with async_session_factory() as db:
-        count = await EditService.expire_open_edits(db)
+        count, pending_jobs = await EditService.expire_open_edits(db)
         await db.commit()
+        for job_id in pending_jobs:
+            await enqueue_hash_job(job_id)
         print(f"Processed {count} expired edits.")
 
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth";
 import { api } from "../api";
@@ -15,6 +15,19 @@ export default function EditDetailPage() {
     queryKey: ["edit", id],
     queryFn: () => api.getEdit(id!),
     enabled: !!id,
+    refetchInterval: (query) => {
+      const fp = query.state.data?.fingerprint_preview;
+      if (query.state.data?.status === "open" && fp?.status !== "completed" && fp?.status !== "failed") {
+        return 5000;
+      }
+      return false;
+    },
+  });
+
+  const { data: duplicates } = useQuery({
+    queryKey: ["edit-duplicates", id],
+    queryFn: () => api.getEditDuplicates(id!),
+    enabled: !!id && edit?.fingerprint_preview?.status === "completed",
   });
 
   const handleVote = async (choice: string) => {
@@ -34,6 +47,7 @@ export default function EditDetailPage() {
 
   const yesVotes = edit.votes.filter((v) => v.choice === "yes").length;
   const noVotes = edit.votes.filter((v) => v.choice === "no").length;
+  const fp = edit.fingerprint_preview;
 
   return (
     <div>
@@ -50,6 +64,43 @@ export default function EditDetailPage() {
           Expires: {new Date(edit.expires_at).toLocaleString()} · Yes: {yesVotes} · No: {noVotes}
         </p>
       </div>
+
+      {edit.edit_type === "create_video" && (
+        <div className="card">
+          <h3>Fingerprint preview</h3>
+          {!fp && <p className="muted">Queued for fingerprinting…</p>}
+          {fp && (
+            <>
+              <p className="muted">Status: {fp.status}</p>
+              {fp.phash && <p className="mono">pHash: {fp.phash}</p>}
+              {fp.file_sha256 && (
+                <p className="mono" style={{ wordBreak: "break-all" }}>
+                  SHA256: {fp.file_sha256}
+                </p>
+              )}
+              {fp.audio_fingerprint && (
+                <p className="mono" style={{ wordBreak: "break-all" }}>
+                  Chromaprint: {fp.audio_fingerprint.slice(0, 64)}…
+                </p>
+              )}
+              {fp.error_message && <p className="error">{fp.error_message}</p>}
+            </>
+          )}
+          {duplicates && duplicates.length > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <h4>Possible duplicates</h4>
+              <ul>
+                {duplicates.map((d) => (
+                  <li key={d.video_sbid}>
+                    <Link to={`/video/${d.video_sbid}`}>{d.youtube_id}</Link>
+                    {" "}(distance {d.hamming_distance})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <h3>Proposed changes</h3>

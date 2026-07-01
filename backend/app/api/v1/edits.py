@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -8,18 +8,44 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_current_user_optional, require_submitter
 from app.auth.security import user_can_vote
 from app.database import get_db
-from app.models import Edit, EditStatus, EditType, User, Vote, VoteChoice
-from app.schemas import EditCreate, EditPublic, PaginatedResponse, VideoCreate, VoteCreate, VotePublic
+from app.models import Edit, EditStatus, EditType, User, VoteChoice
+from app.schemas import (
+    DuplicateMatchPublic,
+    EditCreate,
+    EditPublic,
+    PaginatedResponse,
+    VideoCreate,
+    VoteCreate,
+    VotePublic,
+)
 from app.services import EditService
+from app.services.edit_response import build_edit_public
+from app.services.fingerprint_queries import find_phash_duplicates, get_preview_fingerprint
+from app.services.hash_queue import create_preview_fingerprint, enqueue_hash_job
 from app.services.submission_terms import validate_and_record_terms_acceptance
 from app.utils import extract_youtube_id
 
 router = APIRouter(prefix="/edits", tags=["edits"])
 
 
+async def _schedule_preview_fingerprint(edit_id: UUID, youtube_id: str) -> None:
+    await create_preview_fingerprint(edit_id, youtube_id)
+
+
+async def _schedule_hash_job(job_id: UUID) -> None:
+    await enqueue_hash_job(job_id)
+
+
+def _schedule_pending_hash(background_tasks: BackgroundTasks, edit: Edit) -> None:
+    pending = getattr(edit, "_pending_hash_job", None)
+    if pending is not None:
+        background_tasks.add_task(_schedule_hash_job, pending)
+
+
 @router.post("", response_model=EditPublic, status_code=status.HTTP_201_CREATED)
 async def create_edit(
     data: EditCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_submitter),
 ):
@@ -39,27 +65,15 @@ async def create_edit(
         comment=data.comment,
         force_votable=data.force_votable,
     )
+    _schedule_pending_hash(background_tasks, edit)
     await db.refresh(edit, ["votes"])
-    return EditPublic(
-        id=edit.id,
-        edit_type=edit.edit_type.value,
-        status=edit.status.value,
-        entity_type=edit.entity_type,
-        entity_id=edit.entity_id,
-        before_state=edit.before_state,
-        after_state=edit.after_state,
-        editor_id=edit.editor_id,
-        comment=edit.comment,
-        expires_at=edit.expires_at,
-        closed_at=edit.closed_at,
-        created_at=edit.created_at,
-        votes=[],
-    )
+    return await build_edit_public(db, edit)
 
 
 @router.post("/submit-video", response_model=EditPublic, status_code=status.HTTP_201_CREATED)
 async def submit_video(
     data: VideoCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_submitter),
 ):
@@ -100,21 +114,11 @@ async def submit_video(
         comment=data.comment,
         force_votable=data.force_votable,
     )
-    return EditPublic(
-        id=edit.id,
-        edit_type=edit.edit_type.value,
-        status=edit.status.value,
-        entity_type=edit.entity_type,
-        entity_id=edit.entity_id,
-        before_state=edit.before_state,
-        after_state=edit.after_state,
-        editor_id=edit.editor_id,
-        comment=edit.comment,
-        expires_at=edit.expires_at,
-        closed_at=edit.closed_at,
-        created_at=edit.created_at,
-        votes=[],
-    )
+    if edit.status == EditStatus.OPEN:
+        background_tasks.add_task(_schedule_preview_fingerprint, edit.id, youtube_id)
+    _schedule_pending_hash(background_tasks, edit)
+    await db.refresh(edit, ["votes"])
+    return await build_edit_public(db, edit)
 
 
 @router.get("/open", response_model=PaginatedResponse)
@@ -134,33 +138,23 @@ async def list_open_edits(
     edits = result.scalars().all()
     items = []
     for edit in edits:
-        items.append(
-            EditPublic(
-                id=edit.id,
-                edit_type=edit.edit_type.value,
-                status=edit.status.value,
-                entity_type=edit.entity_type,
-                entity_id=edit.entity_id,
-                before_state=edit.before_state,
-                after_state=edit.after_state,
-                editor_id=edit.editor_id,
-                comment=edit.comment,
-                expires_at=edit.expires_at,
-                closed_at=edit.closed_at,
-                created_at=edit.created_at,
-                votes=[
-                    VotePublic(
-                        id=v.id,
-                        voter_id=v.voter_id,
-                        choice=v.choice.value,
-                        comment=v.comment,
-                        created_at=v.created_at,
-                    )
-                    for v in edit.votes
-                ],
-            ).model_dump()
-        )
+        items.append((await build_edit_public(db, edit)).model_dump())
     return PaginatedResponse(items=items, total=len(items), offset=offset, limit=limit)
+
+
+@router.get("/{edit_id}/duplicates", response_model=list[DuplicateMatchPublic])
+async def get_edit_duplicates(edit_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Edit).where(Edit.id == edit_id))
+    edit = result.scalar_one_or_none()
+    if not edit:
+        raise HTTPException(status_code=404, detail="Edit not found")
+
+    fp = await get_preview_fingerprint(db, edit.id)
+    if not fp or fp.phash is None:
+        return []
+
+    matches = await find_phash_duplicates(db, fp.phash)
+    return [DuplicateMatchPublic(**match) for match in matches]
 
 
 @router.get("/{edit_id}", response_model=EditPublic)
@@ -171,36 +165,14 @@ async def get_edit(edit_id: UUID, db: AsyncSession = Depends(get_db)):
     edit = result.scalar_one_or_none()
     if not edit:
         raise HTTPException(status_code=404, detail="Edit not found")
-    return EditPublic(
-        id=edit.id,
-        edit_type=edit.edit_type.value,
-        status=edit.status.value,
-        entity_type=edit.entity_type,
-        entity_id=edit.entity_id,
-        before_state=edit.before_state,
-        after_state=edit.after_state,
-        editor_id=edit.editor_id,
-        comment=edit.comment,
-        expires_at=edit.expires_at,
-        closed_at=edit.closed_at,
-        created_at=edit.created_at,
-        votes=[
-            VotePublic(
-                id=v.id,
-                voter_id=v.voter_id,
-                choice=v.choice.value,
-                comment=v.comment,
-                created_at=v.created_at,
-            )
-            for v in edit.votes
-        ],
-    )
+    return await build_edit_public(db, edit)
 
 
 @router.post("/{edit_id}/vote", response_model=VotePublic)
 async def vote_on_edit(
     edit_id: UUID,
     data: VoteCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -221,6 +193,8 @@ async def vote_on_edit(
         vote = await EditService.cast_vote(db, edit, user, choice, data.comment)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+    _schedule_pending_hash(background_tasks, edit)
 
     return VotePublic(
         id=vote.id,

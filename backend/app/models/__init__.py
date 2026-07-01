@@ -3,10 +3,12 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Date,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -75,6 +77,25 @@ class DMCAStatus(str, enum.Enum):
     REJECTED = "rejected"
     RESTORED = "restored"
     PERMANENTLY_REMOVED = "permanently_removed"
+
+
+class FingerprintPhase(str, enum.Enum):
+    PREVIEW = "preview"
+    FINAL = "final"
+
+
+class FingerprintStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class VideoHashStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class User(Base):
@@ -189,6 +210,13 @@ class Video(Base):
     submitted_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
+    phash: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    audio_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hash_status: Mapped[VideoHashStatus] = mapped_column(
+        pg_enum(VideoHashStatus, name="videohashstatus"), default=VideoHashStatus.PENDING
+    )
+    hashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -308,6 +336,31 @@ class DMCATakedown(Base):
 
     video: Mapped["Video"] = relationship(back_populates="dmca_takedowns")
     reviewed_by: Mapped["User | None"] = relationship(foreign_keys=[reviewed_by_id])
+
+
+class MediaFingerprint(Base):
+    __tablename__ = "media_fingerprints"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id"), nullable=True, index=True
+    )
+    video_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid"), nullable=True
+    )
+    youtube_id: Mapped[str] = mapped_column(String(32), index=True)
+    phase: Mapped[FingerprintPhase] = mapped_column(pg_enum(FingerprintPhase, name="fingerprintphase"))
+    status: Mapped[FingerprintStatus] = mapped_column(
+        pg_enum(FingerprintStatus, name="fingerprintstatus"), default=FingerprintStatus.PENDING
+    )
+    phash: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    audio_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLog(Base):

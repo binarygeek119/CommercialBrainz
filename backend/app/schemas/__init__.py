@@ -190,6 +190,11 @@ class VideoPublic(ORMModel):
     cta_text: str | None
     metadata: dict
     visibility: str
+    phash: str | None = None
+    file_sha256: str | None = None
+    audio_fingerprint: str | None = None
+    hash_status: str | None = None
+    hashed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -239,6 +244,22 @@ class VotePublic(ORMModel):
     created_at: datetime
 
 
+class FingerprintPreviewPublic(BaseModel):
+    status: str
+    phash: str | None = None
+    file_sha256: str | None = None
+    audio_fingerprint: str | None = None
+    duration_sec: float | None = None
+    error_message: str | None = None
+
+
+class DuplicateMatchPublic(BaseModel):
+    video_sbid: str
+    youtube_id: str
+    phash: str | None = None
+    hamming_distance: int
+
+
 class EditPublic(ORMModel):
     id: UUID
     edit_type: str
@@ -253,6 +274,7 @@ class EditPublic(ORMModel):
     closed_at: datetime | None
     created_at: datetime
     votes: list[VotePublic] = Field(default_factory=list)
+    fingerprint_preview: FingerprintPreviewPublic | None = None
 
 
 # --- DMCA ---
