@@ -102,7 +102,7 @@ DUCKDNS_TOKEN=your-duckdns-token \
 
 3. After startup: `http://commercialbrainz.duckdns.org/` (web) and `:8000/docs` (API).
 
-Add DuckDNS to an **existing** VM:
+Add DuckDNS to an **existing** VM (zone is auto-detected if the VM was created in another region):
 
 ```bash
 DUCKDNS_DOMAIN=commercialbrainz DUCKDNS_TOKEN=your-token \

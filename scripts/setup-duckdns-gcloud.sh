@@ -7,13 +7,52 @@
 #
 # Optional:
 #   VM_NAME       default commercialbrainz-vm
-#   GCP_ZONE      default us-central1-a
+#   GCP_ZONE      zone (auto-detected across project if omitted)
 #
 set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-}"
-ZONE="${GCP_ZONE:-us-central1-a}"
+ZONE="${GCP_ZONE:-}"
 VM_NAME="${VM_NAME:-commercialbrainz-vm}"
+
+FALLBACK_ZONES=(
+  us-central1-a us-central1-b us-central1-c us-central1-f
+  us-east1-b us-east1-c us-east1-d
+  us-west1-a us-west1-b us-west1-c
+)
+
+find_vm_zone() {
+  local vm_name="$1"
+  local z found
+
+  # Fast path: gcloud list across entire project
+  found="$(gcloud compute instances list \
+    --filter="name=${vm_name}" \
+    --format='value(zone.basename())' \
+    --limit=1 2>/dev/null || true)"
+  if [[ -n "$found" ]]; then
+    echo "$found"
+    return 0
+  fi
+
+  # Fallback: probe known free-tier zones
+  if [[ -n "${ZONE:-}" ]]; then
+    if gcloud compute instances describe "$vm_name" --zone="$ZONE" &>/dev/null; then
+      echo "$ZONE"
+      return 0
+    fi
+  fi
+
+  for z in "${FALLBACK_ZONES[@]}"; do
+    [[ "$z" == "${ZONE:-}" ]] && continue
+    if gcloud compute instances describe "$vm_name" --zone="$z" &>/dev/null; then
+      echo "$z"
+      return 0
+    fi
+  done
+
+  return 1
+}
 
 if [[ -z "$PROJECT_ID" ]]; then
   read -rp "GCP Project ID: " PROJECT_ID
@@ -30,10 +69,13 @@ fi
 
 gcloud config set project "$PROJECT_ID"
 
-if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" &>/dev/null; then
-  echo "ERROR: VM '$VM_NAME' not found in zone $ZONE"
+echo "==> Locating VM '$VM_NAME'..."
+if ! ZONE="$(find_vm_zone "$VM_NAME")"; then
+  echo "ERROR: VM '$VM_NAME' not found in project $PROJECT_ID"
+  echo "       List instances: gcloud compute instances list --project=$PROJECT_ID"
   exit 1
 fi
+echo "    Found in zone: $ZONE"
 
 echo "==> Adding DuckDNS metadata to $VM_NAME..."
 gcloud compute instances add-metadata "$VM_NAME" --zone="$ZONE" \
@@ -72,5 +114,7 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
 
 echo ""
 echo "==> Done!"
+echo "    Zone:   $ZONE"
+echo "    IP:     $EXTERNAL_IP"
 echo "    http://${DUCKDNS_DOMAIN}.duckdns.org/"
 echo "    http://${DUCKDNS_DOMAIN}.duckdns.org:8000/docs"
