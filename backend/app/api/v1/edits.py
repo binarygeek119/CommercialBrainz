@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models import Edit, EditStatus, EditType, User, Vote, VoteChoice
 from app.schemas import EditCreate, EditPublic, PaginatedResponse, VideoCreate, VoteCreate, VotePublic
 from app.services import EditService
+from app.services.submission_terms import validate_and_record_terms_acceptance
 from app.utils import extract_youtube_id
 
 router = APIRouter(prefix="/edits", tags=["edits"])
@@ -63,11 +64,18 @@ async def submit_video(
     user: User = Depends(require_submitter),
 ):
     try:
+        await validate_and_record_terms_acceptance(db, user, data.terms_agreed)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    try:
         youtube_id = data.youtube_id or extract_youtube_id(data.youtube_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    after_state = data.model_dump(exclude={"comment", "force_votable", "commercial"})
+    after_state = data.model_dump(
+        exclude={"comment", "force_votable", "commercial", "terms_agreed"}
+    )
     after_state["youtube_id"] = youtube_id
     after_state["youtube_url"] = data.youtube_url
 

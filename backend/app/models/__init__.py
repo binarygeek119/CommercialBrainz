@@ -88,6 +88,7 @@ class User(Base):
     access_level: Mapped[UserAccess] = mapped_column(
         pg_enum(UserAccess, name="useraccess"), default=UserAccess.VOTE_ONLY
     )
+    submission_terms_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_auto_editor: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     accepted_edits_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -318,4 +319,16 @@ class AuditLog(Base):
     entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
     actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     details: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SubmissionTermsDocument(Base):
+    __tablename__ = "submission_terms_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    version: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    intro: Mapped[str] = mapped_column(Text)
+    sections: Mapped[list] = mapped_column(JSONB)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

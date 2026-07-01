@@ -272,3 +272,45 @@ code, .mono {
   font-family: var(--mono);
   font-size: 0.85rem;
 }
+
+.terms-card {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.terms-view h2 {
+  margin-bottom: 0.5rem;
+}
+
+.terms-view h3 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.terms-view h4 {
+  font-size: 0.95rem;
+  margin: 0.75rem 0 0.35rem;
+  color: var(--text);
+}
+
+.terms-view ul {
+  margin: 0.35rem 0 0.75rem 1.25rem;
+}
+
+.terms-view li {
+  margin-bottom: 0.35rem;
+  color: var(--text-muted);
+}
+
+.terms-bullet-label {
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+.terms-view-compact h2 {
+  font-size: 1.1rem;
+}
+
+.terms-view-compact h3 {
+  font-size: 0.95rem;
+}

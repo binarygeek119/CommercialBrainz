@@ -7,10 +7,22 @@ from app.auth.serializers import user_to_public
 from app.database import get_db
 from app.models import User, UserAccess, UserRole
 from app.schemas import QuizAnswerSubmit, QuizGradeResult, SubmissionTermsPublic, Token, UserCreate, UserLogin, UserPublic
+from app.services.submission_terms import (
+    ensure_submission_terms_seeded,
+    fallback_terms_dict,
+    get_active_submission_terms,
+    terms_document_to_dict,
+)
 from app.submission_quiz import grade_quiz, quiz_for_client
-from app.submission_terms import SUBMISSION_TERMS
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def _load_terms(db: AsyncSession) -> dict:
+    doc = await get_active_submission_terms(db)
+    if doc:
+        return terms_document_to_dict(doc)
+    return fallback_terms_dict()
 
 
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
@@ -46,8 +58,26 @@ async def me(user: User = Depends(get_current_user)):
 
 
 @router.get("/submission-terms", response_model=SubmissionTermsPublic)
-async def submission_terms():
-    return SubmissionTermsPublic(**SUBMISSION_TERMS)
+async def submission_terms(db: AsyncSession = Depends(get_db)):
+    return SubmissionTermsPublic(**await _load_terms(db))
+
+
+@router.post("/submission-terms/accept", response_model=UserPublic)
+async def accept_submission_terms(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user_can_submit(user):
+        raise HTTPException(status_code=403, detail="Submission access required")
+
+    doc = await get_active_submission_terms(db)
+    if not doc:
+        doc = await ensure_submission_terms_seeded(db)
+
+    user.submission_terms_version = doc.version
+    await db.commit()
+    await db.refresh(user)
+    return user_to_public(user)
 
 
 @router.get("/submission-quiz")
@@ -73,7 +103,12 @@ async def submission_upgrade(
             detail=f"Quiz not passed ({score}/{total}). Review the terms and try again.",
         )
 
+    doc = await get_active_submission_terms(db)
+    if not doc:
+        doc = await ensure_submission_terms_seeded(db)
+
     user.access_level = UserAccess.SUBMIT_AND_VOTE
+    user.submission_terms_version = doc.version
     await db.commit()
     await db.refresh(user)
     return QuizGradeResult(

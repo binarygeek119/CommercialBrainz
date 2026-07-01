@@ -31,6 +31,7 @@ class UserPublic(ORMModel):
     can_submit: bool
     is_auto_editor: bool
     accepted_edits_count: int
+    submission_terms_version: int | None = None
     created_at: datetime
 
 
@@ -55,9 +56,26 @@ class QuizGradeResult(BaseModel):
     can_submit: bool
 
 
+class SubmissionTermsSubsection(BaseModel):
+    heading: str
+    bullets: list[str] = Field(default_factory=list)
+    paragraphs: list[str] = Field(default_factory=list)
+
+
+class SubmissionTermsSection(BaseModel):
+    number: int | None = None
+    heading: str
+    paragraphs: list[str] = Field(default_factory=list)
+    bullet_label: str | None = None
+    bullets: list[str] = Field(default_factory=list)
+    subsections: list[SubmissionTermsSubsection] = Field(default_factory=list)
+
+
 class SubmissionTermsPublic(BaseModel):
+    version: int
     title: str
-    sections: list[dict]
+    intro: str
+    sections: list[SubmissionTermsSection]
     quiz_required: bool = True
 
 
@@ -148,6 +166,7 @@ class VideoCreate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     comment: str | None = None
     force_votable: bool = False
+    terms_agreed: bool = False
 
 
 class VideoPublic(ORMModel):

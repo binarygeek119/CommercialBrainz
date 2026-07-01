@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, type QuizQuestion } from "../api";
+import { api, type QuizQuestion, type SubmissionTerms } from "../api";
+import SubmissionTermsView from "../components/SubmissionTermsView";
 import { useAuth, canSubmit } from "../auth";
 
 export default function SubmitUpgradePage() {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
-  const [terms, setTerms] = useState<{ title: string; sections: { heading: string; body: string }[] } | null>(null);
+  const [terms, setTerms] = useState<SubmissionTerms | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
@@ -62,22 +63,16 @@ export default function SubmitUpgradePage() {
   }
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div style={{ maxWidth: 760 }}>
       <h1 className="page-title">Become a Submitter</h1>
       <p className="muted" style={{ marginBottom: "1.5rem" }}>
-        New accounts are <strong>vote-only</strong>. To submit commercial links, read the terms below
-        and pass a short quiz on what may be submitted.
+        New accounts are <strong>vote-only</strong>. Read the full terms below and pass a short
+        quiz on what may be submitted.
       </p>
 
       {terms && (
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <h2>{terms.title}</h2>
-          {terms.sections.map((section) => (
-            <div key={section.heading} style={{ marginTop: "1rem" }}>
-              <h3 style={{ fontSize: "1rem", marginBottom: "0.35rem" }}>{section.heading}</h3>
-              <p className="muted" style={{ margin: 0 }}>{section.body}</p>
-            </div>
-          ))}
+        <div className="card terms-card" style={{ marginBottom: "1.5rem" }}>
+          <SubmissionTermsView terms={terms} />
         </div>
       )}
 

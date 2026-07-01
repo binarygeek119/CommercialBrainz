@@ -13,5 +13,6 @@ def user_to_public(user: User) -> UserPublic:
         can_submit=user_can_submit(user),
         is_auto_editor=user.is_auto_editor,
         accepted_edits_count=user.accepted_edits_count,
+        submission_terms_version=user.submission_terms_version,
         created_at=user.created_at,
     )

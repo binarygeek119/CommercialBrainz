@@ -9,7 +9,30 @@ export interface User {
   can_submit: boolean;
   is_auto_editor: boolean;
   accepted_edits_count: number;
+  submission_terms_version: number | null;
   created_at: string;
+}
+
+export interface SubmissionTermsSubsection {
+  heading: string;
+  bullets?: string[];
+  paragraphs?: string[];
+}
+
+export interface SubmissionTermsSection {
+  number?: number;
+  heading: string;
+  paragraphs?: string[];
+  bullet_label?: string;
+  bullets?: string[];
+  subsections?: SubmissionTermsSubsection[];
+}
+
+export interface SubmissionTerms {
+  version: number;
+  title: string;
+  intro: string;
+  sections: SubmissionTermsSection[];
 }
 
 export interface QuizQuestion {
@@ -103,10 +126,9 @@ export const api = {
 
   me: () => request<User>("/auth/me"),
 
-  getSubmissionTerms: () =>
-    request<{ title: string; sections: { heading: string; body: string }[] }>(
-      "/auth/submission-terms"
-    ),
+  getSubmissionTerms: () => request<SubmissionTerms>("/auth/submission-terms"),
+
+  acceptSubmissionTerms: () => request<User>("/auth/submission-terms/accept", { method: "POST" }),
 
   getSubmissionQuiz: () =>
     request<{ questions: QuizQuestion[]; pass_score: number }>("/auth/submission-quiz"),
@@ -127,7 +149,7 @@ export const api = {
 
   getCommercial: (sbid: string) => request<Record<string, unknown>>(`/commercials/${sbid}`),
 
-  submitVideo: (data: Record<string, unknown>) =>
+  submitVideo: (data: Record<string, unknown> & { terms_agreed?: boolean }) =>
     request<Edit>("/edits/submit-video", { method: "POST", body: JSON.stringify(data) }),
 
   openEdits: (offset = 0) => request<Paginated<Edit>>(`/edits/open?offset=${offset}`),
