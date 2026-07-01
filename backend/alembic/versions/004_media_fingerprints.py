@@ -22,10 +22,6 @@ def upgrade() -> None:
     fingerprint_status = postgresql.ENUM(
         "pending", "processing", "completed", "failed", name="fingerprintstatus", create_type=True
     )
-    hash_status = postgresql.ENUM(
-        "pending", "processing", "completed", "failed", name="videohashstatus", create_type=True
-    )
-    hash_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "media_fingerprints",
@@ -54,9 +50,24 @@ def upgrade() -> None:
     op.add_column("videos", sa.Column("phash", sa.BigInteger(), nullable=True))
     op.add_column("videos", sa.Column("file_sha256", sa.String(64), nullable=True))
     op.add_column("videos", sa.Column("audio_fingerprint", sa.Text(), nullable=True))
+
+    # add_column does not auto-create ENUM types; create explicitly before use.
+    op.execute(
+        """
+        DO $$ BEGIN
+            CREATE TYPE videohashstatus AS ENUM
+                ('pending', 'processing', 'completed', 'failed');
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+        END $$;
+        """
+    )
+    hash_status_col = postgresql.ENUM(
+        "pending", "processing", "completed", "failed", name="videohashstatus", create_type=False
+    )
     op.add_column(
         "videos",
-        sa.Column("hash_status", hash_status, nullable=False, server_default="pending"),
+        sa.Column("hash_status", hash_status_col, nullable=False, server_default="pending"),
     )
     op.add_column("videos", sa.Column("hashed_at", sa.DateTime(timezone=True), nullable=True))
     op.create_index("ix_videos_phash", "videos", ["phash"])

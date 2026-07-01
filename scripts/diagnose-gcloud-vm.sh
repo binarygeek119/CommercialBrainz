@@ -76,7 +76,14 @@ echo "==> Docker on VM..."
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   if [[ -d /opt/commercialbrainz ]]; then
     cd /opt/commercialbrainz
+    echo '--- git rev ---'
+    sudo git rev-parse --short HEAD 2>/dev/null || echo '(unknown)'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps
+    echo '--- migration fix in api image? ---'
+    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml run --rm --no-deps api \
+      grep -q 'videohashstatus AS ENUM' alembic/versions/004_media_fingerprints.py \
+      && echo 'OK: migration 004 has enum CREATE' \
+      || echo 'MISSING: rebuild api with ./scripts/deploy-gcloud-vm.sh'
     echo '--- recent api logs ---'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs api --tail=20
   else
