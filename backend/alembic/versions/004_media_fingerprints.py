@@ -25,6 +25,7 @@ def upgrade() -> None:
     hash_status = postgresql.ENUM(
         "pending", "processing", "completed", "failed", name="videohashstatus", create_type=True
     )
+    hash_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "media_fingerprints",
