@@ -27,6 +27,8 @@ class UserPublic(ORMModel):
     username: str
     email: EmailStr
     role: str
+    access_level: str
+    can_submit: bool
     is_auto_editor: bool
     accepted_edits_count: int
     created_at: datetime
@@ -39,6 +41,24 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     user_id: UUID | None = None
+
+
+class QuizAnswerSubmit(BaseModel):
+    answers: dict[str, int] = Field(min_length=1)
+
+
+class QuizGradeResult(BaseModel):
+    passed: bool
+    score: int
+    total: int
+    access_level: str
+    can_submit: bool
+
+
+class SubmissionTermsPublic(BaseModel):
+    title: str
+    sections: list[dict]
+    quiz_required: bool = True
 
 
 # --- Entities ---

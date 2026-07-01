@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.deps import get_current_user, require_mod
+from app.auth.deps import get_current_user, get_current_user_optional, require_submitter
 from app.auth.security import user_can_vote
 from app.database import get_db
 from app.models import Edit, EditStatus, EditType, User, Vote, VoteChoice
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/edits", tags=["edits"])
 async def create_edit(
     data: EditCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_submitter),
 ):
     try:
         edit_type = EditType(data.edit_type)
@@ -60,7 +60,7 @@ async def create_edit(
 async def submit_video(
     data: VideoCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_submitter),
 ):
     try:
         youtube_id = data.youtube_id or extract_youtube_id(data.youtube_url)
@@ -114,7 +114,7 @@ async def list_open_edits(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=25, le=100),
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    user: User | None = Depends(get_current_user_optional),
 ):
     stmt = (
         select(Edit)

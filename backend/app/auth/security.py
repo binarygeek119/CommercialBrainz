@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import User, UserRole
+from app.models import User, UserRole, UserAccess
 from app.schemas import TokenData
 
 settings = get_settings()
@@ -58,6 +58,12 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
     if not user or not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+def user_can_submit(user: User) -> bool:
+    if user.role in (UserRole.MOD, UserRole.ADMIN) or user.is_auto_editor:
+        return True
+    return user.access_level == UserAccess.SUBMIT_AND_VOTE
 
 
 def user_can_vote(user: User) -> bool:

@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.auth.security import get_user_by_email, get_user_by_username, hash_password
 from app.database import async_session_factory
-from app.models import User, UserRole
+from app.models import User, UserRole, UserAccess
 
 
 async def seed_admin(email: str, username: str, password: str) -> None:
@@ -24,6 +24,7 @@ async def seed_admin(email: str, username: str, password: str) -> None:
             email=email,
             hashed_password=hash_password(password),
             role=UserRole.ADMIN,
+            access_level=UserAccess.SUBMIT_AND_VOTE,
             is_auto_editor=True,
         )
         db.add(user)
@@ -57,8 +58,38 @@ async def set_user_role(
 
         user.role = new_role
         user.is_auto_editor = new_role in (UserRole.MOD, UserRole.ADMIN)
+        if new_role in (UserRole.MOD, UserRole.ADMIN):
+            user.access_level = UserAccess.SUBMIT_AND_VOTE
         await db.commit()
         print(f"User '{user.username}' role set to {new_role.value}.")
+
+
+async def set_user_access(
+    *,
+    username: str | None,
+    email: str | None,
+    access: str,
+) -> None:
+    try:
+        new_access = UserAccess(access)
+    except ValueError as e:
+        raise SystemExit(f"Invalid access '{access}'. Use: vote_only, submit_and_vote") from e
+
+    async with async_session_factory() as db:
+        user = None
+        if username:
+            user = await get_user_by_username(db, username)
+        elif email:
+            user = await get_user_by_email(db, email)
+        else:
+            raise SystemExit("Provide --username or --email")
+
+        if not user:
+            raise SystemExit(f"User not found: {username or email}")
+
+        user.access_level = new_access
+        await db.commit()
+        print(f"User '{user.username}' access set to {new_access.value}.")
 
 
 async def expire_edits_cmd() -> None:
@@ -91,6 +122,11 @@ def main() -> None:
     role_cmd.add_argument("--email")
     role_cmd.add_argument("--role", required=True, choices=["user", "mod", "admin"])
 
+    access_cmd = sub.add_parser("set-access", help="Change vote-only vs submit-and-vote access")
+    access_cmd.add_argument("--username")
+    access_cmd.add_argument("--email")
+    access_cmd.add_argument("--access", required=True, choices=["vote_only", "submit_and_vote"])
+
     sub.add_parser("expire-edits", help="Process expired open edits")
     sub.add_parser("generate-dump", help="Generate public data dump")
 
@@ -104,6 +140,12 @@ def main() -> None:
             parser.error("set-role requires --username or --email")
         asyncio.run(
             set_user_role(username=args.username, email=args.email, role=args.role)
+        )
+    elif args.command == "set-access":
+        if not args.username and not args.email:
+            parser.error("set-access requires --username or --email")
+        asyncio.run(
+            set_user_access(username=args.username, email=args.email, access=args.access)
         )
     elif args.command == "expire-edits":
         asyncio.run(expire_edits_cmd())

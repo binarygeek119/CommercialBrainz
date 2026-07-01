@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../auth";
+import { useAuth, canSubmit } from "../auth";
 import { api } from "../api";
 
 export default function SubmitPage() {
@@ -26,6 +26,18 @@ export default function SubmitPage() {
     return (
       <div className="card">
         <p>You must <a href="/login">log in</a> to submit commercials.</p>
+      </div>
+    );
+  }
+
+  if (!canSubmit(user)) {
+    return (
+      <div className="card">
+        <h2 className="page-title">Submit access required</h2>
+        <p>
+          Your account can vote on edits but cannot submit links yet. Complete the{" "}
+          <a href="/submit/upgrade">submission terms quiz</a> to upgrade to a submit &amp; vote account.
+        </p>
       </div>
     );
   }

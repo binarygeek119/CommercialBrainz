@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.security import decode_access_token, get_user_by_id, user_is_admin, user_is_mod
+from app.auth.security import decode_access_token, get_user_by_id, user_is_admin, user_is_mod, user_can_submit
 from app.database import get_db
 from app.models import User
 
@@ -31,6 +31,15 @@ async def get_current_user(
 ) -> User:
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    return user
+
+
+async def require_submitter(user: User = Depends(get_current_user)) -> User:
+    if not user_can_submit(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Submission access required. Complete the submission terms quiz to upgrade your account.",
+        )
     return user
 
 

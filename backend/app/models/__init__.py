@@ -31,6 +31,11 @@ class UserRole(str, enum.Enum):
     ADMIN = "admin"
 
 
+class UserAccess(str, enum.Enum):
+    VOTE_ONLY = "vote_only"
+    SUBMIT_AND_VOTE = "submit_and_vote"
+
+
 class VideoVisibility(str, enum.Enum):
     PUBLIC = "public"
     DMCA_HIDDEN = "dmca_hidden"
@@ -80,6 +85,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(pg_enum(UserRole, name="userrole"), default=UserRole.USER)
+    access_level: Mapped[UserAccess] = mapped_column(
+        pg_enum(UserAccess, name="useraccess"), default=UserAccess.VOTE_ONLY
+    )
     is_auto_editor: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     accepted_edits_count: Mapped[int] = mapped_column(Integer, default=0)

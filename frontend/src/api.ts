@@ -5,9 +5,17 @@ export interface User {
   username: string;
   email: string;
   role: string;
+  access_level: string;
+  can_submit: boolean;
   is_auto_editor: boolean;
   accepted_edits_count: number;
   created_at: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  prompt: string;
+  options: string[];
 }
 
 export interface Video {
@@ -94,6 +102,20 @@ export const api = {
     request<{ access_token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
   me: () => request<User>("/auth/me"),
+
+  getSubmissionTerms: () =>
+    request<{ title: string; sections: { heading: string; body: string }[] }>(
+      "/auth/submission-terms"
+    ),
+
+  getSubmissionQuiz: () =>
+    request<{ questions: QuizQuestion[]; pass_score: number }>("/auth/submission-quiz"),
+
+  submitSubmissionQuiz: (answers: Record<string, number>) =>
+    request<{ passed: boolean; score: number; total: number; can_submit: boolean }>(
+      "/auth/submission-upgrade",
+      { method: "POST", body: JSON.stringify({ answers }) }
+    ),
 
   search: (query: string, type = "all") =>
     request<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&type=${type}`),

@@ -66,3 +66,11 @@ export function isMod(user: User | null) {
 export function isAdmin(user: User | null) {
   return user?.role === "admin";
 }
+
+export function canSubmit(user: User | null) {
+  return !!user?.can_submit;
+}
+
+export function isVoteOnly(user: User | null) {
+  return !!user && user.access_level === "vote_only" && !user.can_submit;
+}

@@ -5,8 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
+from app.auth.serializers import user_to_public
 from app.database import get_db
-from app.models import User, UserRole
+from app.models import User, UserRole, UserAccess
 from app.schemas import UserPublic
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -31,5 +32,7 @@ async def set_user_role(
 
     user.role = new_role
     user.is_auto_editor = new_role in (UserRole.MOD, UserRole.ADMIN)
+    if new_role in (UserRole.MOD, UserRole.ADMIN):
+        user.access_level = UserAccess.SUBMIT_AND_VOTE
     await db.flush()
-    return user
+    return user_to_public(user)

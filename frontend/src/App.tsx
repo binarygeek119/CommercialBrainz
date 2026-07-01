@@ -7,6 +7,7 @@ import VideoPage from "./pages/VideoPage";
 import CommercialPage from "./pages/CommercialPage";
 import AdvertiserPage from "./pages/AdvertiserPage";
 import SubmitPage from "./pages/SubmitPage";
+import SubmitUpgradePage from "./pages/SubmitUpgradePage";
 import EditsPage from "./pages/EditsPage";
 import EditDetailPage from "./pages/EditDetailPage";
 import DMCAPage from "./pages/DMCAPage";
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="commercial/:sbid" element={<CommercialPage />} />
         <Route path="advertiser/:sbid" element={<AdvertiserPage />} />
         <Route path="submit" element={<SubmitPage />} />
+        <Route path="submit/upgrade" element={<SubmitUpgradePage />} />
         <Route path="edits" element={<EditsPage />} />
         <Route path="edits/:id" element={<EditDetailPage />} />
         <Route path="dmca" element={<DMCAPage />} />

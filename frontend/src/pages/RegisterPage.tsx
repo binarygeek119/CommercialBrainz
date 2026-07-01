@@ -22,6 +22,10 @@ export default function RegisterPage() {
   return (
     <div style={{ maxWidth: 400, margin: "2rem auto" }}>
       <h1 className="page-title">Register</h1>
+      <p className="muted" style={{ marginBottom: "1rem" }}>
+        New accounts start as <strong>vote-only</strong>. You can upgrade to submit commercial links
+        after passing a short quiz on our submission terms.
+      </p>
       <form onSubmit={handleSubmit} className="card">
         <div className="form-group">
           <label>Username</label>
