@@ -28,25 +28,51 @@ echo "==> Deploying to $VM_NAME ($ZONE)..."
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set -euo pipefail
   cd /opt/commercialbrainz
+  COMPOSE='sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml'
+
   echo '--- git pull ---'
   sudo git pull origin main
   echo '--- git rev ---'
   sudo git rev-parse --short HEAD
+
+  DOMAIN=\$(grep '^DOMAIN=' .env 2>/dev/null | cut -d= -f2- || true)
+  ACME_EMAIL=\$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)
+  echo '--- regenerate Caddyfile.runtime ---'
+  sudo bash infra/gcloud/generate-caddyfile.sh infra/caddy/Caddyfile.runtime \"\${DOMAIN}\" \"\${ACME_EMAIL}\"
+
   echo '--- rebuild api + worker (no cache) ---'
-  sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml build --no-cache api worker
+  \$COMPOSE build --no-cache api worker
   echo '--- restart stack ---'
-  sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml up -d
+  \$COMPOSE up -d
   echo '--- waiting for api health ---'
   for i in \$(seq 1 30); do
-    if sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml exec -T api \
+    if \$COMPOSE exec -T api \
       python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\" 2>/dev/null; then
       echo 'API healthy'
-      exit 0
+      break
+    fi
+    if [[ \$i -eq 30 ]]; then
+      echo 'API not healthy — recent logs:'
+      \$COMPOSE logs api --tail=40
+      exit 1
     fi
     sleep 10
   done
-  echo 'API not healthy yet — recent logs:'
-  sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs api --tail=40
+
+  echo '--- restart caddy (pick up new api upstream) ---'
+  \$COMPOSE restart caddy
+  sleep 5
+
+  echo '--- verify via Caddy on localhost ---'
+  for i in \$(seq 1 12); do
+    if curl -sf http://127.0.0.1/health >/dev/null 2>&1; then
+      echo 'Caddy /health OK'
+      exit 0
+    fi
+    sleep 5
+  done
+  echo 'Caddy still not proxying /health — recent caddy logs:'
+  \$COMPOSE logs caddy --tail=30
   exit 1
 "
 

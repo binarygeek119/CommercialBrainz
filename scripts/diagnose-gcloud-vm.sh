@@ -84,6 +84,11 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
       grep -q 'videohashstatus AS ENUM' alembic/versions/004_media_fingerprints.py \
       && echo 'OK: migration 004 has enum CREATE' \
       || echo 'MISSING: rebuild api with ./scripts/deploy-gcloud-vm.sh'
+    echo '--- localhost via caddy ---'
+    curl -sf http://127.0.0.1/health && echo 'OK: localhost/health via caddy' \
+      || echo 'FAIL: localhost/health (try: docker compose restart caddy)'
+    echo '--- recent caddy logs ---'
+    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs caddy --tail=10
     echo '--- recent api logs ---'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs api --tail=20
   else
