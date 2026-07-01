@@ -78,6 +78,10 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
+echo "==> Verifying public endpoints..."
+curl -sf http://localhost/health >/dev/null && echo "    Port 80 /health OK" || echo "    WARNING: Port 80 /health failed"
+curl -sf http://localhost/docs >/dev/null && echo "    Port 80 /docs OK" || echo "    WARNING: Port 80 /docs failed (rebuild web: docker compose up -d --build web)"
+
 # Optional admin seed from instance metadata
 ADMIN_EMAIL=$(curl -sf -H "Metadata-Flavor: Google" \
   http://metadata.google.internal/computeMetadata/v1/instance/attributes/admin-email 2>/dev/null || true)
@@ -139,10 +143,10 @@ setup_duckdns
 echo ""
 echo "==> CommercialBrainz VM setup complete!"
 echo "    Web UI:  http://${EXTERNAL_IP}:${WEB_PORT}"
-echo "    API:     http://${EXTERNAL_IP}:8000"
-echo "    Docs:    http://${EXTERNAL_IP}:8000/docs"
+echo "    Docs:    http://${EXTERNAL_IP}/docs"
+echo "    API:     http://${EXTERNAL_IP}/api/v1/ (via nginx)"
 if [[ -n "$DUCKDNS_DOMAIN" ]]; then
   echo "    DuckDNS: http://${DUCKDNS_DOMAIN}.duckdns.org/"
-  echo "    DuckDNS: http://${DUCKDNS_DOMAIN}.duckdns.org:8000/docs"
+  echo "    Docs:    http://${DUCKDNS_DOMAIN}.duckdns.org/docs"
 fi
 echo "    Log:     $LOG"

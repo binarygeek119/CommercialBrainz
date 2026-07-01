@@ -306,11 +306,11 @@ echo ""
 echo "    External IP:  $EXTERNAL_IP"
 echo "    Web UI:       http://${EXTERNAL_IP}/          (port 80, after startup finishes)"
 echo "    API:          http://${EXTERNAL_IP}:8000/"
-echo "    API docs:     http://${EXTERNAL_IP}:8000/docs"
+echo "    API docs:     http://${EXTERNAL_IP}/docs"
 if [[ -n "${DUCKDNS_DOMAIN:-}" ]]; then
   echo ""
   echo "    DuckDNS:      http://${DUCKDNS_DOMAIN}.duckdns.org/"
-  echo "    DuckDNS API:  http://${DUCKDNS_DOMAIN}.duckdns.org:8000/docs"
+  echo "    DuckDNS docs: http://${DUCKDNS_DOMAIN}.duckdns.org/docs"
 fi
 echo ""
 echo "Monitor startup progress:"

@@ -100,7 +100,9 @@ DUCKDNS_TOKEN=your-duckdns-token \
 ./scripts/setup-gcloud-vm.sh
 ```
 
-3. After startup: `http://commercialbrainz.duckdns.org/` (web) and `:8000/docs` (API).
+3. After startup use **port 80** (port `:8000` is often blocked by ISPs):
+   - Web: `http://commercialbrainz.duckdns.org/`
+   - API docs: `http://commercialbrainz.duckdns.org/docs`
 
 Add DuckDNS to an **existing** VM (zone is auto-detected if the VM was created in another region):
 
@@ -110,6 +112,8 @@ GCP_PROJECT_ID=your-project ./scripts/setup-duckdns-gcloud.sh
 ```
 
 DuckDNS is ideal with ephemeral GCE IPs (no static IP cost). For HTTPS, add a reverse proxy (e.g. Caddy + Let's Encrypt) in front of port 80.
+
+**Troubleshooting:** run `GCP_PROJECT_ID=your-project ./scripts/diagnose-gcloud-vm.sh`
 
 ## Google Cloud — production (Cloud Run)
 
