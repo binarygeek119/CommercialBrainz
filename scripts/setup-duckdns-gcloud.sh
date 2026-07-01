@@ -63,7 +63,7 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
     sudo install -m 0755 /opt/commercialbrainz/infra/gcloud/duckdns-update.sh /usr/local/bin/duckdns-update
   else
     sudo curl -fsSL -o /usr/local/bin/duckdns-update \
-      https://raw.githubusercontent.com/binarygeek119/spotbrainz/main/infra/gcloud/duckdns-update.sh
+      https://raw.githubusercontent.com/binarygeek119/CommercialBrainz/main/infra/gcloud/duckdns-update.sh
     sudo chmod 755 /usr/local/bin/duckdns-update
   fi
   echo '*/5 * * * * root /usr/local/bin/duckdns-update' | sudo tee /etc/cron.d/commercialbrainz-duckdns >/dev/null
