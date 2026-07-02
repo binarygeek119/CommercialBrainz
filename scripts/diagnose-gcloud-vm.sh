@@ -31,7 +31,16 @@ echo "    GCP IP: $EXTERNAL_IP"
 
 echo ""
 echo "==> DuckDNS check..."
-DUCKDNS_IP="$(dig +short "${DUCKDNS_DOMAIN}.duckdns.org" 2>/dev/null | tail -1 || true)"
+DUCKDNS_IP=""
+if command -v dig >/dev/null 2>&1; then
+  DUCKDNS_IP="$(dig +short "${DUCKDNS_DOMAIN}.duckdns.org" @8.8.8.8 2>/dev/null | tail -1 || true)"
+  if [[ -z "$DUCKDNS_IP" ]]; then
+    DUCKDNS_IP="$(dig +short "${DUCKDNS_DOMAIN}.duckdns.org" 2>/dev/null | tail -1 || true)"
+  fi
+fi
+if [[ -z "$DUCKDNS_IP" ]] && command -v nslookup >/dev/null 2>&1; then
+  DUCKDNS_IP="$(nslookup "${DUCKDNS_DOMAIN}.duckdns.org" 8.8.8.8 2>/dev/null | awk '/^Address: / { print $2 }' | tail -1 || true)"
+fi
 if [[ -n "$DUCKDNS_IP" ]]; then
   echo "    DuckDNS ${DUCKDNS_DOMAIN}.duckdns.org → $DUCKDNS_IP"
   if [[ "$DUCKDNS_IP" == "$EXTERNAL_IP" ]]; then
@@ -67,7 +76,7 @@ if [[ -n "$DUCKDNS_IP" ]]; then
 fi
 
 echo ""
-echo "==> HTTP checks (port 8000 — may be blocked by some networks)..."
+echo "==> HTTP checks (port 8000 — internal only on VM; failure here is normal)..."
 check_url "Direct API" "http://${EXTERNAL_IP}:8000/health" || true
 check_url "Direct docs" "http://${EXTERNAL_IP}:8000/docs" || true
 
@@ -80,7 +89,18 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
     sudo git rev-parse --short HEAD 2>/dev/null || echo '(unknown)'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps -a
     echo '--- api container state ---'
-    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps api web worker postgres 2>/dev/null || true
+    sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps api web worker postgres caddy 2>/dev/null || true
+    echo '--- stale container warning ---'
+    API_AGE=\$(sudo docker inspect --format='{{.Created}}' infra-api-1 2>/dev/null || echo '')
+    WEB_AGE=\$(sudo docker inspect --format='{{.Created}}' infra-web-1 2>/dev/null || echo '')
+    CADDY_ID=\$(sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml ps -q caddy 2>/dev/null | head -1)
+    CADDY_AGE=\$(sudo docker inspect --format='{{.Created}}' \"\$CADDY_ID\" 2>/dev/null || echo '')
+    if [[ -n \"\$API_AGE\" && -n \"\$WEB_AGE\" && \"\$API_AGE\" != \"\$WEB_AGE\" ]]; then
+      echo \"WARN: web container older/different than api — run: sudo bash scripts/fix-gcloud-vm.sh\"
+    fi
+    if [[ -n \"\$API_AGE\" && -n \"\$CADDY_AGE\" && \"\$CADDY_AGE\" != \"\$API_AGE\" ]]; then
+      echo \"WARN: caddy container older/different than api — Caddy may proxy stale IPs (502). Run fix-gcloud-vm.sh\"
+    fi
     echo '--- migration fix in api image? ---'
     sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml run --rm --no-deps api \
       grep -q 'videohashstatus AS ENUM' alembic/versions/004_media_fingerprints.py \

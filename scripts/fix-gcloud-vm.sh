@@ -37,7 +37,8 @@ bash infra/gcloud/generate-caddyfile.sh infra/caddy/Caddyfile.runtime "${DOMAIN}
 echo ""
 echo "==> Rebuild and start full stack"
 $COMPOSE build api worker web
-$COMPOSE up -d postgres redis api worker web
+$COMPOSE up -d postgres redis
+$COMPOSE up -d --force-recreate api worker web
 
 echo ""
 echo "==> Waiting for API (migrations + uvicorn)..."
@@ -57,8 +58,12 @@ done
 
 echo ""
 echo "==> Recreate Caddy (refresh Docker DNS to api/web)"
-$COMPOSE up -d --force-recreate caddy
+$COMPOSE up -d --force-recreate --no-deps caddy
 sleep 5
+
+echo ""
+echo "==> Container ages (web/caddy should match api after deploy)"
+$COMPOSE ps -a --format 'table {{.Name}}\t{{.Status}}\t{{.RunningFor}}' api worker web caddy 2>/dev/null || $COMPOSE ps api worker web caddy
 
 echo ""
 echo "==> Verify"
