@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Edit } from "../api";
+import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
-type Tab = "overview" | "dmca" | "edits";
+type Tab = "overview" | "dmca" | "edits" | "fp-queue";
 
 export default function ModPage() {
   const queryClient = useQueryClient();
@@ -31,6 +32,7 @@ export default function ModPage() {
     queryClient.invalidateQueries({ queryKey: ["mod-stats"] });
     queryClient.invalidateQueries({ queryKey: ["dmca-queue"] });
     queryClient.invalidateQueries({ queryKey: ["open-edits"] });
+    queryClient.invalidateQueries({ queryKey: ["fingerprint-queue"] });
   };
 
   const handleDmcaReview = async (id: string, status: string) => {
@@ -76,6 +78,7 @@ export default function ModPage() {
             ["overview", "Overview"],
             ["dmca", "DMCA queue"],
             ["edits", "Open edits"],
+            ["fp-queue", "Fingerprint queue"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -108,6 +111,14 @@ export default function ModPage() {
               <span className="admin-stat-value">{stats.dmca_link_hidden}</span>
               <span className="muted">Links hidden</span>
             </div>
+            <div className="card admin-stat">
+              <span className="admin-stat-value">{stats.pending_fingerprints}</span>
+              <span className="muted">Pending fingerprints</span>
+            </div>
+            <div className="card admin-stat">
+              <span className="admin-stat-value">{stats.failed_fingerprints}</span>
+              <span className="muted">Failed fingerprints</span>
+            </div>
           </div>
           <div className="card" style={{ marginTop: "1rem" }}>
             <h3>Quick actions</h3>
@@ -117,6 +128,9 @@ export default function ModPage() {
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => setTab("dmca")}>
                 DMCA queue
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setTab("fp-queue")}>
+                Fingerprint queue
               </button>
               <Link to="/submit" className="btn btn-secondary">
                 Submit (auto-apply)
@@ -245,6 +259,10 @@ export default function ModPage() {
             {openEdits?.items.length === 0 && <p className="muted">No open edits.</p>}
           </div>
         </div>
+      )}
+
+      {tab === "fp-queue" && (
+        <FingerprintQueuePanel queryKey="mod" fetchQueue={() => api.modFingerprintQueue()} />
       )}
     </div>
   );

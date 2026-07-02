@@ -90,8 +90,23 @@ def compute_phash(video_path: Path, duration_sec: float) -> int:
     """Return 64-bit perceptual hash as unsigned integer."""
     sprite = generate_sprite(video_path, duration_sec)
     hash_obj = imagehash.phash(sprite)
-    return int(str(hash_obj), 16)
+    return phash_as_unsigned(int(str(hash_obj), 16))
+
+
+def phash_as_unsigned(phash: int) -> int:
+    """Normalize a stored or computed pHash to unsigned 64-bit."""
+    return phash & 0xFFFFFFFFFFFFFFFF
+
+
+def phash_to_db(phash: int) -> int:
+    """Convert unsigned 64-bit pHash to signed BIGINT for PostgreSQL."""
+    unsigned = phash_as_unsigned(phash)
+    if unsigned >= 2**63:
+        return unsigned - 2**64
+    return unsigned
 
 
 def hamming_distance(phash_a: int, phash_b: int) -> int:
-    return (phash_a ^ phash_b).bit_count()
+    a = phash_as_unsigned(phash_a)
+    b = phash_as_unsigned(phash_b)
+    return (a ^ b).bit_count()

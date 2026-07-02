@@ -65,6 +65,7 @@ export interface Video {
   audio_fingerprint?: string | null;
   hash_status?: string | null;
   hashed_at?: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   commercial?: { sbid: string; title: string };
   advertiser?: { sbid: string; name: string };
@@ -136,6 +137,44 @@ export interface AdminFingerprint {
   error_message?: string | null;
   created_at: string;
   completed_at?: string | null;
+}
+
+export interface FingerprintQueueItem {
+  id: string;
+  youtube_id: string;
+  phase: string;
+  status: string;
+  edit_id?: string | null;
+  video_id?: string | null;
+  created_at: string;
+  started_at?: string | null;
+  error_message?: string | null;
+  queue_position?: number | null;
+}
+
+export interface FingerprintQueueStatus {
+  pending_count: number;
+  processing_count: number;
+  redis_queue_depth: number;
+  processing: FingerprintQueueItem[];
+  pending: FingerprintQueueItem[];
+}
+
+export interface RegistrationSettings {
+  invite_only: boolean;
+}
+
+export interface RegistrationInvite {
+  id: string;
+  code: string;
+  label?: string | null;
+  max_uses: number;
+  use_count: number;
+  revoked_at?: string | null;
+  expires_at?: string | null;
+  created_at: string;
+  remaining_uses: number;
+  is_active: boolean;
 }
 
 export interface ArchiveExportStatus {
@@ -307,7 +346,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  register: (data: { username: string; email: string; password: string }) =>
+  registrationSettings: () => request<RegistrationSettings>("/auth/registration-settings"),
+
+  register: (data: { username: string; email: string; password: string; invite_code?: string }) =>
     request<User>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
   login: (data: { username: string; password: string; remember_me?: boolean }) =>
@@ -469,6 +510,8 @@ export const api = {
       `/admin/fingerprints?offset=${offset}${status ? `&status=${status}` : ""}`
     ),
 
+  adminFingerprintQueue: () => request<FingerprintQueueStatus>("/admin/fingerprint-queue"),
+
   adminRetryFingerprint: (id: string) =>
     request<{ status: string }>(`/admin/fingerprints/${id}/retry`, { method: "POST" }),
 
@@ -478,7 +521,29 @@ export const api = {
   adminTriggerArchiveExport: () =>
     request<{ status: string }>("/admin/exports/archive-org/trigger", { method: "POST" }),
 
+  adminRegistrationSettings: () =>
+    request<RegistrationSettings>("/admin/registration-settings"),
+
+  adminSetRegistrationSettings: (inviteOnly: boolean) =>
+    request<RegistrationSettings>("/admin/registration-settings", {
+      method: "POST",
+      body: JSON.stringify({ invite_only: inviteOnly }),
+    }),
+
+  adminInvites: () => request<Paginated<RegistrationInvite>>("/admin/invites"),
+
+  adminCreateInvite: (data: { label?: string; max_uses?: number; expires_in_days?: number | null }) =>
+    request<RegistrationInvite>("/admin/invites", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  adminRevokeInvite: (inviteId: string) =>
+    request<RegistrationInvite>(`/admin/invites/${inviteId}/revoke`, { method: "POST" }),
+
   modStats: () => request<ModStats>("/mod/stats"),
+
+  modFingerprintQueue: () => request<FingerprintQueueStatus>("/mod/fingerprint-queue"),
 
   modApplyEdit: (editId: string) =>
     request<Edit>(`/mod/edits/${editId}/apply`, { method: "POST" }),

@@ -18,7 +18,7 @@ from app.config import get_settings
 from app.database import async_session_factory
 from app.models import Edit, EditStatus, EditType, FingerprintStatus, MediaFingerprint, Video, VideoHashStatus
 from app.services.media_probe import merge_probe_into_state, probe_media_file, probe_video_fields
-from app.services.phash import compute_phash
+from app.services.phash import compute_phash, phash_to_db
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -161,6 +161,21 @@ async def _merge_probe_into_edit(db: AsyncSession, edit_id: UUID, probe: dict) -
     edit.after_state = merge_probe_into_state(edit.after_state or {}, probe)
 
 
+def _set_video_hash_error(video: Video, message: str, *, permanent: bool) -> None:
+    extra = dict(video.extra_data or {})
+    extra["hash_error"] = message[:500]
+    video.extra_data = extra
+    video.hash_status = VideoHashStatus.FAILED if permanent else VideoHashStatus.PENDING
+
+
+def _clear_video_hash_error(video: Video) -> None:
+    extra = dict(video.extra_data or {})
+    if "hash_error" in extra:
+        extra = dict(extra)
+        extra.pop("hash_error", None)
+        video.extra_data = extra
+
+
 async def run_fingerprint_job(fingerprint_id: UUID) -> None:
     temp_dir = Path(settings.hash_temp_dir) / str(fingerprint_id)
     async with async_session_factory() as db:
@@ -188,7 +203,7 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
             fp = await db.get(MediaFingerprint, fingerprint_id)
             if not fp:
                 return
-            fp.phash = phash
+            fp.phash = phash_to_db(phash)
             fp.file_sha256 = file_hash
             fp.audio_fingerprint = audio_fp
             fp.duration_sec = duration
@@ -208,17 +223,27 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
 
     except Exception as exc:
         logger.exception("Fingerprint job %s failed", fingerprint_id)
+        error_text = str(exc)[:2000]
         async with async_session_factory() as db:
             fp = await db.get(MediaFingerprint, fingerprint_id)
             if fp:
-                fp.status = FingerprintStatus.FAILED
-                fp.error_message = str(exc)[:2000]
+                fp.retry_count += 1
+                fp.error_message = error_text
                 fp.completed_at = datetime.now(UTC)
+                permanent = fp.retry_count >= settings.fingerprint_max_retries
+                fp.status = FingerprintStatus.FAILED
                 if fp.video_id:
                     video = await db.get(Video, fp.video_id)
                     if video:
-                        video.hash_status = VideoHashStatus.FAILED
+                        _set_video_hash_error(video, error_text, permanent=permanent)
                 await db.commit()
+                if not permanent:
+                    logger.info(
+                        "Fingerprint job %s failed (attempt %d/%d); cron will retry",
+                        fingerprint_id,
+                        fp.retry_count,
+                        settings.fingerprint_max_retries,
+                    )
     finally:
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -259,6 +284,7 @@ async def _copy_to_video(db: AsyncSession, video_id: UUID, fp: MediaFingerprint)
     video.audio_fingerprint = fp.audio_fingerprint
     video.hash_status = VideoHashStatus.COMPLETED
     video.hashed_at = datetime.now(UTC)
+    _clear_video_hash_error(video)
     if fp.duration_sec and not video.duration_ms:
         video.duration_ms = int(fp.duration_sec * 1000)
     if fp.probe_data:

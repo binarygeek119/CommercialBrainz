@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus } from "../api";
+import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type RegistrationInvite } from "../api";
+import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
-type Tab = "overview" | "users" | "fingerprints" | "exports";
+type Tab = "overview" | "users" | "fingerprints" | "fp-queue" | "registration" | "exports";
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -13,6 +14,10 @@ export default function AdminPage() {
   const [fpStatus, setFpStatus] = useState<string>("");
   const [exportError, setExportError] = useState("");
   const [exportLoading, setExportLoading] = useState(false);
+  const [inviteLabel, setInviteLabel] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -39,10 +44,26 @@ export default function AdminPage() {
       query.state.data?.status === "running" ? 5000 : false,
   });
 
+  const { data: registrationSettings, refetch: refetchRegistrationSettings } = useQuery({
+    queryKey: ["admin-registration-settings"],
+    queryFn: () => api.adminRegistrationSettings(),
+    enabled: tab === "registration",
+  });
+
+  const { data: invites, isLoading: invitesLoading, refetch: refetchInvites } = useQuery({
+    queryKey: ["admin-invites"],
+    queryFn: () => api.adminInvites(),
+    enabled: tab === "registration",
+  });
+
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     queryClient.invalidateQueries({ queryKey: ["admin-fingerprints"] });
+    queryClient.invalidateQueries({ queryKey: ["fingerprint-queue"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-registration-settings"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
+    queryClient.invalidateQueries({ queryKey: ["registration-settings"] });
   };
 
   const handleRole = async (userId: string, role: string) => {
@@ -65,6 +86,45 @@ export default function AdminPage() {
     await api.adminRetryFingerprint(id);
     queryClient.invalidateQueries({ queryKey: ["admin-fingerprints"] });
     queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+  };
+
+  const handleToggleInviteOnly = async (inviteOnly: boolean) => {
+    setSettingsLoading(true);
+    setInviteError("");
+    try {
+      await api.adminSetRegistrationSettings(inviteOnly);
+      await refetchRegistrationSettings();
+      queryClient.invalidateQueries({ queryKey: ["registration-settings"] });
+    } catch (err) {
+      setInviteError((err as Error).message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleCreateInvite = async () => {
+    setInviteLoading(true);
+    setInviteError("");
+    try {
+      await api.adminCreateInvite({ label: inviteLabel.trim() || undefined });
+      setInviteLabel("");
+      await refetchInvites();
+    } catch (err) {
+      setInviteError((err as Error).message);
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    if (!confirm("Revoke this invite code?")) return;
+    setInviteError("");
+    try {
+      await api.adminRevokeInvite(inviteId);
+      await refetchInvites();
+    } catch (err) {
+      setInviteError((err as Error).message);
+    }
   };
 
   const handleTriggerArchiveExport = async () => {
@@ -98,6 +158,8 @@ export default function AdminPage() {
             ["overview", "Overview"],
             ["users", "Users"],
             ["fingerprints", "Fingerprints"],
+            ["fp-queue", "Fingerprint queue"],
+            ["registration", "Registration"],
             ["exports", "Archive.org export"],
           ] as const
         ).map(([id, label]) => (
@@ -277,6 +339,98 @@ export default function AdminPage() {
               </div>
             ))}
             {fingerprints?.items.length === 0 && <p className="muted">No fingerprint jobs.</p>}
+          </div>
+        </div>
+      )}
+
+      {tab === "fp-queue" && (
+        <FingerprintQueuePanel
+          queryKey="admin"
+          fetchQueue={() => api.adminFingerprintQueue()}
+          onRetry={async (id) => {
+            await api.adminRetryFingerprint(id);
+            queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+          }}
+        />
+      )}
+
+      {tab === "registration" && (
+        <div className="stack">
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Invite-only registration</h2>
+            <p className="muted">
+              When enabled, new accounts need a valid invite code. Anyone can still browse videos,
+              brands, and search without logging in.
+            </p>
+            <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1rem" }}>
+              <input
+                type="checkbox"
+                checked={registrationSettings?.invite_only ?? false}
+                disabled={settingsLoading}
+                onChange={(e) => handleToggleInviteOnly(e.target.checked)}
+              />
+              <span>Require invite code to register</span>
+            </label>
+            {inviteError && <p className="error">{inviteError}</p>}
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Invite codes</h2>
+            <div className="form-group">
+              <label>Label (optional)</label>
+              <input
+                value={inviteLabel}
+                onChange={(e) => setInviteLabel(e.target.value)}
+                placeholder="e.g. Beta tester batch 1"
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={inviteLoading}
+              onClick={handleCreateInvite}
+            >
+              {inviteLoading ? "Creating…" : "Generate invite code"}
+            </button>
+            <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
+              Share a code or link like <code>/register?invite=CODE</code>. Codes expire in 30 days by default.
+            </p>
+          </div>
+
+          {invitesLoading && <p className="muted">Loading invites…</p>}
+          <div className="stack">
+            {(invites?.items as RegistrationInvite[])?.map((invite) => (
+              <div key={invite.id} className="card">
+                <div className="flex-between">
+                  <code style={{ fontSize: "1.05rem" }}>{invite.code}</code>
+                  <span className={`badge badge-${invite.is_active ? "applied" : "rejected"}`}>
+                    {invite.is_active ? "active" : invite.revoked_at ? "revoked" : "expired"}
+                  </span>
+                </div>
+                {invite.label && <p className="muted" style={{ marginTop: "0.35rem" }}>{invite.label}</p>}
+                <p className="muted" style={{ fontSize: "0.85rem", marginTop: "0.35rem" }}>
+                  Uses: {invite.use_count}/{invite.max_uses}
+                  {invite.expires_at && <> · expires {new Date(invite.expires_at).toLocaleDateString()}</>}
+                </p>
+                <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <Link to={`/register?invite=${encodeURIComponent(invite.code)}`} className="btn btn-secondary">
+                    Open register link
+                  </Link>
+                  {invite.is_active && (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => handleRevokeInvite(invite.id)}
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {invites?.items.length === 0 && !invitesLoading && (
+              <p className="muted">No invite codes yet.</p>
+            )}
           </div>
         </div>
       )}

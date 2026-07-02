@@ -151,6 +151,37 @@ class User(Base):
     email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    registration_invites_created: Mapped[list["RegistrationInvite"]] = relationship(
+        back_populates="created_by", foreign_keys="RegistrationInvite.created_by_id"
+    )
+
+
+class SiteSetting(Base):
+    __tablename__ = "site_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSONB, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class RegistrationInvite(Base):
+    __tablename__ = "registration_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    max_uses: Mapped[int] = mapped_column(Integer, default=1)
+    use_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    created_by: Mapped["User | None"] = relationship(
+        back_populates="registration_invites_created", foreign_keys=[created_by_id]
+    )
 
 
 class EmailVerificationToken(Base):
@@ -521,6 +552,7 @@ class MediaFingerprint(Base):
     duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
     probe_data: Mapped[dict] = mapped_column(JSONB, default=dict)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -15,6 +15,34 @@ class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     email: EmailStr
     password: str = Field(min_length=8)
+    invite_code: str | None = Field(default=None, max_length=64)
+
+
+class RegistrationSettingsPublic(BaseModel):
+    invite_only: bool
+
+
+class RegistrationInviteCreate(BaseModel):
+    label: str | None = Field(default=None, max_length=255)
+    max_uses: int = Field(default=1, ge=1, le=1000)
+    expires_in_days: int | None = Field(default=30, ge=1, le=365)
+
+
+class RegistrationInvitePublic(ORMModel):
+    id: UUID
+    code: str
+    label: str | None = None
+    max_uses: int
+    use_count: int
+    revoked_at: datetime | None = None
+    expires_at: datetime | None = None
+    created_at: datetime
+    remaining_uses: int
+    is_active: bool
+
+
+class RegistrationInviteOnlyUpdate(BaseModel):
+    invite_only: bool
 
 
 class UserLogin(BaseModel):
@@ -502,6 +530,27 @@ class YouTubeMetadataPreview(BaseModel):
     thumbnail_url: str | None = None
     metadata: dict = Field(default_factory=dict)
     existing_video_sbid: UUID | None = None
+
+
+class FingerprintQueueItem(BaseModel):
+    id: UUID
+    youtube_id: str
+    phase: str
+    status: str
+    edit_id: UUID | None = None
+    video_id: UUID | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    error_message: str | None = None
+    queue_position: int | None = None
+
+
+class FingerprintQueueStatus(BaseModel):
+    pending_count: int
+    processing_count: int
+    redis_queue_depth: int
+    processing: list[FingerprintQueueItem]
+    pending: list[FingerprintQueueItem]
 
 
 class AdminFingerprintPublic(BaseModel):

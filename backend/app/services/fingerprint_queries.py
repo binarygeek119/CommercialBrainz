@@ -41,7 +41,9 @@ def fingerprint_to_dict(fp: MediaFingerprint | None) -> dict | None:
 def format_phash_hex(phash: int | None) -> str | None:
     if phash is None:
         return None
-    return f"{phash & 0xFFFFFFFFFFFFFFFF:016x}"
+    from app.services.phash import phash_as_unsigned
+
+    return f"{phash_as_unsigned(phash):016x}"
 
 
 async def find_phash_duplicates(

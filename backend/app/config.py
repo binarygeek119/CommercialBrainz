@@ -57,6 +57,9 @@ class Settings(BaseSettings):
         "bv*[height<=480]+ba/b[height<=480]/bv*+ba/b"
     )
     hash_max_file_mb: int = 200
+    fingerprint_max_retries: int = 3
+    fingerprint_retry_delay_minutes: int = 15
+    registration_invite_only: bool = False
     thumbnail_max_bytes: int = 2 * 1024 * 1024
     thumbnail_upload_dir: str = "/data/thumbnails"
     logo_upload_dir: str = "/data/logos"

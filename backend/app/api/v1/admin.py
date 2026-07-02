@@ -27,7 +27,21 @@ from app.schemas import (
     AdminUserActiveUpdate,
     AdminUserPublic,
     ArchiveExportStatus,
+    FingerprintQueueStatus,
     PaginatedResponse,
+    RegistrationInviteCreate,
+    RegistrationInviteOnlyUpdate,
+    RegistrationInvitePublic,
+    RegistrationSettingsPublic,
+)
+from app.services.fingerprint_queue_status import get_fingerprint_queue_status
+from app.services.registration_invites import (
+    create_registration_invite,
+    invite_to_public,
+    is_registration_invite_only,
+    list_registration_invites,
+    revoke_registration_invite,
+    set_registration_invite_only,
 )
 from app.services.archive_export_queue import (
     enqueue_archive_export,
@@ -180,6 +194,14 @@ async def set_user_active(
     return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
 
 
+@router.get("/fingerprint-queue", response_model=FingerprintQueueStatus)
+async def fingerprint_queue(
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    return FingerprintQueueStatus(**await get_fingerprint_queue_status(db))
+
+
 @router.get("/fingerprints", response_model=PaginatedResponse)
 async def list_fingerprints(
     status: str | None = Query(default=None),
@@ -219,9 +241,19 @@ async def retry_fingerprint(
         raise HTTPException(status_code=404, detail="Fingerprint job not found")
 
     fp.status = FingerprintStatus.PENDING
+    fp.retry_count = 0
     fp.error_message = None
     fp.started_at = None
     fp.completed_at = None
+    if fp.video_id:
+        video = await db.get(Video, fp.video_id)
+        if video:
+            video.hash_status = VideoHashStatus.PENDING
+            extra = dict(video.extra_data or {})
+            if "hash_error" in extra:
+                extra = dict(extra)
+                extra.pop("hash_error", None)
+                video.extra_data = extra
     await db.flush()
     await enqueue_hash_job(fingerprint_id)
     return {"status": "queued", "id": str(fingerprint_id)}
@@ -254,3 +286,64 @@ async def trigger_archive_export(
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"status": "queued"}
+
+
+@router.get("/registration-settings", response_model=RegistrationSettingsPublic)
+async def admin_registration_settings(
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    return RegistrationSettingsPublic(invite_only=await is_registration_invite_only(db))
+
+
+@router.post("/registration-settings", response_model=RegistrationSettingsPublic)
+async def admin_set_registration_settings(
+    data: RegistrationInviteOnlyUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    enabled = await set_registration_invite_only(db, data.invite_only)
+    return RegistrationSettingsPublic(invite_only=enabled)
+
+
+@router.get("/invites", response_model=PaginatedResponse)
+async def admin_list_invites(
+    include_revoked: bool = Query(default=True),
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    invites = await list_registration_invites(db, include_revoked=include_revoked)
+    items = [RegistrationInvitePublic(**invite_to_public(inv)).model_dump() for inv in invites]
+    return PaginatedResponse(items=items, total=len(items), offset=0, limit=len(items))
+
+
+@router.post("/invites", response_model=RegistrationInvitePublic, status_code=201)
+async def admin_create_invite(
+    data: RegistrationInviteCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    try:
+        invite = await create_registration_invite(
+            db,
+            created_by=admin,
+            label=data.label,
+            max_uses=data.max_uses,
+            expires_in_days=data.expires_in_days,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return RegistrationInvitePublic(**invite_to_public(invite))
+
+
+@router.post("/invites/{invite_id}/revoke", response_model=RegistrationInvitePublic)
+async def admin_revoke_invite(
+    invite_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    try:
+        invite = await revoke_registration_invite(db, invite_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return RegistrationInvitePublic(**invite_to_public(invite))

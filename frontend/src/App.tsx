@@ -23,10 +23,13 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import VerifyEmailPendingPage from "./pages/VerifyEmailPendingPage";
 import RegisterPage from "./pages/RegisterPage";
+import DevSiteDisclaimer from "./components/DevSiteDisclaimer";
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <DevSiteDisclaimer />
+      <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="browse" element={<BrowsePage />} />
@@ -55,5 +58,6 @@ export default function App() {
         <Route path="register" element={<RegisterPage />} />
       </Route>
     </Routes>
+    </>
   );
 }

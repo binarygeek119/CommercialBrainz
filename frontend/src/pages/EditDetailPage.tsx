@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../auth";
+import { useAuth, isMod } from "../auth";
 import { api } from "../api";
-import { editVoteThreshold } from "../utils/editDisplay";
 import BrandMetadataDiff, { hasMetadataChanges } from "../components/BrandMetadataDiff";
 import { formatLogoContext } from "../utils/brandLogos";
 
@@ -50,9 +49,9 @@ export default function EditDetailPage() {
 
   const yesVotes = edit.votes.filter((v) => v.choice === "yes").length;
   const noVotes = edit.votes.filter((v) => v.choice === "no").length;
-  const voteThreshold = editVoteThreshold(edit);
   const fp = edit.fingerprint_preview;
   const brandEditId = edit.after_state.brand_edit_id as string | undefined;
+  const viewerIsMod = isMod(user);
 
   return (
     <div>
@@ -68,7 +67,12 @@ export default function EditDetailPage() {
         <p className="muted">
           Expires: {new Date(edit.expires_at).toLocaleString()} · Yes: {yesVotes} · No: {noVotes}
           {edit.status === "open" && (
-            <> · needs {voteThreshold} yes (0 no) or mod approval</>
+            <>
+              {" "}
+              · {viewerIsMod
+                ? "Your yes/no vote applies or rejects this edit immediately"
+                : "Only moderator yes/no votes decide this edit"}
+            </>
           )}
         </p>
         {brandEditId && (
@@ -87,8 +91,7 @@ export default function EditDetailPage() {
               <strong>{(edit.after_state.name as string) || "Unnamed brand"}</strong>
             </p>
             <p className="muted" style={{ marginTop: "0.5rem" }}>
-              Approved brands appear in search after {voteThreshold} yes votes with no no votes, or
-              when a mod approves this edit.
+              Approved brands appear in search when a moderator or admin votes yes on this edit.
             </p>
           </div>
           {hasMetadataChanges({}, edit.after_state) && (
@@ -281,7 +284,16 @@ export default function EditDetailPage() {
 
       {edit.status === "open" && user && (
         <div className="card">
-          <h3>Cast your vote</h3>
+          <h3>{viewerIsMod ? "Moderator vote" : "Cast your vote"}</h3>
+          {viewerIsMod ? (
+            <p className="muted" style={{ marginBottom: "0.75rem" }}>
+              Yes applies this edit right away. No rejects it. Community votes do not affect the outcome.
+            </p>
+          ) : (
+            <p className="muted" style={{ marginBottom: "0.75rem" }}>
+              Community votes are recorded for feedback. A moderator or admin yes/no vote decides the edit.
+            </p>
+          )}
           <div className="form-group">
             <label>Comment (optional)</label>
             <textarea value={voteComment} onChange={(e) => setVoteComment(e.target.value)} />
@@ -293,9 +305,11 @@ export default function EditDetailPage() {
             <button className="btn btn-danger" onClick={() => handleVote("no")}>
               No
             </button>
-            <button className="btn btn-secondary" onClick={() => handleVote("abstain")}>
-              Abstain
-            </button>
+            {!viewerIsMod && (
+              <button className="btn btn-secondary" onClick={() => handleVote("abstain")}>
+                Abstain
+              </button>
+            )}
           </div>
           {error && <p className="error">{error}</p>}
         </div>

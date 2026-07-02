@@ -9,7 +9,8 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import require_mod
 from app.database import get_db
 from app.models import DMCATakedown, DMCAStatus, Edit, EditStatus, FingerprintStatus, MediaFingerprint, User
-from app.schemas import EditPublic, ModStats
+from app.schemas import EditPublic, FingerprintQueueStatus, ModStats
+from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services import EditService
 from app.services.edit_response import build_edit_public
 
@@ -57,6 +58,14 @@ async def mod_stats(
         pending_fingerprints=pending_fp or 0,
         failed_fingerprints=failed_fp or 0,
     )
+
+
+@router.get("/fingerprint-queue", response_model=FingerprintQueueStatus)
+async def mod_fingerprint_queue(
+    db: AsyncSession = Depends(get_db),
+    _mod: User = Depends(require_mod),
+):
+    return FingerprintQueueStatus(**await get_fingerprint_queue_status(db))
 
 
 @router.post("/edits/{edit_id}/apply", response_model=EditPublic)

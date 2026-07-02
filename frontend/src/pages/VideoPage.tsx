@@ -14,6 +14,8 @@ export default function VideoPage() {
     queryKey: ["video", sbid],
     queryFn: () => api.getVideo(sbid!),
     enabled: !!sbid,
+    refetchInterval: (query) =>
+      query.state.data?.hash_status === "pending" ? 10000 : false,
   });
 
   if (isLoading) return <p className="muted">Loading...</p>;
@@ -21,6 +23,8 @@ export default function VideoPage() {
   if (!data) return null;
 
   const thumb = videoThumbnailUrl(data);
+  const hashError =
+    typeof data.metadata?.hash_error === "string" ? data.metadata.hash_error : null;
 
   return (
     <div>
@@ -110,11 +114,24 @@ export default function VideoPage() {
             {data.audio_fingerprint.length > 80 ? "…" : ""}
           </p>
         )}
-        {!data.phash && data.hash_status !== "failed" && (
+        {!data.phash && data.hash_status !== "failed" && !hashError && (
           <p className="muted">Fingerprinting in progress or not yet started.</p>
         )}
+        {hashError && data.hash_status !== "failed" && (
+          <>
+            <p className="error">{hashError}</p>
+            <p className="muted">Retrying automatically every few minutes.</p>
+          </>
+        )}
         {data.hash_status === "failed" && (
-          <p className="error">Fingerprinting failed. It will be retried automatically.</p>
+          <>
+            <p className="error">
+              {hashError || "Fingerprinting failed after multiple attempts."}
+            </p>
+            <p className="muted">
+              An admin can retry from Admin → Fingerprints or Fingerprint queue.
+            </p>
+          </>
         )}
       </div>
 
