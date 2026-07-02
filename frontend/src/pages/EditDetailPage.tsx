@@ -5,6 +5,7 @@ import { useAuth, isMod } from "../auth";
 import { api } from "../api";
 import BrandMetadataDiff, { hasMetadataChanges } from "../components/BrandMetadataDiff";
 import BrandLogoMetadataDiff, { hasLogoMetadataChanges } from "../components/BrandLogoMetadataDiff";
+import BrandLogoImage from "../components/BrandLogoImage";
 import CommercialMetadataDiff, {
   hasCommercialMetadataChanges,
 } from "../components/CommercialMetadataDiff";
@@ -147,38 +148,18 @@ export default function EditDetailPage() {
             </p>
           )}
           {typeof edit.after_state.image_url === "string" && (
-            <div
-              style={{
-                background:
-                  "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
-                padding: "0.75rem",
-                borderRadius: 4,
-                display: "inline-block",
-              }}
-            >
-              <img
-                src={edit.after_state.image_url as string}
-                alt="Proposed logo"
-                style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
-              />
-            </div>
+            <BrandLogoImage
+              src={edit.after_state.image_url as string}
+              alt="Proposed logo"
+              size="preview"
+            />
           )}
           {!edit.after_state.image_url && typeof edit.after_state.logo_url === "string" && (
-            <div
-              style={{
-                background:
-                  "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
-                padding: "0.75rem",
-                borderRadius: 4,
-                display: "inline-block",
-              }}
-            >
-              <img
-                src={edit.after_state.logo_url as string}
-                alt="Proposed logo"
-                style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
-              />
-            </div>
+            <BrandLogoImage
+              src={edit.after_state.logo_url as string}
+              alt="Proposed logo"
+              size="preview"
+            />
           )}
           {edit.edit_type === "edit_advertiser" &&
             typeof edit.before_state?.logo_url === "string" && (
@@ -186,22 +167,11 @@ export default function EditDetailPage() {
               <p className="muted" style={{ marginTop: "0.75rem" }}>
                 Current main logo:
               </p>
-              <div
-                style={{
-                  background:
-                    "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
-                  padding: "0.5rem",
-                  borderRadius: 4,
-                  display: "inline-block",
-                  marginTop: "0.35rem",
-                }}
-              >
-                <img
-                  src={edit.before_state.logo_url as string}
-                  alt="Current logo"
-                  style={{ maxWidth: 120, maxHeight: 120, display: "block" }}
-                />
-              </div>
+              <BrandLogoImage
+                src={edit.before_state.logo_url as string}
+                alt="Current logo"
+                size="xs"
+              />
             </>
           )}
           {edit.edit_type === "add_advertiser_logo" && (

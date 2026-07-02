@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.deps import get_current_user, get_current_user_optional, require_submitter
+from app.auth.deps import get_current_user_optional, require_submitter, require_write_access
 from app.auth.security import user_can_vote, user_email_verified
 from app.database import get_db
 from app.models import Edit, EditStatus, EditType, User, Video, VoteChoice
@@ -224,7 +224,7 @@ async def vote_on_edit(
     data: VoteCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_write_access),
 ):
     if not user_email_verified(user):
         raise HTTPException(status_code=403, detail="Verify your email address before voting.")
@@ -267,7 +267,7 @@ async def vote_on_edit(
 async def cancel_edit(
     edit_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_write_access),
 ):
     result = await db.execute(select(Edit).where(Edit.id == edit_id))
     edit = result.scalar_one_or_none()

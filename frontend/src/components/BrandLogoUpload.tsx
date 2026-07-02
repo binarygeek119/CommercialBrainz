@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type AdvertiserLogoSubmit, type Edit } from "../api";
+import BrandLogoImage from "./BrandLogoImage";
 import { LOGO_MONTHS } from "../utils/brandLogos";
 
 const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/svg+xml", "image/webp"]);
@@ -101,21 +102,8 @@ export default function BrandLogoUpload({ advertiserSbid, brandName, onSubmitted
           />
         </div>
         {preview && (
-          <div
-            style={{
-              background:
-                "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
-              padding: "1rem",
-              borderRadius: 4,
-              marginBottom: "0.75rem",
-              display: "inline-block",
-            }}
-          >
-            <img
-              src={preview}
-              alt="Logo preview"
-              style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
-            />
+          <div style={{ marginBottom: "0.75rem" }}>
+            <BrandLogoImage src={preview} alt="Logo preview" size="preview" />
           </div>
         )}
         <div className="form-group">

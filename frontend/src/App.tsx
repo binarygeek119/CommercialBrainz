@@ -23,6 +23,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import VerifyEmailPendingPage from "./pages/VerifyEmailPendingPage";
+import AccountPage from "./pages/AccountPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import RegisterPage from "./pages/RegisterPage";
 import DevSiteDisclaimer from "./components/DevSiteDisclaimer";
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="edits" element={<EditsPage />} />
         <Route path="edits/:id" element={<EditDetailPage />} />
         <Route path="user/:username" element={<UserProfilePage />} />
+        <Route path="account" element={<AccountPage />} />
         <Route path="voting" element={<VotingPage />} />
         <Route path="dmca" element={<DMCAPage />} />
         <Route element={<ModRoute />}>

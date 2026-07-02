@@ -18,6 +18,19 @@ export interface User {
   created_at: string;
 }
 
+export interface ApiToken {
+  id: string;
+  token_prefix: string;
+  label: string | null;
+  scope: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export interface ApiTokenCreated extends ApiToken {
+  token: string;
+}
+
 export interface SubmissionTermsSubsection {
   heading: string;
   bullets?: string[];
@@ -97,6 +110,18 @@ export interface ModStats {
   dmca_link_hidden: number;
   pending_fingerprints: number;
   failed_fingerprints: number;
+  pending_deletion_requests: number;
+}
+
+export interface AccountDeletionRequest {
+  id: string;
+  status: string;
+  points_to_transfer: number;
+  username?: string | null;
+  recipient_username?: string | null;
+  review_notes?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
 }
 
 export interface DmcaItem {
@@ -438,6 +463,40 @@ export const api = {
 
   me: () => request<User>("/auth/me"),
 
+  listApiTokens: () => request<ApiToken[]>("/auth/api-tokens"),
+
+  createApiToken: (label?: string) =>
+    request<ApiTokenCreated>("/auth/api-tokens", {
+      method: "POST",
+      body: JSON.stringify({ label: label ?? null }),
+    }),
+
+  revokeApiToken: (tokenId: string) =>
+    request<{ message: string }>(`/auth/api-tokens/${tokenId}`, { method: "DELETE" }),
+
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    request<{ message: string }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  changeEmail: (data: { password: string; new_email: string }) =>
+    request<User>("/auth/change-email", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getDeletionRequest: () => request<AccountDeletionRequest | null>("/auth/deletion-request"),
+
+  requestAccountDeletion: (data: { password: string; recipient_username?: string }) =>
+    request<AccountDeletionRequest>("/auth/deletion-request", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  cancelDeletionRequest: () =>
+    request<{ message: string }>("/auth/deletion-request/cancel", { method: "POST" }),
+
   getSubmissionTerms: () => request<SubmissionTerms>("/auth/submission-terms"),
 
   acceptSubmissionTerms: () => request<User>("/auth/submission-terms/accept", { method: "POST" }),
@@ -650,4 +709,18 @@ export const api = {
 
   modRejectEdit: (editId: string) =>
     request<Edit>(`/mod/edits/${editId}/reject`, { method: "POST" }),
+
+  modDeletionRequests: () => request<AccountDeletionRequest[]>("/mod/deletion-requests"),
+
+  modApproveDeletion: (requestId: string, reviewNotes?: string) =>
+    request<AccountDeletionRequest>(`/mod/deletion-requests/${requestId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ review_notes: reviewNotes ?? null }),
+    }),
+
+  modRejectDeletion: (requestId: string, reviewNotes?: string) =>
+    request<AccountDeletionRequest>(`/mod/deletion-requests/${requestId}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ review_notes: reviewNotes ?? null }),
+    }),
 };

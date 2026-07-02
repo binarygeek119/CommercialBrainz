@@ -209,6 +209,61 @@ a:hover {
   justify-content: flex-end;
 }
 
+.brand-logo-frame {
+  background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.brand-logo-frame--sm {
+  width: 56px;
+  height: 56px;
+  padding: 0.35rem;
+  background-size: 10px 10px;
+}
+
+.brand-logo-frame--xs,
+.brand-logo-frame--vote {
+  width: 120px;
+  height: 120px;
+  padding: 0.5rem;
+}
+
+.brand-logo-frame--md {
+  width: 160px;
+  height: 160px;
+  padding: 0.75rem;
+}
+
+.brand-logo-frame--lg {
+  width: 100%;
+  height: 160px;
+  min-height: 120px;
+  padding: 0.75rem;
+  background-size: 12px 12px;
+}
+
+.brand-logo-frame--preview {
+  width: 240px;
+  height: 240px;
+  max-width: 100%;
+  padding: 0.75rem;
+}
+
+.brand-logo-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
 .muted {
   color: var(--text-muted);
   font-size: 0.9rem;

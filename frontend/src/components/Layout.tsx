@@ -29,9 +29,9 @@ export default function Layout() {
             {isAdmin(user) && <NavLink to="/admin" className="nav-admin">Admin</NavLink>}
             {user ? (
               <>
-                <Link to={`/user/${encodeURIComponent(user.username)}`} className="muted">
+                <NavLink to="/account" className="muted">
                   {user.username}
-                </Link>
+                </NavLink>
                 {user.reputation_points > 0 && (
                   <span className="muted"> · {user.reputation_points.toFixed(2)} pts</span>
                 )}

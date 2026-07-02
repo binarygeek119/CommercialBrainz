@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Edit } from "../api";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
-type Tab = "overview" | "dmca" | "edits" | "fp-queue";
+type Tab = "overview" | "dmca" | "edits" | "fp-queue" | "deletions";
 
 export default function ModPage() {
   const queryClient = useQueryClient();
@@ -28,11 +28,18 @@ export default function ModPage() {
     enabled: tab === "edits",
   });
 
+  const { data: deletionRequests, isLoading: deletionsLoading } = useQuery({
+    queryKey: ["mod-deletion-requests"],
+    queryFn: () => api.modDeletionRequests(),
+    enabled: tab === "deletions",
+  });
+
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["mod-stats"] });
     queryClient.invalidateQueries({ queryKey: ["dmca-queue"] });
     queryClient.invalidateQueries({ queryKey: ["open-edits"] });
     queryClient.invalidateQueries({ queryKey: ["fingerprint-queue"] });
+    queryClient.invalidateQueries({ queryKey: ["mod-deletion-requests"] });
   };
 
   const handleDmcaReview = async (id: string, status: string) => {
@@ -53,6 +60,21 @@ export default function ModPage() {
     if (!confirm("Reject this edit?")) return;
     await api.modRejectEdit(editId);
     queryClient.invalidateQueries({ queryKey: ["open-edits"] });
+    queryClient.invalidateQueries({ queryKey: ["mod-stats"] });
+  };
+
+  const handleApproveDeletion = async (requestId: string) => {
+    if (!confirm("Approve account deletion? This deactivates the account immediately.")) return;
+    const notes = prompt("Review notes (optional):");
+    await api.modApproveDeletion(requestId, notes || undefined);
+    queryClient.invalidateQueries({ queryKey: ["mod-deletion-requests"] });
+    queryClient.invalidateQueries({ queryKey: ["mod-stats"] });
+  };
+
+  const handleRejectDeletion = async (requestId: string) => {
+    const notes = prompt("Reason for rejection (optional):");
+    await api.modRejectDeletion(requestId, notes || undefined);
+    queryClient.invalidateQueries({ queryKey: ["mod-deletion-requests"] });
     queryClient.invalidateQueries({ queryKey: ["mod-stats"] });
   };
 
@@ -78,6 +100,7 @@ export default function ModPage() {
             ["overview", "Overview"],
             ["dmca", "DMCA queue"],
             ["edits", "Open edits"],
+            ["deletions", "Account deletions"],
             ["fp-queue", "Fingerprint queue"],
           ] as const
         ).map(([id, label]) => (
@@ -119,6 +142,10 @@ export default function ModPage() {
               <span className="admin-stat-value">{stats.failed_fingerprints}</span>
               <span className="muted">Failed fingerprints</span>
             </div>
+            <div className="card admin-stat">
+              <span className="admin-stat-value">{stats.pending_deletion_requests}</span>
+              <span className="muted">Deletion requests</span>
+            </div>
           </div>
           <div className="card" style={{ marginTop: "1rem" }}>
             <h3>Quick actions</h3>
@@ -129,6 +156,11 @@ export default function ModPage() {
               <button type="button" className="btn btn-secondary" onClick={() => setTab("dmca")}>
                 DMCA queue
               </button>
+              {stats.pending_deletion_requests > 0 && (
+                <button type="button" className="btn btn-secondary" onClick={() => setTab("deletions")}>
+                  Account deletions ({stats.pending_deletion_requests})
+                </button>
+              )}
               <button type="button" className="btn btn-secondary" onClick={() => setTab("fp-queue")}>
                 Fingerprint queue
               </button>
@@ -263,6 +295,59 @@ export default function ModPage() {
 
       {tab === "fp-queue" && (
         <FingerprintQueuePanel queryKey="mod" fetchQueue={() => api.modFingerprintQueue()} />
+      )}
+
+      {tab === "deletions" && (
+        <div>
+          {deletionsLoading && <p className="muted">Loading deletion requests…</p>}
+          <div className="stack">
+            {deletionRequests?.map((item) => (
+              <div key={item.id} className="card">
+                <div className="flex-between">
+                  <strong>
+                    {item.username ? (
+                      <Link to={`/user/${encodeURIComponent(item.username)}`}>{item.username}</Link>
+                    ) : (
+                      "Unknown user"
+                    )}
+                  </strong>
+                  <span className="badge badge-submitted">{item.status}</span>
+                </div>
+                <p className="muted" style={{ margin: "0.5rem 0" }}>
+                  Requested {new Date(item.created_at).toLocaleString()}
+                </p>
+                {item.points_to_transfer > 0 && item.recipient_username && (
+                  <p>
+                    Transfer <strong>{item.points_to_transfer}</strong> points to{" "}
+                    <Link to={`/user/${encodeURIComponent(item.recipient_username)}`}>
+                      {item.recipient_username}
+                    </Link>
+                  </p>
+                )}
+                {item.points_to_transfer === 0 && (
+                  <p className="muted">No points to transfer.</p>
+                )}
+                <div className="vote-buttons" style={{ marginTop: "0.75rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={() => handleApproveDeletion(item.id)}
+                  >
+                    Approve deletion
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => handleRejectDeletion(item.id)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+            {deletionRequests?.length === 0 && <p className="muted">No pending deletion requests.</p>}
+          </div>
+        </div>
       )}
     </div>
   );

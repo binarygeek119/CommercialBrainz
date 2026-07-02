@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Edit } from "../api";
+import BrandLogoImage from "./BrandLogoImage";
 import { editTitle } from "../utils/editDisplay";
 import { formatLogoContext } from "../utils/brandLogos";
 
@@ -20,9 +21,6 @@ function proposedLogoUrl(edit: Edit): string | null {
   }
   return null;
 }
-
-const LOGO_PREVIEW_BG =
-  "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px";
 
 export default function OpenEditCard({ edit }: { edit: Edit }) {
   const logoUrl = proposedLogoUrl(edit);
@@ -75,22 +73,7 @@ export default function OpenEditCard({ edit }: { edit: Edit }) {
             {edit.votes.length} vote(s) · expires {new Date(edit.expires_at).toLocaleDateString()}
           </p>
         </div>
-        {logoUrl && (
-          <div
-            style={{
-              background: LOGO_PREVIEW_BG,
-              padding: "0.5rem",
-              borderRadius: 4,
-              flexShrink: 0,
-            }}
-          >
-            <img
-              src={logoUrl}
-              alt="Proposed logo"
-              style={{ maxWidth: 120, maxHeight: 120, display: "block" }}
-            />
-          </div>
-        )}
+        {logoUrl && <BrandLogoImage src={logoUrl} alt="Proposed logo" size="vote" />}
       </div>
     </Link>
   );

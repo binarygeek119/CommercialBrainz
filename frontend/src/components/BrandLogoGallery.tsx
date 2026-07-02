@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type AdvertiserLogo } from "../api";
 import { useAuth, canSubmit } from "../auth";
 import BrandLogoMetadataForm from "./BrandLogoMetadataForm";
+import BrandLogoImage from "./BrandLogoImage";
 
 interface Props {
   advertiserSbid: string;
@@ -49,23 +50,7 @@ function LogoCard({
         border: logo.is_main ? "2px solid var(--accent, #6cf)" : undefined,
       }}
     >
-      <div
-        style={{
-          background:
-            "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 12px 12px",
-          padding: "0.75rem",
-          borderRadius: 4,
-          display: "flex",
-          justifyContent: "center",
-          minHeight: 120,
-        }}
-      >
-        <img
-          src={logo.image_url}
-          alt={logo.context_label}
-          style={{ maxWidth: "100%", maxHeight: 140, objectFit: "contain" }}
-        />
-      </div>
+      <BrandLogoImage src={logo.image_url} alt={logo.context_label} size="lg" />
       <div>
         <strong style={{ fontSize: "0.95rem" }}>{logo.context_label}</strong>
         {logo.is_main && (

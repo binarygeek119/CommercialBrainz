@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import get_current_user, require_admin, require_mod
+from app.auth.deps import require_admin, require_mod, require_write_access
 from app.database import get_db
 from app.models import DMCATakedown, DMCAStatus, User, Video
 from app.schemas import DMCACounterSubmit, DMCAPublic, DMCAReview, DMCASubmit, PaginatedResponse
@@ -124,7 +124,7 @@ async def counter_dmca(
     takedown_id: UUID,
     data: DMCACounterSubmit,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_write_access),
 ):
     result = await db.execute(select(DMCATakedown).where(DMCATakedown.id == takedown_id))
     takedown = result.scalar_one_or_none()

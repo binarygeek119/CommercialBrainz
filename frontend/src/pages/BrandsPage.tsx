@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Advertiser } from "../api";
+import BrandLogoImage from "../components/BrandLogoImage";
 
 async function fetchAllBrands(query: string): Promise<Advertiser[]> {
   const limit = 100;
@@ -137,21 +138,7 @@ function BrandGrid({ brands }: { brands: Advertiser[] }) {
           }}
         >
           {brand.logo_url ? (
-            <div
-              style={{
-                flexShrink: 0,
-                background:
-                  "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 10px 10px",
-                padding: "0.35rem",
-                borderRadius: 4,
-              }}
-            >
-              <img
-                src={brand.logo_url}
-                alt=""
-                style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
-              />
-            </div>
+            <BrandLogoImage src={brand.logo_url} alt="" size="sm" />
           ) : (
             <div
               aria-hidden

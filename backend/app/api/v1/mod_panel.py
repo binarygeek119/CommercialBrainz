@@ -8,13 +8,41 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import require_mod
 from app.database import get_db
-from app.models import DMCATakedown, DMCAStatus, Edit, EditStatus, FingerprintStatus, MediaFingerprint, User
-from app.schemas import EditPublic, FingerprintQueueStatus, ModStats
+from app.models import (
+    AccountDeletionRequest,
+    AccountDeletionStatus,
+    DMCATakedown,
+    DMCAStatus,
+    Edit,
+    EditStatus,
+    FingerprintStatus,
+    MediaFingerprint,
+    User,
+)
+from app.schemas import AccountDeletionRequestPublic, AccountDeletionReview, EditPublic, FingerprintQueueStatus, ModStats
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services import EditService
 from app.services.edit_response import build_edit_public
+from app.services.account_settings import (
+    approve_deletion_request,
+    list_pending_deletion_requests,
+    reject_deletion_request,
+)
 
 router = APIRouter(prefix="/mod", tags=["mod"])
+
+
+def _deletion_request_public(record: AccountDeletionRequest) -> AccountDeletionRequestPublic:
+    return AccountDeletionRequestPublic(
+        id=record.id,
+        status=record.status.value,
+        points_to_transfer=float(record.points_to_transfer or 0),
+        recipient_username=record.recipient.username if record.recipient else None,
+        review_notes=record.review_notes,
+        reviewed_at=record.reviewed_at,
+        created_at=record.created_at,
+        username=record.user.username if record.user else None,
+    )
 
 
 @router.get("/stats", response_model=ModStats)
@@ -50,6 +78,11 @@ async def mod_stats(
         .select_from(MediaFingerprint)
         .where(MediaFingerprint.status == FingerprintStatus.FAILED)
     )
+    pending_deletions = await db.scalar(
+        select(func.count())
+        .select_from(AccountDeletionRequest)
+        .where(AccountDeletionRequest.status == AccountDeletionStatus.PENDING)
+    )
     return ModStats(
         open_edits=open_edits or 0,
         dmca_submitted=dmca_submitted or 0,
@@ -57,6 +90,7 @@ async def mod_stats(
         dmca_link_hidden=dmca_hidden or 0,
         pending_fingerprints=pending_fp or 0,
         failed_fingerprints=failed_fp or 0,
+        pending_deletion_requests=pending_deletions or 0,
     )
 
 
@@ -111,3 +145,44 @@ async def mod_reject_edit(
     await EditService.reject_edit(db, edit)
     await db.flush()
     return await build_edit_public(db, edit)
+
+
+@router.get("/deletion-requests", response_model=list[AccountDeletionRequestPublic])
+async def mod_list_deletion_requests(
+    db: AsyncSession = Depends(get_db),
+    _mod: User = Depends(require_mod),
+):
+    records = await list_pending_deletion_requests(db)
+    return [_deletion_request_public(record) for record in records]
+
+
+@router.post("/deletion-requests/{request_id}/approve", response_model=AccountDeletionRequestPublic)
+async def mod_approve_deletion_request(
+    request_id: UUID,
+    body: AccountDeletionReview,
+    db: AsyncSession = Depends(get_db),
+    mod: User = Depends(require_mod),
+):
+    try:
+        record = await approve_deletion_request(db, request_id, mod, body.review_notes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await db.commit()
+    await db.refresh(record, attribute_names=["user", "recipient"])
+    return _deletion_request_public(record)
+
+
+@router.post("/deletion-requests/{request_id}/reject", response_model=AccountDeletionRequestPublic)
+async def mod_reject_deletion_request(
+    request_id: UUID,
+    body: AccountDeletionReview,
+    db: AsyncSession = Depends(get_db),
+    mod: User = Depends(require_mod),
+):
+    try:
+        record = await reject_deletion_request(db, request_id, mod, body.review_notes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await db.commit()
+    await db.refresh(record, attribute_names=["user", "recipient"])
+    return _deletion_request_public(record)

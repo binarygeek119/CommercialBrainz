@@ -64,6 +64,36 @@ class VerifyEmailRequest(BaseModel):
     token: str = Field(min_length=10)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class ChangeEmailRequest(BaseModel):
+    password: str
+    new_email: EmailStr
+
+
+class AccountDeletionRequestCreate(BaseModel):
+    password: str
+    recipient_username: str | None = Field(default=None, max_length=64)
+
+
+class AccountDeletionReview(BaseModel):
+    review_notes: str | None = Field(default=None, max_length=2000)
+
+
+class AccountDeletionRequestPublic(ORMModel):
+    id: UUID
+    status: str
+    points_to_transfer: float = 0
+    username: str | None = None
+    recipient_username: str | None = None
+    review_notes: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+
+
 class MessageResponse(BaseModel):
     message: str
 
@@ -427,6 +457,23 @@ class AdvertiserLogoMetadataUpdate(BaseModel):
     notes: str | None = None
 
 
+class ApiTokenPublic(BaseModel):
+    id: UUID
+    token_prefix: str
+    label: str | None
+    scope: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class ApiTokenCreate(BaseModel):
+    label: str | None = Field(default=None, max_length=255)
+
+
+class ApiTokenCreated(ApiTokenPublic):
+    token: str
+
+
 # --- Edits ---
 
 
@@ -600,6 +647,7 @@ class ModStats(BaseModel):
     dmca_link_hidden: int
     pending_fingerprints: int
     failed_fingerprints: int
+    pending_deletion_requests: int = 0
 
 
 class YouTubeMetadataPreview(BaseModel):

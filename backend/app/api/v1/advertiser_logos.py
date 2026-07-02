@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import get_current_user, get_current_user_optional, require_submitter
+from app.auth.deps import get_current_user_optional, require_submitter, require_write_access
 from app.database import get_db
 from app.models import Advertiser, AdvertiserStatus, EditType, LogoPopularityChoice, User
 from app.schemas import (
@@ -57,7 +57,7 @@ async def vote_advertiser_logo_popularity(
     logo_id: UUID,
     body: AdvertiserLogoPopularityVoteCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_write_access),
 ):
     logo = await get_logo_for_advertiser(db, sbid, logo_id)
     if not logo or logo.advertiser.status != AdvertiserStatus.APPROVED:
