@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth, isMod, isAdmin, isVoteOnly, canSubmit, isEmailVerified } from "../auth";
+import { APP_VERSION } from "../version";
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -28,13 +29,15 @@ export default function Layout() {
             {isAdmin(user) && <NavLink to="/admin" className="nav-admin">Admin</NavLink>}
             {user ? (
               <>
-                <span className="muted">
+                <Link to={`/user/${encodeURIComponent(user.username)}`} className="muted">
                   {user.username}
-                  {user.reputation_points > 0 && (
-                    <> · {user.reputation_points.toFixed(2)} pts</>
-                  )}
-                  {!canSubmit(user) && user.access_level === "vote_only" ? " (vote only)" : ""}
-                </span>
+                </Link>
+                {user.reputation_points > 0 && (
+                  <span className="muted"> · {user.reputation_points.toFixed(2)} pts</span>
+                )}
+                {!canSubmit(user) && user.access_level === "vote_only" ? (
+                  <span className="muted"> (vote only)</span>
+                ) : null}
                 <button className="btn btn-secondary" onClick={logout}>
                   Log out
                 </button>
@@ -63,6 +66,9 @@ export default function Layout() {
       <main className="container">
         <Outlet />
       </main>
+      <div className="version-box" aria-label={`CommercialBrainz version ${APP_VERSION}`}>
+        v{APP_VERSION}
+      </div>
     </>
   );
 }

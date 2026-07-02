@@ -124,7 +124,7 @@ async def submit_video_thumbnail(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     await db.refresh(edit, ["votes"])
-    return await build_edit_public(db, edit)
+    return await build_edit_public(db, edit, editor_username=user.username)
 
 
 @router.post("/advertisers/{sbid}/submit-logo", response_model=EditPublic, status_code=201)
@@ -191,7 +191,7 @@ async def submit_advertiser_logo(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     await db.refresh(edit, ["votes"])
-    return await build_edit_public(db, edit)
+    return await build_edit_public(db, edit, editor_username=user.username)
 
 
 @router.post("/advertisers/{sbid}/submit-metadata", response_model=EditPublic, status_code=201)
@@ -234,7 +234,7 @@ async def submit_advertiser_metadata(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     await db.refresh(edit, ["votes"])
-    return await build_edit_public(db, edit)
+    return await build_edit_public(db, edit, editor_username=user.username)
 
 
 @router.post("/commercials/{sbid}/submit-metadata", response_model=EditPublic, status_code=201)
@@ -280,4 +280,4 @@ async def submit_commercial_metadata(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     await db.refresh(edit, ["votes"])
-    return await build_edit_public(db, edit)
+    return await build_edit_public(db, edit, editor_username=user.username)

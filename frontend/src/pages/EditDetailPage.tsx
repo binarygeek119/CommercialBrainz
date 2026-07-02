@@ -68,6 +68,14 @@ export default function EditDetailPage() {
           <span className="mono muted">{edit.edit_type}</span>
         </div>
         {edit.comment && <p style={{ marginTop: "1rem" }}>{edit.comment}</p>}
+        {edit.editor_username && (
+          <p className="muted" style={{ marginTop: "0.75rem" }}>
+            Submitted by{" "}
+            <Link to={`/user/${encodeURIComponent(edit.editor_username)}`}>
+              {edit.editor_username}
+            </Link>
+          </p>
+        )}
         <p className="muted">
           Expires: {new Date(edit.expires_at).toLocaleString()} · Yes: {yesVotes} · No: {noVotes}
           {edit.status === "open" && (

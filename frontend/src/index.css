@@ -200,6 +200,14 @@ a:hover {
 .badge-applied { background: #1a3d2e; color: var(--success); }
 .badge-rejected { background: #3d1a1a; color: var(--danger); }
 .badge-submitted { background: #3d351a; color: var(--warning); }
+.badge-points { background: #3d351a; color: var(--warning); }
+
+.profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
 
 .muted {
   color: var(--text-muted);
@@ -485,4 +493,21 @@ code, .mono {
 
 .dev-disclaimer-btn {
   width: 100%;
+}
+
+.version-box {
+  position: fixed;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 40;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  user-select: none;
 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Edit, Vote
@@ -11,7 +12,21 @@ from app.schemas import EditPublic, FingerprintPreviewPublic, VotePublic
 from app.services.fingerprint_queries import fingerprint_to_dict, get_preview_fingerprint
 
 
-async def build_edit_public(db: AsyncSession, edit: Edit, votes: list[Vote] | None = None) -> EditPublic:
+def _editor_username(edit: Edit) -> str | None:
+    insp = sa_inspect(edit)
+    if "editor" in insp.unloaded:
+        return None
+    editor = edit.editor
+    return editor.username if editor is not None else None
+
+
+async def build_edit_public(
+    db: AsyncSession,
+    edit: Edit,
+    votes: list[Vote] | None = None,
+    *,
+    editor_username: str | None = None,
+) -> EditPublic:
     vote_list = votes if votes is not None else list(edit.votes)
     fingerprint_preview = None
     if edit.edit_type.value == "create_video":
@@ -29,6 +44,7 @@ async def build_edit_public(db: AsyncSession, edit: Edit, votes: list[Vote] | No
         before_state=edit.before_state,
         after_state=edit.after_state,
         editor_id=edit.editor_id,
+        editor_username=editor_username if editor_username is not None else _editor_username(edit),
         comment=edit.comment,
         expires_at=edit.expires_at,
         closed_at=edit.closed_at,

@@ -205,11 +205,35 @@ export interface Edit {
   before_state?: Record<string, unknown> | null;
   after_state: Record<string, unknown>;
   editor_id: string;
+  editor_username?: string | null;
   comment: string | null;
   expires_at: string;
   created_at: string;
   votes: { id: string; voter_id: string; choice: string; comment: string | null }[];
   fingerprint_preview?: FingerprintPreview | null;
+}
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  role: string;
+  reputation_points: number;
+  accepted_edits_count: number;
+  submission_count: number;
+  created_at: string;
+}
+
+export interface UserEditSummary {
+  id: string;
+  edit_type: string;
+  status: string;
+  title: string;
+  entity_type: string;
+  entity_id: string | null;
+  comment: string | null;
+  created_at: string;
+  closed_at: string | null;
+  vote_count: number;
 }
 
 export interface SearchResult {
@@ -498,6 +522,14 @@ export const api = {
 
   openEdits: (offset = 0, limit = 25) =>
     request<Paginated<Edit>>(`/edits/open?offset=${offset}&limit=${limit}`),
+
+  getUserProfile: (username: string) =>
+    request<UserProfile>(`/users/${encodeURIComponent(username)}`),
+
+  getUserEdits: (username: string, offset = 0, limit = 25) =>
+    request<Paginated<UserEditSummary>>(
+      `/users/${encodeURIComponent(username)}/edits?offset=${offset}&limit=${limit}`
+    ),
 
   getEdit: (id: string) => request<Edit>(`/edits/${id}`),
 

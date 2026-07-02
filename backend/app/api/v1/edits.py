@@ -74,7 +74,7 @@ async def create_edit(
         raise HTTPException(status_code=403, detail=str(e)) from e
     _schedule_pending_hash(background_tasks, edit)
     await db.refresh(edit, ["votes"])
-    return await build_edit_public(db, edit)
+    return await build_edit_public(db, edit, editor_username=user.username)
 
 
 @router.post("/submit-video", response_model=EditPublic, status_code=status.HTTP_201_CREATED)
@@ -141,7 +141,7 @@ async def submit_video(
         background_tasks.add_task(_schedule_preview_fingerprint, edit.id, youtube_id)
     _schedule_pending_hash(background_tasks, edit)
     await db.refresh(edit, ["votes"])
-    return await build_edit_public(db, edit)
+    return await build_edit_public(db, edit, editor_username=user.username)
 
 
 @router.get("/youtube-metadata", response_model=YouTubeMetadataPreview)
@@ -175,7 +175,7 @@ async def list_open_edits(
 ):
     stmt = (
         select(Edit)
-        .options(selectinload(Edit.votes))
+        .options(selectinload(Edit.votes), selectinload(Edit.editor))
         .where(Edit.status == EditStatus.OPEN)
         .order_by(Edit.created_at.desc())
     )
@@ -208,7 +208,9 @@ async def get_edit_duplicates(edit_id: UUID, db: AsyncSession = Depends(get_db))
 @router.get("/{edit_id}", response_model=EditPublic)
 async def get_edit(edit_id: UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Edit).options(selectinload(Edit.votes)).where(Edit.id == edit_id)
+        select(Edit)
+        .options(selectinload(Edit.votes), selectinload(Edit.editor))
+        .where(Edit.id == edit_id)
     )
     edit = result.scalar_one_or_none()
     if not edit:

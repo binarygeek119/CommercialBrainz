@@ -86,6 +86,29 @@ class UserPublic(ORMModel):
     created_at: datetime
 
 
+class UserProfilePublic(ORMModel):
+    id: UUID
+    username: str
+    role: str
+    reputation_points: float = 0
+    accepted_edits_count: int = 0
+    submission_count: int = 0
+    created_at: datetime
+
+
+class UserEditSummary(ORMModel):
+    id: UUID
+    edit_type: str
+    status: str
+    title: str
+    entity_type: str
+    entity_id: UUID | None
+    comment: str | None
+    created_at: datetime
+    closed_at: datetime | None
+    vote_count: int = 0
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -461,6 +484,7 @@ class EditPublic(ORMModel):
     before_state: dict | None
     after_state: dict
     editor_id: UUID
+    editor_username: str | None = None
     comment: str | None
     expires_at: datetime
     closed_at: datetime | None

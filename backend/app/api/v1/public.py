@@ -14,6 +14,7 @@ from app.models import (
     Agency,
     Commercial,
     CommercialProduct,
+    Edit,
     User,
     Video,
     VideoCredit,
@@ -29,11 +30,14 @@ from app.schemas import (
     CommercialPublic,
     PaginatedResponse,
     SearchResult,
+    UserEditSummary,
+    UserProfilePublic,
     VideoDetail,
     VideoPublic,
 )
 from app.services import SearchService
 from app.services.advertiser_metadata import advertiser_public_dict, resolve_alias_links
+from app.services.user_profile import edit_summary_title
 from app.services.fingerprint_queries import format_phash_hex
 from app.services.rate_limit import check_rate_limit, compute_etag
 from app.utils import youtube_thumbnail_url
@@ -240,6 +244,79 @@ async def get_advertiser(
         commercials=[CommercialPublic.model_validate(c) for c in advertiser.commercials],
         alias_links=[BrandAliasLink(**link) for link in alias_links],
     )
+
+
+@router.get("/users/{username}", response_model=UserProfilePublic)
+async def get_user_profile(
+    username: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    await check_rate_limit(request, user is not None)
+    profile_user = await db.scalar(
+        select(User).where(User.username == username, User.is_active.is_(True))
+    )
+    if not profile_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    submission_count = (
+        await db.scalar(select(func.count()).select_from(Edit).where(Edit.editor_id == profile_user.id))
+        or 0
+    )
+    return UserProfilePublic(
+        id=profile_user.id,
+        username=profile_user.username,
+        role=profile_user.role.value,
+        reputation_points=float(profile_user.reputation_points),
+        accepted_edits_count=profile_user.accepted_edits_count,
+        submission_count=submission_count,
+        created_at=profile_user.created_at,
+    )
+
+
+@router.get("/users/{username}/edits", response_model=PaginatedResponse)
+async def list_user_edits(
+    username: str,
+    request: Request,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    await check_rate_limit(request, user is not None)
+    profile_user = await db.scalar(
+        select(User).where(User.username == username, User.is_active.is_(True))
+    )
+    if not profile_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    base_filter = Edit.editor_id == profile_user.id
+    total = await db.scalar(select(func.count()).select_from(Edit).where(base_filter)) or 0
+    result = await db.execute(
+        select(Edit)
+        .options(selectinload(Edit.votes))
+        .where(base_filter)
+        .order_by(Edit.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    items = [
+        UserEditSummary(
+            id=edit.id,
+            edit_type=edit.edit_type.value,
+            status=edit.status.value,
+            title=edit_summary_title(edit),
+            entity_type=edit.entity_type,
+            entity_id=edit.entity_id,
+            comment=edit.comment,
+            created_at=edit.created_at,
+            closed_at=edit.closed_at,
+            vote_count=len(edit.votes),
+        ).model_dump()
+        for edit in result.scalars().all()
+    ]
+    return PaginatedResponse(items=items, total=total, offset=offset, limit=limit)
 
 
 @router.get("/search", response_model=list[SearchResult])
