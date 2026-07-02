@@ -13,6 +13,8 @@ def edit_summary_title(edit: Edit) -> str:
         return str(state.get("name") or "New brand")
     if edit_type == "add_advertiser_logo":
         return str(state.get("label") or "Brand logo version")
+    if edit_type == "edit_advertiser_logo":
+        return str(state.get("label") or "Logo metadata")
     if edit_type == "edit_advertiser" and state.get("logo_url"):
         return "Brand logo"
     if edit_type == "edit_advertiser":

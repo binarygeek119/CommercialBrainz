@@ -344,6 +344,8 @@ export interface AdvertiserLogoSubmit {
   comment?: string;
 }
 
+export type AdvertiserLogoMetadataUpdate = Omit<AdvertiserLogoSubmit, "comment">;
+
 export interface Paginated<T> {
   items: T[];
   total: number;
@@ -506,6 +508,16 @@ export const api = {
     request<AdvertiserLogo>(`/advertisers/${sbid}/logos/${logoId}/popularity-vote`, {
       method: "POST",
       body: JSON.stringify({ choice }),
+    }),
+
+  submitAdvertiserLogoMetadata: (
+    sbid: string,
+    logoId: string,
+    data: AdvertiserLogoMetadataUpdate
+  ) =>
+    request<Edit>(`/advertisers/${sbid}/logos/${logoId}/submit-metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 
   submitAdvertiserMetadata: (sbid: string, data: AdvertiserMetadataUpdate) =>

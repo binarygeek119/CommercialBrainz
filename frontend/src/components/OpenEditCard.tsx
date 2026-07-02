@@ -5,10 +5,18 @@ import { formatLogoContext } from "../utils/brandLogos";
 
 function proposedLogoUrl(edit: Edit): string | null {
   if (
-    (edit.edit_type === "add_advertiser_logo" || edit.edit_type === "edit_advertiser") &&
+    (edit.edit_type === "add_advertiser_logo" ||
+      edit.edit_type === "edit_advertiser_logo" ||
+      edit.edit_type === "edit_advertiser") &&
     typeof edit.after_state.logo_url === "string"
   ) {
     return edit.after_state.logo_url;
+  }
+  if (
+    edit.edit_type === "edit_advertiser_logo" &&
+    typeof edit.after_state.image_url === "string"
+  ) {
+    return edit.after_state.image_url;
   }
   return null;
 }
@@ -19,7 +27,9 @@ const LOGO_PREVIEW_BG =
 export default function OpenEditCard({ edit }: { edit: Edit }) {
   const logoUrl = proposedLogoUrl(edit);
   const logoContext =
-    edit.edit_type === "add_advertiser_logo" ? formatLogoContext(edit.after_state) : null;
+    edit.edit_type === "add_advertiser_logo" || edit.edit_type === "edit_advertiser_logo"
+      ? formatLogoContext(edit.after_state)
+      : null;
 
   return (
     <Link

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth, isMod } from "../auth";
 import { api } from "../api";
 import BrandMetadataDiff, { hasMetadataChanges } from "../components/BrandMetadataDiff";
+import BrandLogoMetadataDiff, { hasLogoMetadataChanges } from "../components/BrandLogoMetadataDiff";
 import CommercialMetadataDiff, {
   hasCommercialMetadataChanges,
 } from "../components/CommercialMetadataDiff";
@@ -123,15 +124,19 @@ export default function EditDetailPage() {
         )}
 
       {(edit.edit_type === "add_advertiser_logo" ||
+        edit.edit_type === "edit_advertiser_logo" ||
         (edit.edit_type === "edit_advertiser" &&
           typeof edit.after_state.logo_url === "string")) && (
         <div className="card">
           <h3>
             {edit.edit_type === "add_advertiser_logo"
               ? "Proposed logo version"
-              : "Proposed brand logo"}
+              : edit.edit_type === "edit_advertiser_logo"
+                ? "Logo metadata update"
+                : "Proposed brand logo"}
           </h3>
-          {edit.edit_type === "add_advertiser_logo" && (
+          {(edit.edit_type === "add_advertiser_logo" ||
+            edit.edit_type === "edit_advertiser_logo") && (
             <p style={{ marginBottom: "0.75rem" }}>
               <strong>{formatLogoContext(edit.after_state)}</strong>
             </p>
@@ -141,21 +146,40 @@ export default function EditDetailPage() {
               {edit.after_state.notes}
             </p>
           )}
-          <div
-            style={{
-              background:
-                "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
-              padding: "0.75rem",
-              borderRadius: 4,
-              display: "inline-block",
-            }}
-          >
-            <img
-              src={edit.after_state.logo_url as string}
-              alt="Proposed logo"
-              style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
-            />
-          </div>
+          {typeof edit.after_state.image_url === "string" && (
+            <div
+              style={{
+                background:
+                  "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
+                padding: "0.75rem",
+                borderRadius: 4,
+                display: "inline-block",
+              }}
+            >
+              <img
+                src={edit.after_state.image_url as string}
+                alt="Proposed logo"
+                style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
+              />
+            </div>
+          )}
+          {!edit.after_state.image_url && typeof edit.after_state.logo_url === "string" && (
+            <div
+              style={{
+                background:
+                  "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px",
+                padding: "0.75rem",
+                borderRadius: 4,
+                display: "inline-block",
+              }}
+            >
+              <img
+                src={edit.after_state.logo_url as string}
+                alt="Proposed logo"
+                style={{ maxWidth: 240, maxHeight: 240, display: "block" }}
+              />
+            </div>
+          )}
           {edit.edit_type === "edit_advertiser" &&
             typeof edit.before_state?.logo_url === "string" && (
             <>
@@ -188,6 +212,11 @@ export default function EditDetailPage() {
           )}
         </div>
       )}
+
+      {edit.edit_type === "edit_advertiser_logo" &&
+        hasLogoMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
+          <BrandLogoMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
+        )}
 
       {edit.edit_type === "edit_video" && typeof edit.after_state.thumbnail_url === "string" && (
         <div className="card">

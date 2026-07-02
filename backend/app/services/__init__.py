@@ -129,6 +129,8 @@ class EditService:
             await EditService._apply_edit_advertiser(db, edit, state)
         elif et == EditType.ADD_ADVERTISER_LOGO:
             await EditService._apply_add_advertiser_logo(db, edit, state)
+        elif et == EditType.EDIT_ADVERTISER_LOGO:
+            await EditService._apply_edit_advertiser_logo(db, edit, state)
 
         if edit.status == EditStatus.OPEN:
             edit.status = EditStatus.APPLIED
@@ -436,6 +438,27 @@ class EditService:
         await recompute_main_logo(db, advertiser.sbid)
 
     @staticmethod
+    async def _apply_edit_advertiser_logo(db: AsyncSession, edit: Edit, state: dict) -> None:
+        logo_id = edit.entity_id
+        if not logo_id:
+            raw = state.get("logo_id")
+            logo_id = UUID(raw) if isinstance(raw, str) else raw
+        if not logo_id:
+            edit.status = EditStatus.FAILED
+            return
+
+        logo = await db.get(AdvertiserLogo, logo_id)
+        if not logo:
+            edit.status = EditStatus.FAILED
+            return
+
+        for field in ("label", "year", "month", "event", "notes"):
+            if field in state:
+                setattr(logo, field, state[field])
+
+        await db.flush()
+
+    @staticmethod
     async def _reject_create_advertiser(db: AsyncSession, edit: Edit) -> None:
         if not edit.entity_id:
             return
@@ -476,6 +499,7 @@ class EditService:
             EditType.CREATE_ADVERTISER,
             EditType.EDIT_ADVERTISER,
             EditType.ADD_ADVERTISER_LOGO,
+            EditType.EDIT_ADVERTISER_LOGO,
         ):
             return settings.brand_early_close_votes
         return settings.edit_early_close_votes

@@ -419,6 +419,14 @@ class AdvertiserLogoPopularityVoteCreate(BaseModel):
         return normalized
 
 
+class AdvertiserLogoMetadataUpdate(BaseModel):
+    label: str | None = None
+    year: int | None = Field(default=None, ge=1800, le=2100)
+    month: int | None = Field(default=None, ge=1, le=12)
+    event: str | None = None
+    notes: str | None = None
+
+
 # --- Edits ---
 
 

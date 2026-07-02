@@ -54,6 +54,7 @@ class EditType(str, enum.Enum):
     CREATE_ADVERTISER = "create_advertiser"
     EDIT_ADVERTISER = "edit_advertiser"
     ADD_ADVERTISER_LOGO = "add_advertiser_logo"
+    EDIT_ADVERTISER_LOGO = "edit_advertiser_logo"
     REMOVE_VIDEO = "remove_video"
     ADD_CREDIT = "add_credit"
     ADD_TAG = "add_tag"

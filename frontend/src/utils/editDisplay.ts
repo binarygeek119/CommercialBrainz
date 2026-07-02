@@ -7,6 +7,9 @@ export function editTitle(edit: Edit): string {
   if (edit.edit_type === "add_advertiser_logo") {
     return (edit.after_state.label as string) || "Brand logo version";
   }
+  if (edit.edit_type === "edit_advertiser_logo") {
+    return (edit.after_state.label as string) || "Logo metadata";
+  }
   if (edit.edit_type === "edit_advertiser" && edit.after_state.logo_url) {
     return "Brand logo";
   }
@@ -29,7 +32,8 @@ export function editTitle(edit: Edit): string {
 export function editVoteThreshold(edit: Edit): number {
   return edit.edit_type === "create_advertiser" ||
     edit.edit_type === "edit_advertiser" ||
-    edit.edit_type === "add_advertiser_logo"
+    edit.edit_type === "add_advertiser_logo" ||
+    edit.edit_type === "edit_advertiser_logo"
     ? 10
     : 3;
 }

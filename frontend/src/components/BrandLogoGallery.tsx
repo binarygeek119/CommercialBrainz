@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type AdvertiserLogo } from "../api";
-import { useAuth } from "../auth";
+import { useAuth, canSubmit } from "../auth";
+import BrandLogoMetadataForm from "./BrandLogoMetadataForm";
 
 interface Props {
   advertiserSbid: string;
@@ -12,15 +13,18 @@ function LogoCard({
   logo,
   advertiserSbid,
   canVote,
+  canEditMetadata,
   onVoted,
 }: {
   logo: AdvertiserLogo;
   advertiserSbid: string;
   canVote: boolean;
+  canEditMetadata: boolean;
   onVoted: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showMetadataForm, setShowMetadataForm] = useState(false);
 
   const castVote = async (choice: "up" | "down" | null) => {
     setLoading(true);
@@ -106,6 +110,25 @@ function LogoCard({
           </>
         )}
       </div>
+      {canEditMetadata && (
+        <>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: "0.25rem 0.65rem", fontSize: "0.85rem", alignSelf: "flex-start" }}
+            onClick={() => setShowMetadataForm((open) => !open)}
+          >
+            {showMetadataForm ? "Hide metadata editor" : "Edit metadata"}
+          </button>
+          {showMetadataForm && (
+            <BrandLogoMetadataForm
+              advertiserSbid={advertiserSbid}
+              logo={logo}
+              onSubmitted={onVoted}
+            />
+          )}
+        </>
+      )}
       {error && <p className="error" style={{ fontSize: "0.85rem" }}>{error}</p>}
     </div>
   );
@@ -143,6 +166,7 @@ export default function BrandLogoGallery({ advertiserSbid, brandName }: Props) {
             logo={logo}
             advertiserSbid={advertiserSbid}
             canVote={!!user}
+            canEditMetadata={!!user && canSubmit(user)}
             onVoted={refresh}
           />
         ))}
