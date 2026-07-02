@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -39,14 +39,20 @@ app.include_router(api_router)
 
 
 @app.get("/health")
-async def health():
+async def health(response: Response):
     payload: dict = {"status": "ok", "app": settings.app_name, "database": "unknown"}
+    db_host = settings.database_url.split("@")[-1].split("/")[0] if "@" in settings.database_url else "unknown"
+    payload["database_host"] = db_host
     try:
         async with async_session_factory() as session:
             await session.execute(text("SELECT 1"))
+            version = await session.scalar(text("SELECT version_num FROM alembic_version LIMIT 1"))
         payload["database"] = "ok"
-    except Exception:
+        payload["alembic_version"] = version
+    except Exception as exc:
         logger.exception("Database health check failed")
         payload["status"] = "degraded"
         payload["database"] = "error"
+        payload["database_error"] = str(exc.__class__.__name__)
+        response.status_code = 503
     return payload

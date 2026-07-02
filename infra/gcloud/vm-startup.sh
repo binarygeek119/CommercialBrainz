@@ -59,11 +59,6 @@ else
 fi
 
 echo "==> Configuring environment..."
-if [[ ! -f .env ]]; then
-  cp .env.example .env
-  SECRET=$(openssl rand -base64 32)
-  sed -i "s/change-me-to-a-long-random-string/$SECRET/" .env
-fi
 
 set_env() {
   local key="$1" value="$2"
@@ -73,6 +68,17 @@ set_env() {
     echo "${key}=${value}" >> .env
   fi
 }
+
+if [[ ! -f .env ]]; then
+  cp .env.example .env
+  SECRET=$(openssl rand -base64 32)
+  sed -i "s/change-me-to-a-long-random-string/$SECRET/" .env
+fi
+
+# Docker Compose service names — localhost in .env breaks API/worker inside containers.
+set_env "DATABASE_URL" "postgresql+asyncpg://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz"
+set_env "DATABASE_URL_SYNC" "postgresql://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz"
+set_env "REDIS_URL" "redis://redis:6379/0"
 
 DUCKDNS_DOMAIN="$(get_meta duckdns-domain)"
 DUCKDNS_TOKEN="$(get_meta duckdns-token)"

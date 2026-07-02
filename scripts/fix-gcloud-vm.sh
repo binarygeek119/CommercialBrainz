@@ -66,6 +66,24 @@ echo "==> Container ages (web/caddy should match api after deploy)"
 $COMPOSE ps -a --format 'table {{.Name}}\t{{.Status}}\t{{.RunningFor}}' api worker web caddy 2>/dev/null || $COMPOSE ps api worker web caddy
 
 echo ""
+echo "==> Verify database"
+HEALTH="$(curl -sf http://127.0.0.1/health || true)"
+echo "$HEALTH"
+echo "$HEALTH" | grep -q '"database":"ok"' && echo "OK: database connected" || {
+  echo "FAIL: database not connected — fixing .env and retrying migrations"
+  grep -q '^DATABASE_URL=' .env && sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz|' .env \
+    || echo 'DATABASE_URL=postgresql+asyncpg://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz' >> .env
+  grep -q '^DATABASE_URL_SYNC=' .env && sed -i 's|^DATABASE_URL_SYNC=.*|DATABASE_URL_SYNC=postgresql://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz|' .env \
+    || echo 'DATABASE_URL_SYNC=postgresql://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz' >> .env
+  grep -q '^REDIS_URL=' .env && sed -i 's|^REDIS_URL=.*|REDIS_URL=redis://redis:6379/0|' .env \
+    || echo 'REDIS_URL=redis://redis:6379/0' >> .env
+  $COMPOSE up -d --force-recreate api worker
+  sleep 15
+  curl -sf http://127.0.0.1/health || true
+  $COMPOSE logs api --tail=40
+}
+
+echo ""
 echo "==> Verify"
 $COMPOSE ps
 echo ""

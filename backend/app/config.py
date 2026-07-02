@@ -1,5 +1,7 @@
 from functools import lru_cache
+import os
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -66,6 +68,23 @@ class Settings(BaseSettings):
     thumbnail_upload_dir: str = "/data/thumbnails"
     logo_upload_dir: str = "/data/logos"
     logo_max_bytes: int = 5 * 1024 * 1024
+
+    @model_validator(mode="after")
+    def normalize_service_urls_for_docker(self) -> "Settings":
+        """Inside Compose, .env often points at localhost — use service hostnames instead."""
+        if os.getenv("RUNNING_IN_DOCKER") != "1":
+            return self
+        if "@localhost" in self.database_url or "@127.0.0.1" in self.database_url:
+            self.database_url = (
+                self.database_url.replace("@localhost", "@postgres").replace("@127.0.0.1", "@postgres")
+            )
+        if "@localhost" in self.database_url_sync or "@127.0.0.1" in self.database_url_sync:
+            self.database_url_sync = (
+                self.database_url_sync.replace("@localhost", "@postgres").replace("@127.0.0.1", "@postgres")
+            )
+        if "localhost" in self.redis_url or "127.0.0.1" in self.redis_url:
+            self.redis_url = self.redis_url.replace("localhost", "redis").replace("127.0.0.1", "redis")
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

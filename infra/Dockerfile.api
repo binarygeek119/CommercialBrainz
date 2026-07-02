@@ -14,5 +14,13 @@ COPY backend/alembic.ini backend/
 WORKDIR /app/backend
 RUN pip install --no-cache-dir -e .
 
+ENV RUNNING_IN_DOCKER=1
+ENV DATABASE_URL=postgresql+asyncpg://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz
+ENV DATABASE_URL_SYNC=postgresql://commercialbrainz:commercialbrainz@postgres:5432/commercialbrainz
+ENV REDIS_URL=redis://redis:6379/0
+
+COPY infra/docker-api-entrypoint.sh /usr/local/bin/docker-api-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-api-entrypoint.sh
+
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/usr/local/bin/docker-api-entrypoint.sh"]
