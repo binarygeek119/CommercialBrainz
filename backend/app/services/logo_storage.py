@@ -1,4 +1,4 @@
-"""Store and serve transparent PNG and SVG brand logos."""
+"""Store and serve transparent PNG, WebP, and SVG brand logos."""
 
 from __future__ import annotations
 
@@ -18,10 +18,12 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-LOGO_EXTENSIONS = (".png", ".svg")
-SAFE_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(?:png|svg)$", re.I)
-SAFE_LEGACY_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(?:png|svg)$", re.I)
-SAFE_GALLERY_PATH = re.compile(r"^[a-f0-9-]{36}/[a-f0-9-]{36}\.(?:png|svg)$", re.I)
+WEBP_RIFF = b"RIFF"
+WEBP_MAGIC = b"WEBP"
+LOGO_EXTENSIONS = (".png", ".svg", ".webp")
+SAFE_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
+SAFE_LEGACY_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
+SAFE_GALLERY_PATH = re.compile(r"^[a-f0-9-]{36}/[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
 _SVG_SCRIPT = re.compile(r"<script[\s>].*?</script>", re.I | re.S)
 _SVG_FOREIGN_OBJECT = re.compile(r"<foreignObject[\s>].*?</foreignObject>", re.I | re.S)
 _SVG_EVENT_HANDLER = re.compile(r'\s(on\w+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
@@ -52,6 +54,9 @@ def _detect_logo_extension(data: bytes) -> str:
     if data.startswith(PNG_MAGIC):
         return ".png"
 
+    if len(data) >= 12 and data[:4] == WEBP_RIFF and data[8:12] == WEBP_MAGIC:
+        return ".webp"
+
     stripped = data.lstrip()
     if stripped.startswith(b"\xef\xbb\xbf"):
         stripped = stripped[3:]
@@ -60,7 +65,7 @@ def _detect_logo_extension(data: bytes) -> str:
     if stripped[:5].lower() == b"<?xml" or stripped[:4].lower() == b"<svg" or b"<svg" in head:
         return ".svg"
 
-    raise ValueError("Logo must be a PNG or SVG file")
+    raise ValueError("Logo must be a PNG, WebP, or SVG file")
 
 
 def _sanitize_svg(text: str) -> str:
@@ -107,6 +112,45 @@ def process_logo_png(data: bytes) -> bytes:
     return out.getvalue()
 
 
+def process_logo_webp(data: bytes) -> bytes:
+    """Validate transparent WebP and re-encode losslessly."""
+    if len(data) > settings.logo_max_bytes:
+        raise ValueError(f"Logo too large (max {settings.logo_max_bytes // 1024 // 1024} MB)")
+    if len(data) < 16 or not (data[:4] == WEBP_RIFF and data[8:12] == WEBP_MAGIC):
+        raise ValueError("Logo must be a WebP file")
+
+    try:
+        img = Image.open(BytesIO(data))
+        img.load()
+    except Exception as exc:
+        raise ValueError("Invalid WebP image") from exc
+
+    if img.format != "WEBP":
+        raise ValueError("Logo must be a WebP file")
+
+    if img.mode == "P" and "transparency" in img.info:
+        img = img.convert("RGBA")
+    elif img.mode == "LA":
+        img = img.convert("RGBA")
+    elif img.mode != "RGBA":
+        raise ValueError("Logo must be a transparent WebP (RGBA with alpha channel)")
+
+    if not _has_transparency(img):
+        raise ValueError("Logo must include transparency — upload a WebP with a transparent background")
+
+    if img.width < 32 or img.height < 32:
+        raise ValueError("Logo must be at least 32×32 pixels")
+    if img.width > 4096 or img.height > 4096:
+        raise ValueError("Logo must be at most 4096×4096 pixels")
+
+    out = BytesIO()
+    img.save(out, format="WEBP", lossless=True, method=6)
+    processed = out.getvalue()
+    if not (processed[:4] == WEBP_RIFF and processed[8:12] == WEBP_MAGIC):
+        raise ValueError("Invalid WebP image")
+    return processed
+
+
 def process_logo_svg(data: bytes) -> bytes:
     """Validate SVG and strip unsafe markup before storage."""
     if len(data) > settings.logo_max_bytes:
@@ -134,10 +178,12 @@ def process_logo_svg(data: bytes) -> bytes:
 
 
 def process_logo(data: bytes) -> tuple[bytes, str]:
-    """Validate and normalize a PNG or SVG logo upload."""
+    """Validate and normalize a PNG, WebP, or SVG logo upload."""
     ext = _detect_logo_extension(data)
     if ext == ".png":
         return process_logo_png(data), ext
+    if ext == ".webp":
+        return process_logo_webp(data), ext
     return process_logo_svg(data), ext
 
 
@@ -229,8 +275,11 @@ def resolve_logo_path(relative: str) -> Path | None:
 
 
 def logo_media_type(path: Path) -> str:
-    if path.suffix.lower() == ".svg":
+    suffix = path.suffix.lower()
+    if suffix == ".svg":
         return "image/svg+xml"
+    if suffix == ".webp":
+        return "image/webp"
     return "image/png"
 
 
