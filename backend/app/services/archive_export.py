@@ -103,7 +103,8 @@ async def build_archive_export_bundle(output_root: Path | None = None) -> tuple[
                 src = resolve_logo_path(rel)
                 if not src:
                     continue
-                dest = logos_dir / f"{logo['id']}.png"
+                ext = src.suffix.lower() or ".png"
+                dest = logos_dir / f"{logo['id']}{ext}"
                 shutil.copy2(src, dest)
                 logo["image_file"] = f"images/logos/{dest.name}"
                 stats["logo_files"] += 1

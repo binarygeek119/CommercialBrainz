@@ -1,11 +1,11 @@
-"""Tests for transparent PNG brand logo uploads."""
+"""Tests for transparent PNG and SVG brand logo uploads."""
 
 from io import BytesIO
 
 import pytest
 from PIL import Image
 
-from app.services.logo_storage import process_logo_png
+from app.services.logo_storage import process_logo, process_logo_png, process_logo_svg
 
 
 def _transparent_png() -> bytes:
@@ -22,6 +22,20 @@ def _opaque_png() -> bytes:
     return buf.getvalue()
 
 
+def _simple_svg() -> bytes:
+    return b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="red"/></svg>'
+
+
+def _malicious_svg() -> bytes:
+    return (
+        b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">'
+        b'<script>alert("x")</script>'
+        b'<foreignObject><body xmlns="http://www.w3.org/1999/xhtml">x</body></foreignObject>'
+        b'<a href="javascript:alert(1)">link</a>'
+        b"</svg>"
+    )
+
+
 def test_process_logo_accepts_transparent_png():
     out = process_logo_png(_transparent_png())
     assert out.startswith(b"\x89PNG")
@@ -30,3 +44,25 @@ def test_process_logo_accepts_transparent_png():
 def test_process_logo_rejects_opaque_png():
     with pytest.raises(ValueError, match="transparency"):
         process_logo_png(_opaque_png())
+
+
+def test_process_logo_accepts_svg():
+    out, ext = process_logo(_simple_svg())
+    assert ext == ".svg"
+    assert b"<svg" in out.lower()
+    assert b"<script" not in out.lower()
+
+
+def test_process_logo_svg_strips_unsafe_markup():
+    out = process_logo_svg(_malicious_svg())
+    text = out.decode("utf-8").lower()
+    assert "<svg" in text
+    assert "<script" not in text
+    assert "onload=" not in text
+    assert "javascript:" not in text
+    assert "<foreignobject" not in text
+
+
+def test_process_logo_detects_png():
+    _, ext = process_logo(_transparent_png())
+    assert ext == ".png"

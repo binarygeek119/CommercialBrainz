@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [inviteLabel, setInviteLabel] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   const { data: stats } = useQuery({
@@ -124,6 +125,16 @@ export default function AdminPage() {
       await refetchInvites();
     } catch (err) {
       setInviteError((err as Error).message);
+    }
+  };
+
+  const handleCopyInviteCode = async (inviteId: string, code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedInviteId(inviteId);
+      window.setTimeout(() => setCopiedInviteId((current) => (current === inviteId ? null : current)), 2000);
+    } catch (err) {
+      setInviteError((err as Error).message || "Could not copy invite code");
     }
   };
 
@@ -413,6 +424,13 @@ export default function AdminPage() {
                   {invite.expires_at && <> · expires {new Date(invite.expires_at).toLocaleDateString()}</>}
                 </p>
                 <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => handleCopyInviteCode(invite.id, invite.code)}
+                  >
+                    {copiedInviteId === invite.id ? "Copied!" : "Copy code"}
+                  </button>
                   <Link to={`/register?invite=${encodeURIComponent(invite.code)}`} className="btn btn-secondary">
                     Open register link
                   </Link>

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { api, type AdvertiserLogoSubmit, type Edit } from "../api";
 import { LOGO_MONTHS } from "../utils/brandLogos";
 
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/svg+xml"]);
+
 interface Props {
   advertiserSbid: string;
   brandName: string;
@@ -29,8 +31,8 @@ export default function BrandLogoUpload({ advertiserSbid, brandName, onSubmitted
       setPreview(null);
       return;
     }
-    if (file.type !== "image/png") {
-      setError("Logo must be a PNG file with transparency.");
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setError("Logo must be a PNG or SVG file.");
       setPreview(null);
       return;
     }
@@ -46,7 +48,7 @@ export default function BrandLogoUpload({ advertiserSbid, brandName, onSubmitted
     e.preventDefault();
     const file = inputRef.current?.files?.[0];
     if (!file) {
-      setError("Choose a PNG file first.");
+      setError("Choose a PNG or SVG file first.");
       return;
     }
     setLoading(true);
@@ -82,19 +84,19 @@ export default function BrandLogoUpload({ advertiserSbid, brandName, onSubmitted
     <div className="card" style={{ marginTop: "1rem" }}>
       <h3>Submit logo version</h3>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
-        Upload a transparent PNG for {brandName} (max 5 MB, at least 32×32 px). Add context for
-        historical or event-specific wordmarks — e.g. a 2019 refresh, Olympic campaign, or 50th
-        anniversary lockup. Goes to the edit queue (10 votes or mod approval), then joins the logo
-        gallery where users vote on popularity to pick the main logo.
+        Upload a transparent PNG or SVG for {brandName} (max 5 MB; PNG must be at least 32×32 px).
+        Add context for historical or event-specific wordmarks — e.g. a 2019 refresh, Olympic
+        campaign, or 50th anniversary lockup. Goes to the edit queue (10 votes or mod approval),
+        then joins the logo gallery where users vote on popularity to pick the main logo.
       </p>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="logo-file">PNG logo (transparent background)</label>
+          <label htmlFor="logo-file">Logo file (PNG or SVG)</label>
           <input
             ref={inputRef}
             id="logo-file"
             type="file"
-            accept="image/png"
+            accept="image/png,image/svg+xml"
             onChange={(e) => onFileChange(e.target.files?.[0])}
           />
         </div>

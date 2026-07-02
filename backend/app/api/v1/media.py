@@ -21,6 +21,7 @@ from app.services.advertiser_metadata import (
 from app.services.edit_response import build_edit_public
 from app.services.logo_storage import (
     discard_staged_logo,
+    logo_media_type,
     resolve_logo_path,
     stage_logo,
 )
@@ -72,7 +73,7 @@ async def get_logo(relative_path: str):
 
     return FileResponse(
         path,
-        media_type="image/png",
+        media_type=logo_media_type(path),
         headers={"Cache-Control": "public, max-age=86400"},
     )
 
