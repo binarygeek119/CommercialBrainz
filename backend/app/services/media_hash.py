@@ -44,39 +44,81 @@ def fpcalc_fingerprint(path: Path) -> str:
     return str(fingerprint)
 
 
+def _ytdlp_version() -> str:
+    result = subprocess.run(
+        ["yt-dlp", "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return (result.stdout or result.stderr or "unknown").strip()
+
+
+def _clear_dest_files(dest_dir: Path) -> None:
+    for path in dest_dir.iterdir():
+        if path.is_file():
+            path.unlink()
+
+
+def _run_ytdlp_download(
+    *,
+    url: str,
+    output_template: str,
+    fmt: str,
+    max_filesize_mb: int | None,
+    merge_output_format: str | None,
+) -> subprocess.CompletedProcess[str]:
+    cmd = [
+        "yt-dlp",
+        "--no-playlist",
+        "--retries",
+        "3",
+        "--fragment-retries",
+        "3",
+        "-f",
+        fmt,
+        "-o",
+        output_template,
+        url,
+    ]
+    if max_filesize_mb is not None:
+        cmd.extend(["--max-filesize", f"{max_filesize_mb}M"])
+    if merge_output_format:
+        cmd.extend(["--merge-output-format", merge_output_format])
+    return subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+
 def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     output_template = str(dest_dir / "%(id)s.%(ext)s")
 
-    format_candidates = [
-        settings.ytdlp_format,
-        "bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "bestvideo+bestaudio/best",
-        "b/w",
+    # max_filesize can exclude every format on some videos; merge can fail on odd codecs.
+    attempts: list[tuple[str, int | None, str | None]] = [
+        (settings.ytdlp_format, settings.hash_max_file_mb, "mp4"),
+        ("bestvideo[height<=480]+bestaudio/best[height<=480]", settings.hash_max_file_mb, "mp4"),
+        ("bv*+ba/b", None, "mp4"),
+        ("bestvideo+bestaudio/best", None, "mp4"),
+        ("b", None, None),
+        ("worstvideo+worstaudio/worst", None, "mp4"),
+        ("worst", None, None),
     ]
     seen: set[str] = set()
     last_error = "yt-dlp download failed"
 
-    for fmt in format_candidates:
+    for fmt, max_mb, merge_fmt in attempts:
         if fmt in seen:
             continue
         seen.add(fmt)
+        _clear_dest_files(dest_dir)
 
-        cmd = [
-            "yt-dlp",
-            "--no-playlist",
-            "-f",
-            fmt,
-            "--merge-output-format",
-            "mp4",
-            "--max-filesize",
-            f"{settings.hash_max_file_mb}M",
-            "-o",
-            output_template,
-            url,
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = _run_ytdlp_download(
+            url=url,
+            output_template=output_template,
+            fmt=fmt,
+            max_filesize_mb=max_mb,
+            merge_output_format=merge_fmt,
+        )
         if result.returncode != 0:
             last_error = (result.stderr or result.stdout or last_error).strip()
             logger.warning(
@@ -89,10 +131,15 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
 
         files = [p for p in dest_dir.iterdir() if p.is_file()]
         if files:
+            logger.info("yt-dlp downloaded %s using format %r", youtube_id, fmt)
             return max(files, key=lambda p: p.stat().st_size)
         last_error = "yt-dlp produced no output file"
 
-    raise RuntimeError(last_error)
+    version = _ytdlp_version()
+    raise RuntimeError(
+        f"{last_error.splitlines()[-1] if last_error else 'yt-dlp download failed'} "
+        f"(yt-dlp {version}; video {youtube_id})"
+    )
 
 
 def compute_all_hashes(video_path: Path, probe: dict) -> tuple[int, str, str, float]:

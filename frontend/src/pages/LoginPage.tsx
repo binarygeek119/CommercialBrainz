@@ -7,13 +7,14 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
-      await login(username, password);
+      await login(username, password, rememberMe);
       navigate("/");
     } catch (err) {
       setError((err as Error).message);
@@ -32,6 +33,14 @@ export default function LoginPage() {
           <label>Password</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
+        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1rem" }}>
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+          />
+          <span>Stay logged in</span>
+        </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" className="btn btn-primary">Log in</button>
         <p className="muted" style={{ marginTop: "1rem" }}>

@@ -23,6 +23,7 @@ dependencies = [
     "python-slugify>=8.0.4",
     "Pillow>=11.0.0",
     "imagehash>=4.3.0",
+    "yt-dlp>=2025.1",
 ]
 
 [project.optional-dependencies]

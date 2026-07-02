@@ -97,9 +97,10 @@ export default function SubmitPage() {
     }
     if (youtubeId === lastFetchedId.current) return;
 
+    setYtLoading(true);
+    setYtError("");
+
     const timer = window.setTimeout(() => {
-      setYtLoading(true);
-      setYtError("");
       api
         .fetchYouTubeMetadata(form.youtube_url)
         .then(async (meta) => {
@@ -281,11 +282,6 @@ export default function SubmitPage() {
             }}
             placeholder="https://www.youtube.com/watch?v=..."
           />
-          {ytLoading && (
-            <p className="muted" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-              Fetching YouTube metadata…
-            </p>
-          )}
           {ytError && !ytLoading && (
             <p className="error" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
               {ytError}
@@ -482,6 +478,15 @@ export default function SubmitPage() {
           {loading ? "Submitting..." : "Submit for review"}
         </button>
       </form>
+
+      {ytLoading && (
+        <div className="wait-overlay" role="dialog" aria-modal="true" aria-live="polite">
+          <div className="wait-overlay-card">
+            <p className="wait-overlay-title">Please wait</p>
+            <p className="muted">Fetching YouTube metadata…</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

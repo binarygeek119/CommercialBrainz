@@ -68,7 +68,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(db, data.username, data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return Token(access_token=create_access_token(user.id))
+    return Token(access_token=create_access_token(user.id, remember_me=data.remember_me))
 
 
 @router.post("/forgot-password", response_model=MessageResponse)

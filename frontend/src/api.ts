@@ -272,13 +272,18 @@ export interface YouTubeMetadataPreview {
   existing_video_sbid: string | null;
 }
 
+const TOKEN_KEY = "commercialbrainz_token";
+
 function getToken(): string | null {
-  return localStorage.getItem("commercialbrainz_token");
+  return sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY);
 }
 
-export function setToken(token: string | null) {
-  if (token) localStorage.setItem("commercialbrainz_token", token);
-  else localStorage.removeItem("commercialbrainz_token");
+export function setToken(token: string | null, persist = true) {
+  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  if (!token) return;
+  if (persist) localStorage.setItem(TOKEN_KEY, token);
+  else sessionStorage.setItem(TOKEN_KEY, token);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -305,7 +310,7 @@ export const api = {
   register: (data: { username: string; email: string; password: string }) =>
     request<User>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
-  login: (data: { username: string; password: string }) =>
+  login: (data: { username: string; password: string; remember_me?: boolean }) =>
     request<{ access_token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
   forgotPassword: (email: string) =>

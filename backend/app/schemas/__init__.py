@@ -20,6 +20,7 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+    remember_me: bool = True
 
 
 class ForgotPasswordRequest(BaseModel):

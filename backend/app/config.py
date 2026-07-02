@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     secret_key: str = "change-me-to-a-long-random-string"
     access_token_expire_minutes: int = 10080
+    session_token_expire_minutes: int = 1440
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     app_public_url: str = "http://localhost:5173"
 

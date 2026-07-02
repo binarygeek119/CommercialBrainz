@@ -4,7 +4,7 @@ import { api, setToken, type User } from "./api";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -30,9 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, []);
 
-  const login = async (username: string, password: string) => {
-    const { access_token } = await api.login({ username, password });
-    setToken(access_token);
+  const login = async (username: string, password: string, rememberMe = true) => {
+    const { access_token } = await api.login({ username, password, remember_me: rememberMe });
+    setToken(access_token, rememberMe);
     await refresh();
   };
 
