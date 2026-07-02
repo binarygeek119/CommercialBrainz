@@ -5,15 +5,13 @@ import { api } from "../api";
 import { useAuth, canSubmit } from "../auth";
 import CommercialMetadataForm from "../components/CommercialMetadataForm";
 import { formatCommercialPeriod } from "../utils/commercialPeriod";
-import type { CommercialDetail } from "../utils/commercialTypes";
-
 export default function CommercialPage() {
   const { sbid } = useParams<{ sbid: string }>();
   const { user } = useAuth();
   const [showMetadataForm, setShowMetadataForm] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["commercial", sbid],
-    queryFn: () => api.getCommercial(sbid!) as Promise<CommercialDetail>,
+    queryFn: () => api.getCommercial(sbid!),
     enabled: !!sbid,
   });
 

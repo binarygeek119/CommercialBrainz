@@ -20,6 +20,7 @@ import { submissionGenresPayload } from "../utils/submissionGenres";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
 import { extractYouTubeId, formatDurationMs } from "../utils/youtube";
 import { youtubeIdThumbnail } from "../utils/videoThumbnail";
+import { nextSlotAtPoints } from "../utils/editDisplay";
 
 const EMPTY_FORM = {
   youtube_url: "",
