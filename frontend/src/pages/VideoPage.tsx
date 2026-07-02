@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useAuth, canSubmit } from "../auth";
 import VideoThumbnailUpload from "../components/VideoThumbnailUpload";
 import { formatRegionDisplay } from "../data/regions";
+import { formatSubmissionGenres, type SubmissionGenres } from "../utils/submissionGenres";
 import { videoThumbnailUrl } from "../utils/videoThumbnail";
 
 export default function VideoPage() {
@@ -25,6 +26,7 @@ export default function VideoPage() {
   const thumb = videoThumbnailUrl(data);
   const hashError =
     typeof data.metadata?.hash_error === "string" ? data.metadata.hash_error : null;
+  const genreLines = formatSubmissionGenres(data.metadata?.genres as SubmissionGenres | undefined);
 
   return (
     <div>
@@ -77,6 +79,18 @@ export default function VideoPage() {
           )}
           {data.duration_ms && <p>Duration: {Math.round(data.duration_ms / 1000)}s</p>}
           {data.slogan && <p>Slogan: {data.slogan}</p>}
+          {genreLines.length > 0 && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <strong style={{ fontSize: "0.9rem" }}>Genres</strong>
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem" }}>
+                {genreLines.map((line) => (
+                  <li key={line} className="muted" style={{ fontSize: "0.9rem" }}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="card">

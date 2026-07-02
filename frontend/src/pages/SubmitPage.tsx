@@ -12,7 +12,11 @@ import {
   subRegionFieldLabel,
   type RegionSelection,
 } from "../components/RegionPicker";
-import { nextSlotAtPoints } from "../utils/editDisplay";
+import SubmissionGenresFields, {
+  EMPTY_SUBMISSION_GENRES,
+} from "../components/SubmissionGenresFields";
+import type { SubmissionGenres } from "../utils/submissionGenres";
+import { submissionGenresPayload } from "../utils/submissionGenres";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
 import { extractYouTubeId, formatDurationMs } from "../utils/youtube";
 import { youtubeIdThumbnail } from "../utils/videoThumbnail";
@@ -77,6 +81,7 @@ export default function SubmitPage() {
   const [termsLoading, setTermsLoading] = useState(true);
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [genres, setGenres] = useState<SubmissionGenres>({ ...EMPTY_SUBMISSION_GENRES });
 
   const [advertiser, setAdvertiser] = useState<AdvertiserSelection>({});
   const [regionSelection, setRegionSelection] = useState<RegionSelection>({});
@@ -112,6 +117,13 @@ export default function SubmitPage() {
             if (!advertiserTouched.current) {
               setAdvertiser(suggestion);
             }
+          }
+          if (meta.channel_name) {
+            setGenres((prev) =>
+              prev.target_channel.trim()
+                ? prev
+                : { ...prev, target_channel: meta.channel_name ?? "" }
+            );
           }
         })
         .catch((err) => {
@@ -208,6 +220,7 @@ export default function SubmitPage() {
         transcript: form.transcript || undefined,
         slogan: form.slogan || undefined,
         tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        genres: submissionGenresPayload(genres),
         comment: form.comment || undefined,
         terms_agreed: true,
       });
@@ -446,6 +459,9 @@ export default function SubmitPage() {
             placeholder="superbowl, automotive, humor"
           />
         </div>
+
+        <SubmissionGenresFields value={genres} onChange={setGenres} />
+
         <div className="form-group">
           <label>Edit comment</label>
           <textarea

@@ -260,6 +260,22 @@ class VideoCreditSchema(BaseModel):
     name: str
 
 
+class SubmissionGenres(BaseModel):
+    age_range: str | None = Field(default=None, max_length=128)
+    target_channel: str | None = Field(default=None, max_length=255)
+    banned: bool = False
+    adult_rated: bool = False
+    late_night: bool = False
+    spoof: bool = False
+    fake: bool = False
+    real: bool = False
+    ai_enhanced: bool = False
+    holiday: str | None = Field(default=None, max_length=255)
+    event: str | None = Field(default=None, max_length=255)
+    store: str | None = Field(default=None, max_length=255)
+    service: str | None = Field(default=None, max_length=255)
+
+
 class VideoCreate(BaseModel):
     commercial_id: UUID | None = None
     commercial: CommercialCreate | None = None
@@ -284,6 +300,7 @@ class VideoCreate(BaseModel):
     metadata: dict = Field(default_factory=dict)
     credits: list[VideoCreditSchema] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    genres: SubmissionGenres | None = None
     comment: str | None = None
     force_votable: bool = False
     terms_agreed: bool = False

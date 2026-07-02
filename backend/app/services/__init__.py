@@ -198,6 +198,12 @@ class EditService:
                     db.add(CommercialProduct(commercial_id=commercial.sbid, name=name))
 
     @staticmethod
+    def _video_metadata_from_state(state: dict) -> dict:
+        from app.services.submission_genres import merge_genres_into_metadata
+
+        return merge_genres_into_metadata(state.get("metadata"), state.get("genres"))
+
+    @staticmethod
     async def _apply_create_video(db: AsyncSession, edit: Edit, state: dict) -> UUID | None:
         commercial_id = state.get("commercial_id")
         if not commercial_id and state.get("commercial"):
@@ -240,7 +246,7 @@ class EditService:
             transcript=state.get("transcript"),
             slogan=state.get("slogan"),
             cta_text=state.get("cta_text"),
-            extra_data=state.get("metadata", {}),
+            extra_data=EditService._video_metadata_from_state(state),
             submitted_by_id=edit.editor_id,
         )
         db.add(video)
