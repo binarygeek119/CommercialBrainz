@@ -21,11 +21,12 @@ async def count_public_videos(db: AsyncSession, commercial_id: UUID) -> int:
 
 
 async def has_open_split_edit(db: AsyncSession, video_id: UUID) -> bool:
+    video_id_str = str(video_id)
     result = await db.execute(
         select(Edit.id).where(
             Edit.edit_type == EditType.SPLIT_COMMERCIAL,
             Edit.status == EditStatus.OPEN,
-            Edit.after_state["video_id"].astext == str(video_id),
+            Edit.after_state["video_id"].as_string() == video_id_str,
         )
     )
     return result.scalar_one_or_none() is not None

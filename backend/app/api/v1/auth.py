@@ -1,6 +1,8 @@
+import logging
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
 
 from app.auth.deps import get_current_user, get_current_user_jwt, require_write_access
 from app.auth.security import authenticate_user, create_access_token, get_user_by_email, get_user_by_username, hash_password, user_can_submit, user_email_verified
@@ -56,6 +58,7 @@ from app.services.submission_terms import (
 from app.submission_quiz import grade_quiz, quiz_for_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 def _deletion_request_public(record) -> AccountDeletionRequestPublic:
@@ -118,7 +121,14 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
-    user = await authenticate_user(db, data.username, data.password)
+    try:
+        user = await authenticate_user(db, data.username, data.password)
+    except Exception as exc:
+        logger.exception("Login failed for username %s", data.username)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable. Check database connectivity and migrations.",
+        ) from exc
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:

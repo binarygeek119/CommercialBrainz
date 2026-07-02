@@ -1,3 +1,4 @@
+import logging
 import asyncio
 from uuid import UUID
 
@@ -30,6 +31,7 @@ from app.services.youtube_metadata import fetch_youtube_metadata
 from app.utils import extract_youtube_id
 
 router = APIRouter(prefix="/edits", tags=["edits"])
+logger = logging.getLogger(__name__)
 
 
 async def _schedule_preview_fingerprint(edit_id: UUID, youtube_id: str) -> None:
@@ -201,7 +203,14 @@ async def list_open_edits(
     edits = result.scalars().all()
     items = []
     for edit in edits:
-        items.append((await build_edit_public(db, edit)).model_dump())
+        try:
+            items.append((await build_edit_public(db, edit)).model_dump(mode="json"))
+        except Exception:
+            logger.exception("Failed to serialize open edit %s", edit.id)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to load open edit {edit.id}. Check API logs.",
+            ) from None
     return PaginatedResponse(items=items, total=total or 0, offset=offset, limit=limit)
 
 

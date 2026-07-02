@@ -20,34 +20,27 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     from app.data.submission_terms_v2 import SUBMISSION_TERMS_V2
 
-    bind = op.get_bind()
-    bind.execute(
-        sa.text(
-            "UPDATE submission_terms_documents SET is_active = false WHERE is_active = true"
-        )
-    )
-    bind.execute(
+    op.execute(sa.text("UPDATE submission_terms_documents SET is_active = false WHERE is_active = true"))
+
+    sections_json = json.dumps(SUBMISSION_TERMS_V2["sections"])
+    op.execute(
         sa.text(
             """
             INSERT INTO submission_terms_documents (id, version, title, intro, sections, is_active)
             VALUES (gen_random_uuid(), :version, :title, :intro, CAST(:sections AS jsonb), true)
             """
-        ),
-        {
-            "version": SUBMISSION_TERMS_V2["version"],
-            "title": SUBMISSION_TERMS_V2["title"],
-            "intro": SUBMISSION_TERMS_V2["intro"],
-            "sections": json.dumps(SUBMISSION_TERMS_V2["sections"]),
-        },
+        ).bindparams(
+            version=SUBMISSION_TERMS_V2["version"],
+            title=SUBMISSION_TERMS_V2["title"],
+            intro=SUBMISSION_TERMS_V2["intro"],
+            sections=sections_json,
+        )
     )
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    bind.execute(
-        sa.text("DELETE FROM submission_terms_documents WHERE version = 2")
-    )
-    bind.execute(
+    op.execute(sa.text("DELETE FROM submission_terms_documents WHERE version = 2"))
+    op.execute(
         sa.text(
             """
             UPDATE submission_terms_documents

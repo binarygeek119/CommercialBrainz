@@ -32,10 +32,28 @@ def fingerprint_to_dict(fp: MediaFingerprint | None) -> dict | None:
         "phash": format_phash_hex(fp.phash) if fp.phash is not None else None,
         "file_sha256": fp.file_sha256,
         "audio_fingerprint": fp.audio_fingerprint,
-        "duration_sec": fp.duration_sec,
+        "duration_sec": _json_safe_number(fp.duration_sec),
         "error_message": fp.error_message,
-        "probe": fp.probe_data or {},
+        "probe": _json_safe_value(fp.probe_data or {}),
     }
+
+
+def _json_safe_number(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and (value != value or value in (float("inf"), float("-inf"))):
+        return None
+    return value
+
+
+def _json_safe_value(value):
+    if isinstance(value, float):
+        return _json_safe_number(value)
+    if isinstance(value, dict):
+        return {str(k): _json_safe_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe_value(v) for v in value]
+    return value
 
 
 def format_phash_hex(phash: int | None) -> str | None:
