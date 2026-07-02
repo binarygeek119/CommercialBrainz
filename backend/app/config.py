@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     app_public_url: str = "http://localhost:5173"
 
     edit_open_days: int = 14
+    split_open_days: int = 90
+    split_vote_threshold: int = 20
     edit_early_close_votes: int = 3
     brand_early_close_votes: int = 10
     voting_min_account_days: int = 14

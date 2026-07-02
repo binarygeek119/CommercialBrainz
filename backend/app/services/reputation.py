@@ -29,6 +29,7 @@ QUALITY_EDIT_TYPES = {
     EditType.ADD_TAG,
     EditType.ADD_CREDIT,
     EditType.MERGE_COMMERCIAL,
+    EditType.SPLIT_COMMERCIAL,
 }
 
 VERSION_EDIT_TYPES = {

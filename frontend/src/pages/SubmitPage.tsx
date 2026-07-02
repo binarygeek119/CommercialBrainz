@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth, canSubmit } from "../auth";
-import { api, type SubmissionTerms, type YouTubeMetadataPreview } from "../api";
+import { api, type CommercialDetail, type SubmissionTerms, type YouTubeMetadataPreview } from "../api";
 import SubmissionTermsView from "../components/SubmissionTermsView";
 import AdvertiserPicker, { type AdvertiserSelection } from "../components/AdvertiserPicker";
 import {
@@ -18,6 +18,11 @@ import SubmissionGenresFields, {
 import type { SubmissionGenres } from "../utils/submissionGenres";
 import { submissionGenresPayload } from "../utils/submissionGenres";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
+import {
+  addLinkDefaultsFromVideo,
+  commercialInheritanceSummary,
+  referenceVideoFromCommercial,
+} from "../utils/addLinkDefaults";
 import { extractYouTubeId, formatDurationMs } from "../utils/youtube";
 import { youtubeIdThumbnail } from "../utils/videoThumbnail";
 import { nextSlotAtPoints } from "../utils/editDisplay";
@@ -78,9 +83,9 @@ export default function SubmitPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const addLinkCommercialId = searchParams.get("commercial");
-  const [addLinkCommercial, setAddLinkCommercial] = useState<{ sbid: string; title: string } | null>(
-    null
-  );
+  const [addLinkCommercial, setAddLinkCommercial] = useState<CommercialDetail | null>(null);
+  const [addLinkDefaultsLoading, setAddLinkDefaultsLoading] = useState(false);
+  const [addLinkReferenceLabel, setAddLinkReferenceLabel] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [terms, setTerms] = useState<SubmissionTerms | null>(null);
@@ -101,12 +106,47 @@ export default function SubmitPage() {
   useEffect(() => {
     if (!addLinkCommercialId) {
       setAddLinkCommercial(null);
+      setAddLinkReferenceLabel(null);
       return;
     }
+    setAddLinkDefaultsLoading(true);
     api
       .getCommercial(addLinkCommercialId)
-      .then((c) => setAddLinkCommercial({ sbid: c.sbid, title: c.title }))
-      .catch(() => setAddLinkCommercial(null));
+      .then(async (commercial) => {
+        setAddLinkCommercial(commercial);
+        setForm((prev) => ({
+          ...prev,
+          commercial_title: commercial.title,
+        }));
+        const ref = referenceVideoFromCommercial(commercial);
+        if (!ref) {
+          setAddLinkReferenceLabel(null);
+          return;
+        }
+        try {
+          const full = await api.getVideo(ref.sbid);
+          const defaults = addLinkDefaultsFromVideo(full);
+          setForm((prev) => ({
+            ...prev,
+            language: defaults.language,
+            slogan: defaults.slogan,
+            transcript: defaults.transcript,
+            tags: defaults.tags,
+          }));
+          setRegionSelection(defaults.regionSelection);
+          setGenres(defaults.genres);
+          setAddLinkReferenceLabel(
+            full.link_label || full.version_label || full.slogan || "main link"
+          );
+        } catch {
+          setAddLinkReferenceLabel(ref.link_label || ref.version_label || ref.slogan || null);
+        }
+      })
+      .catch(() => {
+        setAddLinkCommercial(null);
+        setAddLinkReferenceLabel(null);
+      })
+      .finally(() => setAddLinkDefaultsLoading(false));
   }, [addLinkCommercialId]);
 
   useEffect(() => {
@@ -272,13 +312,38 @@ export default function SubmitPage() {
         {addLinkCommercial ? (
           <>
             Adding a YouTube link to{" "}
-            <Link to={`/commercial/${addLinkCommercial.sbid}`}>{addLinkCommercial.title}</Link>. The
-            link enters the edit queue for approval, then community votes pick the main link.
+            <Link to={`/commercial/${addLinkCommercial.sbid}`}>{addLinkCommercial.title}</Link>. Same
+            commercial — only fill in what differs for this upload. The link enters the edit queue for
+            approval, then community votes pick the main link.
           </>
         ) : (
           "Submissions enter the edit queue for community voting. Review the terms before submitting."
         )}
       </p>
+
+      {addLinkCommercial && (
+        <div className="card" style={{ marginBottom: "1.5rem", padding: "0.85rem 1rem" }}>
+          <p style={{ margin: "0 0 0.35rem", fontWeight: 600 }}>Inherited from this commercial</p>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            {commercialInheritanceSummary(addLinkCommercial).map((line) => (
+              <li key={line} className="muted" style={{ fontSize: "0.9rem" }}>
+                {line}
+              </li>
+            ))}
+          </ul>
+          {addLinkDefaultsLoading && (
+            <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
+              Loading defaults from existing link…
+            </p>
+          )}
+          {addLinkReferenceLabel && !addLinkDefaultsLoading && (
+            <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
+              Link metadata pre-filled from <strong>{addLinkReferenceLabel}</strong>. Change only what
+              differs for the new upload.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: "1.5rem" }}>
         <p style={{ margin: 0 }}>
@@ -413,8 +478,9 @@ export default function SubmitPage() {
         </div>
         {addLinkCommercial && (
           <div className="form-group">
-            <label>Version label</label>
+            <label>What&apos;s different? (version label) *</label>
             <input
+              required
               value={form.version_label}
               onChange={(e) => setForm({ ...form, version_label: e.target.value })}
               placeholder='e.g. "30s cut", "Director&apos;s edit", "Backup mirror"'
@@ -543,7 +609,12 @@ export default function SubmitPage() {
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={loading || !termsAgreed || atSlotCap}
+          disabled={
+            loading ||
+            !termsAgreed ||
+            atSlotCap ||
+            (addLinkCommercial != null && !form.version_label.trim())
+          }
         >
           {loading ? "Submitting..." : "Submit for review"}
         </button>

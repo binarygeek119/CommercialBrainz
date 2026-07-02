@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Video } from "../api";
+import { commercialUrl } from "../utils/commercialUrls";
 import { videoThumbnailUrl } from "../utils/videoThumbnail";
 import { formatDurationMs } from "../utils/youtube";
 import {
@@ -40,21 +41,48 @@ function renderVideoField(video: Video, key: string) {
   return String(value);
 }
 
-export default function CommercialVideoEntry({ video }: { video: Video }) {
+interface Props {
+  video: Video;
+  commercialSbid: string;
+  selected?: boolean;
+  onSelect?: () => void;
+}
+
+export default function CommercialVideoEntry({
+  video,
+  commercialSbid,
+  selected = false,
+  onSelect,
+}: Props) {
   const thumb = videoThumbnailUrl(video);
   const title = videoDisplayTitle(video);
   const duration = formatDurationMs(video.duration_ms);
   const rows = VIDEO_DETAIL_FIELDS.filter(({ key }) => videoHasFieldValue(video, key));
   const extras = videoMetadataExtras(video);
+  const linkUrl = commercialUrl(commercialSbid, video.sbid);
 
   return (
     <article
       className="commercial-video-entry card"
       style={{
-        border: video.is_main ? "2px solid var(--accent)" : undefined,
+        border: video.is_main
+          ? "2px solid var(--accent)"
+          : selected
+            ? "2px solid var(--border)"
+            : undefined,
+        opacity: selected || video.is_main ? 1 : 0.92,
       }}
     >
-      <Link to={`/video/${video.sbid}`} className="commercial-video-entry-thumb">
+      <Link
+        to={linkUrl}
+        className="commercial-video-entry-thumb"
+        onClick={(e) => {
+          if (onSelect) {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
+      >
         {thumb ? (
           <img src={thumb} alt="" loading="lazy" />
         ) : (
@@ -65,10 +93,25 @@ export default function CommercialVideoEntry({ video }: { video: Video }) {
 
       <div className="commercial-video-entry-body">
         <h3 style={{ margin: "0 0 0.75rem" }}>
-          <Link to={`/video/${video.sbid}`}>{title}</Link>
+          <Link
+            to={linkUrl}
+            onClick={(e) => {
+              if (onSelect) {
+                e.preventDefault();
+                onSelect();
+              }
+            }}
+          >
+            {title}
+          </Link>
           {video.is_main && (
             <span className="badge badge-open" style={{ marginLeft: "0.5rem", textTransform: "none" }}>
               Main link
+            </span>
+          )}
+          {selected && !video.is_main && (
+            <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.8rem" }}>
+              Selected
             </span>
           )}
         </h3>

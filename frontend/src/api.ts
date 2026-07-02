@@ -620,6 +620,25 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  submitCommercialSplit: (
+    commercialSbid: string,
+    videoSbid: string,
+    data: {
+      title: string;
+      year?: number | null;
+      decade?: number | null;
+      campaign_name?: string | null;
+      description?: string | null;
+      products?: string[];
+      comment?: string;
+      terms_agreed?: boolean;
+    }
+  ) =>
+    request<Edit>(`/commercials/${commercialSbid}/videos/${videoSbid}/submit-split`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   fetchYouTubeMetadata: (url: string) =>
     request<YouTubeMetadataPreview>(
       `/edits/youtube-metadata?url=${encodeURIComponent(url)}`

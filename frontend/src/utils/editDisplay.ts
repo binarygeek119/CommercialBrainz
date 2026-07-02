@@ -19,6 +19,12 @@ export function editTitle(edit: Edit): string {
   if (edit.edit_type === "edit_commercial") {
     return (edit.after_state.title as string) || "Commercial metadata";
   }
+  if (edit.edit_type === "split_commercial") {
+    const commercial = edit.after_state.commercial as { title?: string } | undefined;
+    const video = edit.before_state?.video as { version_label?: string; youtube_id?: string } | undefined;
+    const linkLabel = video?.version_label || video?.youtube_id || "link";
+    return commercial?.title ? `Split: ${linkLabel} → ${commercial.title}` : "Split link to own commercial";
+  }
   if (edit.edit_type === "edit_video" && edit.after_state.thumbnail_url) {
     return "Custom thumbnail";
   }

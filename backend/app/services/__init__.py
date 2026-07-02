@@ -123,6 +123,8 @@ class EditService:
             await EditService._apply_add_credit(db, edit, state)
         elif et == EditType.MERGE_COMMERCIAL:
             await EditService._apply_merge_commercial(db, edit, state)
+        elif et == EditType.SPLIT_COMMERCIAL:
+            await EditService._apply_split_commercial(db, edit, state)
         elif et == EditType.CREATE_ADVERTISER:
             await EditService._apply_create_advertiser(db, edit, state)
         elif et == EditType.EDIT_ADVERTISER:
@@ -528,6 +530,55 @@ class EditService:
             await db.delete(source)
 
     @staticmethod
+    async def _apply_split_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
+        source_id = UUID(state["source_commercial_id"])
+        video_id = UUID(state["video_id"])
+        commercial_data = state.get("commercial")
+        if not commercial_data:
+            edit.status = EditStatus.FAILED
+            return
+
+        video = await db.get(Video, video_id)
+        if not video or video.commercial_id != source_id:
+            edit.status = EditStatus.FAILED
+            return
+
+        public_count = await db.scalar(
+            select(func.count())
+            .select_from(Video)
+            .where(Video.commercial_id == source_id, Video.visibility == VideoVisibility.PUBLIC)
+        )
+        if int(public_count or 0) < 2:
+            edit.status = EditStatus.FAILED
+            return
+
+        sub_edit = Edit(
+            edit_type=EditType.CREATE_COMMERCIAL,
+            entity_type="commercial",
+            after_state=commercial_data,
+            editor_id=edit.editor_id,
+            expires_at=edit.expires_at,
+            status=EditStatus.APPLIED,
+            closed_at=datetime.now(UTC),
+        )
+        db.add(sub_edit)
+        await db.flush()
+        await EditService._apply_create_commercial(db, sub_edit, commercial_data)
+        new_commercial_id = sub_edit.entity_id
+        if not new_commercial_id:
+            edit.status = EditStatus.FAILED
+            return
+
+        video.commercial_id = new_commercial_id
+        await db.flush()
+
+        from app.services.video_popularity import recompute_main_video
+
+        await recompute_main_video(db, source_id)
+        await recompute_main_video(db, new_commercial_id)
+        edit.entity_id = new_commercial_id
+
+    @staticmethod
     def _mod_vote_decision(votes: list[Vote], voters_by_id: dict[UUID, User]) -> str | None:
         """Return apply/reject when a mod or admin has voted yes/no; None otherwise."""
         mod_yes = False
@@ -617,6 +668,38 @@ class EditService:
         decision = EditService._mod_vote_decision(votes, voters_by_id)
         if decision:
             await EditService._apply_mod_decision(db, edit, decision)
+            return
+        if edit.edit_type == EditType.SPLIT_COMMERCIAL and EditService._should_early_apply_split(votes):
+            edit.status = EditStatus.APPLIED
+            edit.closed_at = datetime.now(UTC)
+            pending_hash = await EditService._complete_applied_edit(db, edit)
+            if pending_hash is not None:
+                edit._pending_hash_job = pending_hash  # noqa: SLF001
+
+    @staticmethod
+    def _split_yes_count(votes: list[Vote]) -> int:
+        return sum(1 for vote in votes if vote.choice == VoteChoice.YES)
+
+    @staticmethod
+    def _split_no_count(votes: list[Vote]) -> int:
+        return sum(1 for vote in votes if vote.choice == VoteChoice.NO)
+
+    @staticmethod
+    def _should_early_apply_split(votes: list[Vote]) -> bool:
+        return EditService._split_yes_count(votes) >= settings.split_vote_threshold
+
+    @staticmethod
+    def _lapse_decision_split(votes: list[Vote]) -> str:
+        """Split proposals after 3 months: yes wins if it has votes and beats no."""
+        yes = EditService._split_yes_count(votes)
+        no = EditService._split_no_count(votes)
+        if yes == 0:
+            return "reject"
+        if yes > no:
+            return "apply"
+        if no > yes:
+            return "reject"
+        return "apply"
 
     @staticmethod
     def _lapse_decision(votes: list[Vote]) -> str:
@@ -644,7 +727,10 @@ class EditService:
             voters_by_id = await EditService._load_voters_for_votes(db, votes)
             decision = EditService._mod_vote_decision(votes, voters_by_id)
             if not decision:
-                decision = EditService._lapse_decision(votes)
+                if edit.edit_type == EditType.SPLIT_COMMERCIAL:
+                    decision = EditService._lapse_decision_split(votes)
+                else:
+                    decision = EditService._lapse_decision(votes)
             if decision == "reject":
                 await EditService.reject_edit(db, edit)
             else:

@@ -308,6 +308,14 @@ class CommercialMetadataUpdate(BaseModel):
         return value
 
 
+class CommercialSplitSubmit(CommercialMetadataUpdate):
+    """Propose moving one video link into its own standalone commercial."""
+
+    title: str = Field(..., min_length=1, max_length=512)
+    comment: str | None = None
+    terms_agreed: bool = False
+
+
 class VideoCreditSchema(BaseModel):
     role: str
     name: str

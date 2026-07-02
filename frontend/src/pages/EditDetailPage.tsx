@@ -124,6 +124,58 @@ export default function EditDetailPage() {
           <CommercialMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
         )}
 
+      {edit.edit_type === "split_commercial" && (
+        <div className="card">
+          <h3>Split link into its own commercial</h3>
+          {(() => {
+            const before = edit.before_state ?? {};
+            const source = before.source_commercial as Record<string, unknown> | undefined;
+            const video = before.video as Record<string, unknown> | undefined;
+            const proposed = edit.after_state.commercial as Record<string, unknown> | undefined;
+            const sourceId = before.source_commercial_id as string | undefined;
+            const videoId = before.video_id as string | undefined;
+            return (
+              <>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  If approved, this sub link leaves the current commercial and becomes the master
+                  link on a new standalone commercial page.
+                </p>
+                <p className="muted" style={{ fontSize: "0.9rem" }}>
+                  Split votes: <strong>{yesVotes}</strong> yes / <strong>{noVotes}</strong> no · early
+                  approval at <strong>20</strong> yes votes · otherwise resolves after{" "}
+                  <strong>3 months</strong> (yes must outnumber no, with at least one yes vote)
+                </p>
+                {source && (
+                  <p style={{ marginBottom: "0.5rem" }}>
+                    <strong>From commercial:</strong>{" "}
+                    {sourceId ? (
+                      <Link to={`/commercial/${sourceId}`}>{String(source.title ?? sourceId)}</Link>
+                    ) : (
+                      String(source.title ?? "Unknown")
+                    )}
+                  </p>
+                )}
+                {video && (
+                  <p style={{ marginBottom: "0.75rem" }}>
+                    <strong>Link:</strong>{" "}
+                    {videoId && sourceId ? (
+                      <Link to={`/commercial/${sourceId}?video=${videoId}`}>
+                        {String(video.version_label || video.youtube_id || videoId)}
+                      </Link>
+                    ) : (
+                      String(video.version_label || video.youtube_id || "Unknown link")
+                    )}
+                  </p>
+                )}
+                {proposed && (
+                  <CommercialMetadataDiff before={{}} after={proposed} />
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
       {(edit.edit_type === "add_advertiser_logo" ||
         edit.edit_type === "edit_advertiser_logo" ||
         (edit.edit_type === "edit_advertiser" &&

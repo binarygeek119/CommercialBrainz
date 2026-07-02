@@ -51,6 +51,7 @@ class EditType(str, enum.Enum):
     CREATE_COMMERCIAL = "create_commercial"
     EDIT_COMMERCIAL = "edit_commercial"
     MERGE_COMMERCIAL = "merge_commercial"
+    SPLIT_COMMERCIAL = "split_commercial"
     CREATE_ADVERTISER = "create_advertiser"
     EDIT_ADVERTISER = "edit_advertiser"
     ADD_ADVERTISER_LOGO = "add_advertiser_logo"

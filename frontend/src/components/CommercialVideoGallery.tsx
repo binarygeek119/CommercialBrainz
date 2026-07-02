@@ -2,27 +2,41 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, type CommercialDetail, type Video } from "../api";
-import { useAuth } from "../auth";
+import { useAuth, canSubmit } from "../auth";
 import AddCommercialLinkForm from "./AddCommercialLinkForm";
+import SplitCommercialLinkForm from "./SplitCommercialLinkForm";
 import CommercialVideoEntry from "./CommercialVideoEntry";
+import VideoDetailExtras from "./VideoDetailExtras";
 
 interface Props {
   commercial: CommercialDetail;
+  selectedVideoSbid: string | null;
+  onSelectVideo: (videoSbid: string) => void;
 }
 
 function VideoLinkCard({
   video,
-  commercialSbid,
+  commercial,
   canVote,
+  canSplit,
+  selected,
+  onSelect,
   onVoted,
+  onSplitSubmitted,
 }: {
   video: Video;
-  commercialSbid: string;
+  commercial: CommercialDetail;
   canVote: boolean;
+  canSplit: boolean;
+  selected: boolean;
+  onSelect: () => void;
   onVoted: () => void;
+  onSplitSubmitted: () => void;
 }) {
+  const commercialSbid = commercial.sbid;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showSplit, setShowSplit] = useState(false);
 
   const castVote = async (choice: "up" | "down" | null) => {
     setLoading(true);
@@ -38,8 +52,13 @@ function VideoLinkCard({
   };
 
   return (
-    <div>
-      <CommercialVideoEntry video={video} />
+    <div id={`video-${video.sbid}`}>
+      <CommercialVideoEntry
+        video={video}
+        commercialSbid={commercialSbid}
+        selected={selected}
+        onSelect={onSelect}
+      />
       <div style={{ padding: "0 0.75rem 0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
           <span className="muted" style={{ fontSize: "0.85rem" }}>
@@ -68,17 +87,49 @@ function VideoLinkCard({
               </button>
             </>
           )}
-          <Link to={`/video/${video.sbid}`} className="btn btn-secondary" style={{ fontSize: "0.85rem" }}>
-            Open video page
-          </Link>
+          {!selected && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: "0.85rem" }}
+              onClick={onSelect}
+            >
+              View details
+            </button>
+          )}
+          {canSplit && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => setShowSplit((open) => !open)}
+            >
+              {showSplit ? "Cancel split" : "Split to own commercial"}
+            </button>
+          )}
         </div>
         {error && <p className="error" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>{error}</p>}
       </div>
+      {showSplit && canSplit && (
+        <SplitCommercialLinkForm
+          commercial={commercial}
+          video={video}
+          onSubmitted={() => {
+            setShowSplit(false);
+            onSplitSubmitted();
+          }}
+        />
+      )}
+      {selected && <div style={{ padding: "0 0.75rem 0.75rem" }}><VideoDetailExtras videoSbid={video.sbid} /></div>}
     </div>
   );
 }
 
-export default function CommercialVideoGallery({ commercial }: Props) {
+export default function CommercialVideoGallery({
+  commercial,
+  selectedVideoSbid,
+  onSelectVideo,
+}: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: videos = commercial.videos ?? [], isLoading, error } = useQuery({
@@ -92,13 +143,17 @@ export default function CommercialVideoGallery({ commercial }: Props) {
     queryClient.invalidateQueries({ queryKey: ["commercial", commercial.sbid] });
   };
 
+  const canSplit = !!user && canSubmit(user) && videos.length >= 2;
+
   return (
     <section style={{ marginTop: "1.5rem" }}>
       <h2>YouTube links</h2>
       <p className="muted" style={{ marginBottom: "1rem" }}>
-        A commercial can have many YouTube links — different cuts, lengths, edits, or backup uploads.
-        Each link is fingerprinted separately. After community approval, vote on which link should be
-        the <strong>main link</strong> for this commercial (highest net score wins).
+        A commercial has one <strong>master link</strong> (main YouTube upload) and optional{" "}
+        <strong>sub links</strong> (alternate cuts, mirrors, regional copies). Sub links inherit
+        metadata from the master; you only specify what differs. Popularity votes pick the master
+        link. If a sub link is really a separate commercial, submit a{" "}
+        <strong>split proposal</strong> for community vote (20+ yes votes, or after 3 months).
       </p>
 
       <AddCommercialLinkForm commercial={commercial} onSubmitted={refresh} />
@@ -112,9 +167,13 @@ export default function CommercialVideoGallery({ commercial }: Props) {
             <VideoLinkCard
               key={video.sbid}
               video={video}
-              commercialSbid={commercial.sbid}
+              commercial={commercial}
               canVote={!!user}
+              canSplit={canSplit}
+              selected={video.sbid === selectedVideoSbid}
+              onSelect={() => onSelectVideo(video.sbid)}
               onVoted={refresh}
+              onSplitSubmitted={refresh}
             />
           ))}
         </div>

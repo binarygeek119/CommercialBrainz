@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { type Video } from "../api";
 import { formatRegionDisplay } from "../data/regions";
+import { commercialUrl } from "../utils/commercialUrls";
 import { formatDurationMs } from "../utils/youtube";
 import { videoThumbnailUrl } from "../utils/videoThumbnail";
 
@@ -12,7 +13,7 @@ export default function VideoCard({ video }: { video: Video }) {
   const meta = [video.channel_name, video.language, region].filter(Boolean);
 
   return (
-    <Link to={`/video/${video.sbid}`} className="video-card">
+    <Link to={commercialUrl(video.commercial_id, video.sbid)} className="video-card">
       <div className="video-card-thumb">
         {thumb ? (
           <img src={thumb} alt="" loading="lazy" />

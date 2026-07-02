@@ -1,6 +1,9 @@
 import {
+  AGE_RANGE_OPTIONS,
   EMPTY_SUBMISSION_GENRES,
   GENRE_FLAG_LABELS,
+  isAgeRangeSelected,
+  toggleAgeRangeSelection,
   type SubmissionGenres,
 } from "../utils/submissionGenres";
 
@@ -21,13 +24,35 @@ export default function SubmissionGenresFields({ value, onChange }: Props) {
       </p>
 
       <div className="form-group">
-        <label htmlFor="genre-age-range">Age range</label>
-        <input
-          id="genre-age-range"
-          value={value.age_range}
-          onChange={(e) => update({ age_range: e.target.value })}
-          placeholder='e.g. "kids", "18-34", "all ages"'
-        />
+        <span className="form-label" style={{ display: "block", marginBottom: "0.35rem" }}>
+          Age range
+        </span>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+            gap: "0.35rem 1rem",
+          }}
+        >
+          {AGE_RANGE_OPTIONS.map((option) => (
+            <label key={option} style={{ display: "flex", gap: "0.45rem", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={isAgeRangeSelected(value.age_range, option)}
+                onChange={(e) =>
+                  update({
+                    age_range: toggleAgeRangeSelection(
+                      value.age_range,
+                      option,
+                      e.target.checked
+                    ),
+                  })
+                }
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="form-group">

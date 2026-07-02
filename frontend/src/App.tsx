@@ -14,6 +14,8 @@ import VotingPage from "./pages/VotingPage";
 import EditsPage from "./pages/EditsPage";
 import EditDetailPage from "./pages/EditDetailPage";
 import DMCAPage from "./pages/DMCAPage";
+import AboutPage from "./pages/AboutPage";
+import TermsPage from "./pages/TermsPage";
 import ModPage from "./pages/ModPage";
 import ModRoute from "./components/ModRoute";
 import AdminPage from "./pages/AdminPage";
@@ -49,6 +51,8 @@ export default function App() {
         <Route path="user/:username" element={<UserProfilePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="voting" element={<VotingPage />} />
+        <Route path="about" element={<AboutPage />} />
+        <Route path="terms" element={<TermsPage />} />
         <Route path="dmca" element={<DMCAPage />} />
         <Route element={<ModRoute />}>
           <Route path="mod" element={<ModPage />} />
