@@ -72,6 +72,11 @@ export interface Video {
   sub_region: string | null;
   transcript: string | null;
   slogan: string | null;
+  version_label?: string | null;
+  link_label?: string | null;
+  popularity_score?: number;
+  is_main?: boolean;
+  viewer_vote?: "up" | "down" | null;
   visibility: string;
   phash?: string | null;
   file_sha256?: string | null;
@@ -306,10 +311,12 @@ export interface CommercialDetail {
   campaign_name?: string | null;
   advertiser_id?: string | null;
   agency_id?: string | null;
+  external_ids?: Record<string, unknown>;
+  created_at?: string;
   products?: string[];
   advertiser?: { sbid: string; name: string } | null;
-  agency?: { sbid: string; name: string } | null;
-  videos?: { sbid: string; youtube_id: string | null; slogan: string | null }[];
+  agency?: { sbid: string; name: string; slug?: string } | null;
+  videos?: Video[];
 }
 
 export interface BrandAliasLink {
@@ -531,6 +538,18 @@ export const api = {
   getVideo: (sbid: string) => request<Video>(`/videos/${sbid}`),
 
   getCommercial: (sbid: string) => request<CommercialDetail>(`/commercials/${sbid}`),
+
+  getCommercialVideos: (sbid: string) => request<Video[]>(`/commercials/${sbid}/videos`),
+
+  voteCommercialVideoPopularity: (
+    commercialSbid: string,
+    videoSbid: string,
+    choice: "up" | "down" | null
+  ) =>
+    request<Video>(`/commercials/${commercialSbid}/videos/${videoSbid}/popularity-vote`, {
+      method: "POST",
+      body: JSON.stringify({ choice }),
+    }),
 
   getAdvertiser: (sbid: string) => request<Advertiser>(`/advertisers/${sbid}`),
 

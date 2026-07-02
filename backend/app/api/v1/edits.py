@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user_optional, require_submitter, require_write_access
 from app.auth.security import user_can_vote, user_email_verified
 from app.database import get_db
-from app.models import Edit, EditStatus, EditType, User, Video, VoteChoice
+from app.models import Commercial, Edit, EditStatus, EditType, User, Video, VoteChoice
 from app.schemas import (
     DuplicateMatchPublic,
     EditCreate,
@@ -93,6 +93,21 @@ async def submit_video(
         youtube_id = data.youtube_id or extract_youtube_id(data.youtube_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if data.commercial_id and data.commercial:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either commercial_id (add link) or commercial (new campaign), not both.",
+        )
+    if not data.commercial_id and not data.commercial:
+        raise HTTPException(
+            status_code=400,
+            detail="Either commercial_id or commercial metadata is required.",
+        )
+    if data.commercial_id:
+        commercial = await db.get(Commercial, data.commercial_id)
+        if not commercial:
+            raise HTTPException(status_code=404, detail="Commercial not found")
 
     after_state = data.model_dump(
         exclude={"comment", "force_votable", "commercial", "terms_agreed"}

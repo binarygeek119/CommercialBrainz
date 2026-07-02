@@ -248,6 +248,7 @@ class EditService:
             transcript=state.get("transcript"),
             slogan=state.get("slogan"),
             cta_text=state.get("cta_text"),
+            version_label=state.get("version_label"),
             extra_data=EditService._video_metadata_from_state(state),
             submitted_by_id=edit.editor_id,
         )
@@ -261,6 +262,9 @@ class EditService:
             db.add(VideoTag(video_id=video.sbid, tag=tag.lower()))
 
         if await copy_preview_to_video(db, edit.id, video.sbid):
+            from app.services.video_popularity import recompute_main_video
+
+            await recompute_main_video(db, video.commercial_id)
             return None
 
         video.hash_status = VideoHashStatus.PENDING
@@ -273,6 +277,9 @@ class EditService:
         )
         db.add(fp)
         await db.flush()
+        from app.services.video_popularity import recompute_main_video
+
+        await recompute_main_video(db, video.commercial_id)
         return fp.id
 
     @staticmethod
@@ -309,7 +316,11 @@ class EditService:
         result = await db.execute(select(Video).where(Video.sbid == edit.entity_id))
         video = result.scalar_one_or_none()
         if video:
+            commercial_id = video.commercial_id
             video.visibility = VideoVisibility.REMOVED
+            from app.services.video_popularity import recompute_main_video
+
+            await recompute_main_video(db, commercial_id)
 
     @staticmethod
     async def _apply_add_tag(db: AsyncSession, edit: Edit, state: dict) -> None:

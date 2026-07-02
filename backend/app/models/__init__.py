@@ -414,12 +414,16 @@ class Commercial(Base):
     campaign_name: Mapped[str | None] = mapped_column(String(512))
     description: Mapped[str | None] = mapped_column(Text)
     external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    main_video_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     advertiser: Mapped["Advertiser | None"] = relationship(back_populates="commercials")
     agency: Mapped["Agency | None"] = relationship(back_populates="commercials")
     videos: Mapped[list["Video"]] = relationship(back_populates="commercial")
     products: Mapped[list["CommercialProduct"]] = relationship(back_populates="commercial")
+    main_video: Mapped["Video | None"] = relationship(foreign_keys=[main_video_id])
 
 
 class CommercialProduct(Base):
@@ -473,6 +477,8 @@ class Video(Base):
         pg_enum(VideoHashStatus, name="videohashstatus"), default=VideoHashStatus.PENDING
     )
     hashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    popularity_score: Mapped[int] = mapped_column(Integer, default=0)
+    version_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -484,6 +490,29 @@ class Video(Base):
     tags: Mapped[list["VideoTag"]] = relationship(back_populates="video", cascade="all, delete-orphan")
     airings: Mapped[list["Airing"]] = relationship(back_populates="video", cascade="all, delete-orphan")
     dmca_takedowns: Mapped[list["DMCATakedown"]] = relationship(back_populates="video")
+    popularity_votes: Mapped[list["VideoPopularityVote"]] = relationship(
+        back_populates="video", cascade="all, delete-orphan"
+    )
+
+
+class VideoPopularityVote(Base):
+    __tablename__ = "video_popularity_votes"
+    __table_args__ = (UniqueConstraint("video_id", "voter_id", name="uq_video_popularity_voter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    video_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid", ondelete="CASCADE"), index=True
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[LogoPopularityChoice] = mapped_column(
+        pg_enum(LogoPopularityChoice, name="logopopularitychoice")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    video: Mapped["Video"] = relationship(back_populates="popularity_votes")
+    voter: Mapped["User"] = relationship()
 
 
 class VideoCredit(Base):

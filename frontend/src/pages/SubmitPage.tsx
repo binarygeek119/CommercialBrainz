@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth, canSubmit } from "../auth";
 import { api, type SubmissionTerms, type YouTubeMetadataPreview } from "../api";
 import SubmissionTermsView from "../components/SubmissionTermsView";
@@ -25,6 +25,7 @@ import { nextSlotAtPoints } from "../utils/editDisplay";
 const EMPTY_FORM = {
   youtube_url: "",
   commercial_title: "",
+  version_label: "",
   year: "",
   decade: "",
   language: "",
@@ -75,6 +76,11 @@ async function suggestAdvertiserFromChannel(
 export default function SubmitPage() {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const addLinkCommercialId = searchParams.get("commercial");
+  const [addLinkCommercial, setAddLinkCommercial] = useState<{ sbid: string; title: string } | null>(
+    null
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [terms, setTerms] = useState<SubmissionTerms | null>(null);
@@ -91,6 +97,17 @@ export default function SubmitPage() {
   const [ytError, setYtError] = useState("");
   const lastFetchedId = useRef<string | null>(null);
   const advertiserTouched = useRef(false);
+
+  useEffect(() => {
+    if (!addLinkCommercialId) {
+      setAddLinkCommercial(null);
+      return;
+    }
+    api
+      .getCommercial(addLinkCommercialId)
+      .then((c) => setAddLinkCommercial({ sbid: c.sbid, title: c.title }))
+      .catch(() => setAddLinkCommercial(null));
+  }, [addLinkCommercialId]);
 
   useEffect(() => {
     const youtubeId = extractYouTubeId(form.youtube_url);
@@ -193,7 +210,7 @@ export default function SubmitPage() {
     }
     setLoading(true);
     try {
-      const edit = await api.submitVideo({
+      const shared = {
         youtube_url: form.youtube_url,
         ...(ytMeta
           ? {
@@ -206,16 +223,6 @@ export default function SubmitPage() {
               metadata: ytMeta.metadata,
             }
           : {}),
-        commercial: {
-          title: form.commercial_title,
-          ...(advertiser.advertiser_id
-            ? { advertiser_id: advertiser.advertiser_id }
-            : advertiser.advertiser_name
-              ? { advertiser_name: advertiser.advertiser_name }
-              : {}),
-          year: form.year ? parseInt(form.year, 10) : undefined,
-          decade: form.decade ? parseInt(form.decade, 10) : undefined,
-        },
         language: form.language || ytMeta?.language || undefined,
         ...regionSelectionToPayload(regionSelection),
         transcript: form.transcript || undefined,
@@ -224,7 +231,29 @@ export default function SubmitPage() {
         genres: submissionGenresPayload(genres),
         comment: form.comment || undefined,
         terms_agreed: true,
-      });
+      };
+
+      const edit = await api.submitVideo(
+        addLinkCommercial
+          ? {
+              ...shared,
+              commercial_id: addLinkCommercial.sbid,
+              version_label: form.version_label.trim() || undefined,
+            }
+          : {
+              ...shared,
+              commercial: {
+                title: form.commercial_title,
+                ...(advertiser.advertiser_id
+                  ? { advertiser_id: advertiser.advertiser_id }
+                  : advertiser.advertiser_name
+                    ? { advertiser_name: advertiser.advertiser_name }
+                    : {}),
+                year: form.year ? parseInt(form.year, 10) : undefined,
+                decade: form.decade ? parseInt(form.decade, 10) : undefined,
+              },
+            }
+      );
       navigate(`/edits/${edit.id}`);
       await refresh();
     } catch (err) {
@@ -236,9 +265,19 @@ export default function SubmitPage() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h1 className="page-title">Submit Commercial Video</h1>
+      <h1 className="page-title">
+        {addLinkCommercial ? "Add link to commercial" : "Submit Commercial Video"}
+      </h1>
       <p className="muted" style={{ marginBottom: "1rem" }}>
-        Submissions enter the edit queue for community voting. Review the terms before submitting.
+        {addLinkCommercial ? (
+          <>
+            Adding a YouTube link to{" "}
+            <Link to={`/commercial/${addLinkCommercial.sbid}`}>{addLinkCommercial.title}</Link>. The
+            link enters the edit queue for approval, then community votes pick the main link.
+          </>
+        ) : (
+          "Submissions enter the edit queue for community voting. Review the terms before submitting."
+        )}
       </p>
 
       <div className="card" style={{ marginBottom: "1.5rem" }}>
@@ -372,6 +411,18 @@ export default function SubmitPage() {
             </div>
           )}
         </div>
+        {addLinkCommercial && (
+          <div className="form-group">
+            <label>Version label</label>
+            <input
+              value={form.version_label}
+              onChange={(e) => setForm({ ...form, version_label: e.target.value })}
+              placeholder='e.g. "30s cut", "Director&apos;s edit", "Backup mirror"'
+            />
+          </div>
+        )}
+        {!addLinkCommercial && (
+          <>
         <div className="form-group">
           <label>Commercial Title *</label>
           <input
@@ -418,6 +469,8 @@ export default function SubmitPage() {
             placeholder="e.g. 1997"
           />
         </div>
+          </>
+        )}
         <div className="form-group">
           <label>Language</label>
           <input

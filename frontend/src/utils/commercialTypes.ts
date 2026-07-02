@@ -1,5 +1,7 @@
 import { COMMERCIAL_DECADES } from "./commercialPeriod";
 
+import type { Video } from "../api";
+
 export interface CommercialDetail {
   sbid: string;
   title: string;
@@ -9,10 +11,12 @@ export interface CommercialDetail {
   campaign_name?: string | null;
   advertiser_id?: string | null;
   agency_id?: string | null;
+  external_ids?: Record<string, unknown>;
+  created_at?: string;
   products?: string[];
   advertiser?: { sbid: string; name: string } | null;
-  agency?: { sbid: string; name: string } | null;
-  videos?: { sbid: string; youtube_id: string | null; slogan: string | null }[];
+  agency?: { sbid: string; name: string; slug?: string } | null;
+  videos?: Video[];
 }
 
 export interface CommercialMetadataUpdate {

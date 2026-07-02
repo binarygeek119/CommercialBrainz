@@ -335,6 +335,7 @@ class VideoCreate(BaseModel):
     youtube_url: str
     youtube_id: str | None = None
     thumbnail_url: str | None = None
+    version_label: str | None = Field(default=None, max_length=255)
     channel_name: str | None = None
     upload_date: str | None = None
     duration_ms: int | None = None
@@ -380,6 +381,11 @@ class VideoPublic(ORMModel):
     transcript: str | None
     slogan: str | None
     cta_text: str | None
+    version_label: str | None = None
+    popularity_score: int = 0
+    is_main: bool = False
+    link_label: str | None = None
+    viewer_vote: str | None = None
     metadata: dict
     visibility: str
     phash: str | None = None

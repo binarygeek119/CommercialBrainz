@@ -186,6 +186,151 @@ a:hover {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem 1rem;
+  margin-top: 0.75rem;
+}
+
+.video-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius);
+}
+
+.video-card:hover {
+  text-decoration: none;
+}
+
+.video-card:hover .video-card-title {
+  color: var(--accent);
+}
+
+.video-card-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.video-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.video-card-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--border) 100%);
+}
+
+.video-card-duration {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--mono);
+  line-height: 1.4;
+}
+
+.video-card-info {
+  padding: 0.6rem 0.15rem 0;
+}
+
+.video-card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.video-card-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.metadata-list {
+  margin: 0;
+}
+
+.metadata-row {
+  margin-bottom: 0.65rem;
+}
+
+.metadata-row:last-child {
+  margin-bottom: 0;
+}
+
+.metadata-row dt {
+  font-size: 0.85rem;
+  margin-bottom: 0.15rem;
+}
+
+.metadata-row dd {
+  margin: 0;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.commercial-video-entry {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.commercial-video-entry-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.commercial-video-entry-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.commercial-video-entry-body h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.commercial-video-entry-body h3 a:hover {
+  color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .commercial-video-entry {
+    grid-template-columns: 1fr;
+  }
+}
+
 .badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;

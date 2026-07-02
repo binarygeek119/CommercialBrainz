@@ -40,47 +40,13 @@ from app.services.advertiser_metadata import advertiser_public_dict, resolve_ali
 from app.services.user_profile import edit_summary_title
 from app.services.fingerprint_queries import format_phash_hex
 from app.services.rate_limit import check_rate_limit, compute_etag
-from app.utils import youtube_thumbnail_url
+from app.services.video_response import list_commercial_videos_public, video_to_public
 
 router = APIRouter(tags=["public"])
 
 
 def _video_public(v: Video) -> VideoPublic:
-    thumb = v.thumbnail_url
-    if not thumb and v.youtube_id and v.visibility == VideoVisibility.PUBLIC:
-        thumb = youtube_thumbnail_url(v.youtube_id)
-    data = {
-        "sbid": v.sbid,
-        "commercial_id": v.commercial_id,
-        "youtube_id": v.youtube_id if v.visibility == VideoVisibility.PUBLIC else None,
-        "youtube_url": v.youtube_url if v.visibility == VideoVisibility.PUBLIC else None,
-        "thumbnail_url": thumb if v.visibility == VideoVisibility.PUBLIC else None,
-        "channel_name": v.channel_name,
-        "upload_date": v.upload_date.isoformat() if v.upload_date else None,
-        "duration_ms": v.duration_ms,
-        "aspect_ratio": v.aspect_ratio,
-        "resolution": v.resolution,
-        "language": v.language,
-        "region": v.region,
-        "sub_region": v.sub_region,
-        "market": v.market,
-        "first_aired_date": v.first_aired_date.isoformat() if v.first_aired_date else None,
-        "last_aired_date": v.last_aired_date.isoformat() if v.last_aired_date else None,
-        "network": v.network,
-        "transcript": v.transcript,
-        "slogan": v.slogan,
-        "cta_text": v.cta_text,
-        "metadata": v.extra_data,
-        "visibility": v.visibility.value,
-        "phash": format_phash_hex(v.phash),
-        "file_sha256": v.file_sha256,
-        "audio_fingerprint": v.audio_fingerprint,
-        "hash_status": v.hash_status.value if v.hash_status else None,
-        "hashed_at": v.hashed_at,
-        "created_at": v.created_at,
-        "updated_at": v.updated_at,
-    }
-    return VideoPublic(**data)
+    return video_to_public(v)
 
 
 @router.get("/videos/{sbid}", response_model=VideoDetail)
@@ -178,14 +144,16 @@ async def get_commercial(
     if not commercial:
         raise HTTPException(status_code=404, detail="Commercial not found")
 
-    public_videos = [v for v in commercial.videos if v.visibility == VideoVisibility.PUBLIC]
+    from app.services.video_response import list_commercial_videos_public
+
+    videos = await list_commercial_videos_public(db, commercial, viewer=user)
     return CommercialDetail(
         **CommercialPublic.model_validate(commercial).model_dump(),
         advertiser=AdvertiserPublic(**advertiser_public_dict(commercial.advertiser))
         if commercial.advertiser
         else None,
         agency=AgencyPublic.model_validate(commercial.agency) if commercial.agency else None,
-        videos=[_video_public(v) for v in public_videos],
+        videos=videos,
         products=[p.name for p in commercial.products],
     )
 
