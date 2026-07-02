@@ -1,7 +1,7 @@
 import asyncio
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -234,10 +234,13 @@ async def vote_on_edit(
     if not edit or edit.status != EditStatus.OPEN:
         raise HTTPException(status_code=404, detail="Open edit not found")
 
-    try:
-        choice = VoteChoice(data.choice)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail="Invalid vote choice") from e
+    if data.choice is None:
+        choice = None
+    else:
+        try:
+            choice = VoteChoice(data.choice)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid vote choice") from e
 
     try:
         vote = await EditService.cast_vote(db, edit, user, choice, data.comment)
@@ -245,6 +248,9 @@ async def vote_on_edit(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     _schedule_pending_hash(background_tasks, edit)
+
+    if vote is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return VotePublic(
         id=vote.id,

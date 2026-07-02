@@ -62,3 +62,28 @@ def test_community_votes_alone_do_not_decide():
     ]
     voters = {user_a.id: user_a, user_b.id: user_b}
     assert EditService._mod_vote_decision(votes, voters) is None
+
+
+def test_lapse_auto_applies_with_no_votes():
+    assert EditService._lapse_decision([]) == "apply"
+
+
+def test_lapse_rejects_when_no_outweighs_yes():
+    user_a = _FakeUser()
+    user_b = _FakeUser()
+    votes = [
+        Vote(edit_id=uuid4(), voter_id=user_a.id, choice=VoteChoice.YES),
+        Vote(edit_id=uuid4(), voter_id=user_b.id, choice=VoteChoice.NO),
+        Vote(edit_id=uuid4(), voter_id=user_b.id, choice=VoteChoice.NO),
+    ]
+    assert EditService._lapse_decision(votes) == "reject"
+
+
+def test_lapse_applies_when_yes_outweighs_no():
+    user_a = _FakeUser()
+    user_b = _FakeUser()
+    votes = [
+        Vote(edit_id=uuid4(), voter_id=user_a.id, choice=VoteChoice.YES),
+        Vote(edit_id=uuid4(), voter_id=user_b.id, choice=VoteChoice.NO),
+    ]
+    assert EditService._lapse_decision(votes) == "apply"

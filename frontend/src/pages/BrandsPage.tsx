@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Advertiser } from "../api";
 
@@ -33,8 +33,16 @@ function groupByLetter(brands: Advertiser[]): [string, Advertiser[]][] {
 }
 
 export default function BrandsPage() {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") ?? "";
+  const [query, setQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+
+  useEffect(() => {
+    const q = searchParams.get("q") ?? "";
+    setQuery(q);
+    setDebouncedQuery(q.trim());
+  }, [searchParams]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);

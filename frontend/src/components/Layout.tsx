@@ -13,6 +13,7 @@ export default function Layout() {
           </Link>
           <div className="nav-links">
             <NavLink to="/browse">Browse</NavLink>
+            <NavLink to="/commercials">Commercials</NavLink>
             <NavLink to="/brands">Brands</NavLink>
             <NavLink to="/search">Search</NavLink>
             <NavLink to="/voting">Vote</NavLink>

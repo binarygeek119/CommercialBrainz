@@ -3,6 +3,7 @@ import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
 import BrowsePage from "./pages/BrowsePage";
 import BrandsPage from "./pages/BrandsPage";
+import CommercialsPage from "./pages/CommercialsPage";
 import SearchPage from "./pages/SearchPage";
 import VideoPage from "./pages/VideoPage";
 import CommercialPage from "./pages/CommercialPage";
@@ -34,6 +35,7 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="browse" element={<BrowsePage />} />
         <Route path="brands" element={<BrandsPage />} />
+        <Route path="commercials" element={<CommercialsPage />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="video/:sbid" element={<VideoPage />} />
         <Route path="commercial/:sbid" element={<CommercialPage />} />

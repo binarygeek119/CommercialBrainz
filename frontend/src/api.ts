@@ -234,6 +234,25 @@ export interface AdvertiserMetadataUpdate {
   notes?: string | null;
 }
 
+export interface CommercialListItem {
+  sbid: string;
+  title: string;
+  advertiser_id: string | null;
+  agency_id: string | null;
+  year: number | null;
+  decade: number | null;
+  campaign_name: string | null;
+  description: string | null;
+  created_at: string;
+  advertiser_name?: string | null;
+  public_video_count?: number;
+}
+
+export interface BrandAliasLink {
+  name: string;
+  sbid: string | null;
+}
+
 export interface Advertiser {
   sbid: string;
   name: string;
@@ -258,6 +277,7 @@ export interface Advertiser {
   status?: string;
   created_at: string;
   commercials?: { sbid: string; title: string }[];
+  alias_links?: BrandAliasLink[];
 }
 
 export interface AdvertiserLogo {
@@ -400,6 +420,11 @@ export const api = {
       `/advertisers?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
     ),
 
+  listCommercials: (q = "", offset = 0, limit = 50) =>
+    request<Paginated<CommercialListItem>>(
+      `/commercials?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
+    ),
+
   browseVideos: (offset = 0, limit = 25) =>
     request<Paginated<Video>>(`/browse/videos?offset=${offset}&limit=${limit}`),
 
@@ -450,6 +475,22 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  submitCommercialMetadata: (
+    sbid: string,
+    data: {
+      title?: string | null;
+      year?: number | null;
+      decade?: number | null;
+      campaign_name?: string | null;
+      description?: string | null;
+      products?: string[];
+    }
+  ) =>
+    request<Edit>(`/commercials/${sbid}/submit-metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   fetchYouTubeMetadata: (url: string) =>
     request<YouTubeMetadataPreview>(
       `/edits/youtube-metadata?url=${encodeURIComponent(url)}`
@@ -462,7 +503,7 @@ export const api = {
 
   getEditDuplicates: (id: string) => request<DuplicateMatch[]>(`/edits/${id}/duplicates`),
 
-  vote: (editId: string, choice: string, comment?: string) =>
+  vote: (editId: string, choice: string | null, comment?: string) =>
     request<unknown>(`/edits/${editId}/vote`, {
       method: "POST",
       body: JSON.stringify({ choice, comment }),

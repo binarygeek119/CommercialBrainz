@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from app.models import Advertiser
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Advertiser, AdvertiserStatus
 
 ADVERTISER_SCALAR_FIELDS = (
     "description",
@@ -103,3 +108,37 @@ def metadata_snapshot_changed(before: dict, after: dict) -> bool:
         if before.get(key) != after.get(key):
             return True
     return False
+
+
+async def resolve_alias_links(
+    db: AsyncSession,
+    aliases: list[str],
+    *,
+    exclude_sbid: UUID | None = None,
+) -> list[dict[str, str | UUID | None]]:
+    cleaned = [str(alias).strip() for alias in aliases if str(alias).strip()]
+    if not cleaned:
+        return []
+
+    result = await db.execute(
+        select(Advertiser.sbid, Advertiser.name, Advertiser.extra_data).where(
+            Advertiser.status == AdvertiserStatus.APPROVED
+        )
+    )
+
+    by_name: dict[str, UUID] = {}
+    by_alias: dict[str, UUID] = {}
+    for sbid, name, extra in result.all():
+        if exclude_sbid and sbid == exclude_sbid:
+            continue
+        by_name[name.strip().lower()] = sbid
+        for alias in (extra or {}).get("aliases") or []:
+            if isinstance(alias, str) and alias.strip():
+                by_alias[alias.strip().lower()] = sbid
+
+    links: list[dict[str, str | UUID | None]] = []
+    for alias in cleaned:
+        key = alias.lower()
+        sbid = by_name.get(key) or by_alias.get(key)
+        links.append({"name": alias, "sbid": sbid})
+    return links

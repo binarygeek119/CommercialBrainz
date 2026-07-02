@@ -234,6 +234,27 @@ class CommercialPublic(ORMModel):
     created_at: datetime
 
 
+class CommercialListItem(CommercialPublic):
+    advertiser_name: str | None = None
+    public_video_count: int = 0
+
+
+class CommercialMetadataUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=512)
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    decade: int | None = Field(default=None, ge=1900, le=2100)
+    campaign_name: str | None = Field(default=None, max_length=512)
+    description: str | None = None
+    products: list[str] = Field(default_factory=list)
+
+    @field_validator("decade")
+    @classmethod
+    def validate_decade(cls, value: int | None) -> int | None:
+        if value is not None and value % 10 != 0:
+            raise ValueError("Decade must be a multiple of 10 (e.g. 1990 for the 1990s)")
+        return value
+
+
 class VideoCreditSchema(BaseModel):
     role: str
     name: str
@@ -315,8 +336,14 @@ class CommercialDetail(CommercialPublic):
     products: list[str] = Field(default_factory=list)
 
 
+class BrandAliasLink(BaseModel):
+    name: str
+    sbid: UUID | None = None
+
+
 class AdvertiserDetail(AdvertiserPublic):
     commercials: list[CommercialPublic] = Field(default_factory=list)
+    alias_links: list[BrandAliasLink] = Field(default_factory=list)
 
 
 class AdvertiserLogoPublic(BaseModel):
@@ -366,8 +393,21 @@ class EditCreate(BaseModel):
 
 
 class VoteCreate(BaseModel):
-    choice: str
+    choice: str | None = Field(
+        default=None,
+        description='Use "yes", "no", "abstain", or null to remove your vote.',
+    )
     comment: str | None = None
+
+    @field_validator("choice")
+    @classmethod
+    def validate_choice(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in ("yes", "no", "abstain"):
+            raise ValueError('choice must be "yes", "no", "abstain", or null')
+        return normalized
 
 
 class VotePublic(ORMModel):

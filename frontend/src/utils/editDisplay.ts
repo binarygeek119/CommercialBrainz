@@ -13,6 +13,9 @@ export function editTitle(edit: Edit): string {
   if (edit.edit_type === "edit_advertiser") {
     return (edit.after_state.name as string) || "Brand metadata";
   }
+  if (edit.edit_type === "edit_commercial") {
+    return (edit.after_state.title as string) || "Commercial metadata";
+  }
   if (edit.edit_type === "edit_video" && edit.after_state.thumbnail_url) {
     return "Custom thumbnail";
   }

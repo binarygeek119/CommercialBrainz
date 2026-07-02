@@ -17,8 +17,8 @@ export default function VotingPage() {
     <div>
       <h1 className="page-title">Vote on submissions</h1>
       <p className="muted" style={{ marginBottom: "1.5rem" }}>
-        Community submissions awaiting your vote. Edits close after 7 days or 3 unanimous votes.
-        Earn reputation when your own submissions are approved.
+        Community submissions awaiting your vote. Edits stay open for 14 days; if nobody
+        votes, they are auto-approved. Otherwise a moderator yes/no vote decides the edit.
       </p>
       <div className="stack">
         {edits.map((edit) => (

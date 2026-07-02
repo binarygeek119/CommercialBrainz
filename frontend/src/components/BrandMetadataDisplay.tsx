@@ -1,9 +1,29 @@
+import { Link } from "react-router-dom";
 import {
   BRAND_METADATA_FIELDS,
   SOCIAL_FIELDS,
   getBrandFieldValue,
 } from "../utils/brandMetadata";
 import type { Advertiser } from "../api";
+
+function renderAliasLinks(brand: Advertiser) {
+  const aliases = (brand.metadata?.aliases as string[] | undefined) ?? [];
+  const links =
+    brand.alias_links?.length === aliases.length
+      ? brand.alias_links
+      : aliases.map((name) => ({ name, sbid: null as string | null }));
+
+  return links.map((link, index) => (
+    <span key={link.name}>
+      {index > 0 && ", "}
+      {link.sbid ? (
+        <Link to={`/advertiser/${link.sbid}`}>{link.name}</Link>
+      ) : (
+        <Link to={`/brands?q=${encodeURIComponent(link.name)}`}>{link.name}</Link>
+      )}
+    </span>
+  ));
+}
 
 export default function BrandMetadataDisplay({ brand }: { brand: Advertiser }) {
   const social = brand.metadata?.social ?? {};
@@ -24,8 +44,7 @@ export default function BrandMetadataDisplay({ brand }: { brand: Advertiser }) {
         {rows.map(({ key, label }) => {
           const value = getBrandFieldValue(brand, key);
           const isUrl = key.endsWith("_url") || key === "website";
-          const display =
-            key === "aliases" && Array.isArray(value) ? value.join(", ") : String(value ?? "");
+          const isAliases = key === "aliases";
 
           return (
             <div key={key} style={{ marginBottom: "0.65rem" }}>
@@ -33,12 +52,14 @@ export default function BrandMetadataDisplay({ brand }: { brand: Advertiser }) {
                 {label}
               </dt>
               <dd style={{ margin: 0 }}>
-                {isUrl && display ? (
-                  <a href={display} target="_blank" rel="noreferrer noopener">
-                    {display}
+                {isAliases ? (
+                  renderAliasLinks(brand)
+                ) : isUrl && value ? (
+                  <a href={String(value)} target="_blank" rel="noreferrer noopener">
+                    {String(value)}
                   </a>
                 ) : (
-                  display
+                  String(value ?? "")
                 )}
               </dd>
             </div>

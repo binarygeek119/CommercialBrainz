@@ -8,15 +8,20 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.deps import require_submitter
 from app.database import get_db
-from app.models import Advertiser, AdvertiserStatus, EditType, User, Video, VideoVisibility
-from app.schemas import AdvertiserMetadataUpdate, EditPublic
+from app.models import Advertiser, AdvertiserStatus, Commercial, EditType, User, Video, VideoVisibility
+from app.schemas import AdvertiserMetadataUpdate, CommercialMetadataUpdate, EditPublic
 from app.services import EditService, SearchService
 from app.services.advertiser_metadata import (
     advertiser_to_state,
-    metadata_snapshot_changed,
+    metadata_snapshot_changed as advertiser_metadata_changed,
+)
+from app.services.commercial_metadata import (
+    commercial_to_state,
+    metadata_snapshot_changed as commercial_metadata_changed,
 )
 from app.services.edit_response import build_edit_public
 from app.services.logo_storage import (
@@ -210,7 +215,7 @@ async def submit_advertiser_metadata(
         if isinstance(value, str) and not value.strip():
             payload[key] = None
     after_state = {**before_state, **payload, "advertiser_id": str(advertiser.sbid)}
-    if not metadata_snapshot_changed(before_state, after_state):
+    if not advertiser_metadata_changed(before_state, after_state):
         raise HTTPException(status_code=400, detail="No metadata changes to submit")
 
     try:
@@ -223,6 +228,52 @@ async def submit_advertiser_metadata(
             before_state=before_state,
             entity_id=advertiser.sbid,
             comment=f'Proposed metadata update for "{advertiser.name}".',
+            force_votable=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    await db.refresh(edit, ["votes"])
+    return await build_edit_public(db, edit)
+
+
+@router.post("/commercials/{sbid}/submit-metadata", response_model=EditPublic, status_code=201)
+async def submit_commercial_metadata(
+    sbid: UUID,
+    body: CommercialMetadataUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_submitter),
+):
+    result = await db.execute(
+        select(Commercial)
+        .options(selectinload(Commercial.products))
+        .where(Commercial.sbid == sbid)
+    )
+    commercial = result.scalar_one_or_none()
+    if not commercial:
+        raise HTTPException(status_code=404, detail="Commercial not found")
+
+    before_state = commercial_to_state(commercial)
+    payload = body.model_dump()
+    if "products" in payload:
+        payload["products"] = [str(p).strip() for p in payload["products"] if str(p).strip()]
+    for key, value in list(payload.items()):
+        if isinstance(value, str) and not value.strip():
+            payload[key] = None
+    after_state = {**before_state, **payload, "commercial_id": str(commercial.sbid)}
+    if not commercial_metadata_changed(before_state, after_state):
+        raise HTTPException(status_code=400, detail="No metadata changes to submit")
+
+    try:
+        edit = await EditService.create_edit(
+            db,
+            user,
+            EditType.EDIT_COMMERCIAL,
+            "commercial",
+            after_state,
+            before_state=before_state,
+            entity_id=commercial.sbid,
+            comment=f'Proposed metadata update for "{commercial.title}".',
             force_votable=True,
         )
     except ValueError as exc:

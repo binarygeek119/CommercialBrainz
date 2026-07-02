@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,7 +23,9 @@ from app.models import (
 from app.schemas import (
     AdvertiserDetail,
     AdvertiserPublic,
+    BrandAliasLink,
     CommercialDetail,
+    CommercialListItem,
     CommercialPublic,
     PaginatedResponse,
     SearchResult,
@@ -31,7 +33,7 @@ from app.schemas import (
     VideoPublic,
 )
 from app.services import SearchService
-from app.services.advertiser_metadata import advertiser_public_dict
+from app.services.advertiser_metadata import advertiser_public_dict, resolve_alias_links
 from app.services.fingerprint_queries import format_phash_hex
 from app.services.rate_limit import check_rate_limit, compute_etag
 from app.utils import youtube_thumbnail_url
@@ -110,6 +112,46 @@ async def get_video(
     return detail
 
 
+def _commercial_list_item(commercial: Commercial) -> CommercialListItem:
+    public_videos = [v for v in commercial.videos if v.visibility == VideoVisibility.PUBLIC]
+    return CommercialListItem(
+        **CommercialPublic.model_validate(commercial).model_dump(),
+        advertiser_name=commercial.advertiser.name if commercial.advertiser else None,
+        public_video_count=len(public_videos),
+    )
+
+
+@router.get("/commercials", response_model=PaginatedResponse)
+async def list_commercials(
+    request: Request,
+    q: str = Query(default="", max_length=255),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    """List commercials for browsing (searchable)."""
+    await check_rate_limit(request, user is not None)
+    stmt = select(Commercial).options(
+        selectinload(Commercial.advertiser),
+        selectinload(Commercial.videos),
+    )
+    count_stmt = select(func.count()).select_from(Commercial)
+    if q.strip():
+        pattern = f"%{q.strip()}%"
+        title_filter = or_(
+            Commercial.title.ilike(pattern),
+            Commercial.campaign_name.ilike(pattern),
+            Commercial.description.ilike(pattern),
+        )
+        stmt = stmt.where(title_filter)
+        count_stmt = count_stmt.where(title_filter)
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(stmt.order_by(Commercial.title).offset(offset).limit(limit))
+    items = [_commercial_list_item(c).model_dump() for c in result.scalars().all()]
+    return PaginatedResponse(items=items, total=total, offset=offset, limit=limit)
+
+
 @router.get("/commercials/{sbid}", response_model=CommercialDetail)
 async def get_commercial(
     sbid: UUID,
@@ -161,8 +203,9 @@ async def list_advertisers(
     )
     if q.strip():
         pattern = f"%{q.strip()}%"
-        stmt = stmt.where(Advertiser.name.ilike(pattern))
-        count_stmt = count_stmt.where(Advertiser.name.ilike(pattern))
+        alias_match = func.coalesce(Advertiser.extra_data["aliases"].astext, "").ilike(pattern)
+        stmt = stmt.where(or_(Advertiser.name.ilike(pattern), alias_match))
+        count_stmt = count_stmt.where(or_(Advertiser.name.ilike(pattern), alias_match))
     total = (await db.execute(count_stmt)).scalar() or 0
     result = await db.execute(
         stmt.order_by(Advertiser.name).offset(offset).limit(limit)
@@ -188,9 +231,14 @@ async def get_advertiser(
     advertiser = result.scalar_one_or_none()
     if not advertiser or advertiser.status != AdvertiserStatus.APPROVED:
         raise HTTPException(status_code=404, detail="Advertiser not found")
+
+    aliases = (advertiser.extra_data or {}).get("aliases") or []
+    alias_links = await resolve_alias_links(db, aliases, exclude_sbid=advertiser.sbid)
+
     return AdvertiserDetail(
         **AdvertiserPublic(**advertiser_public_dict(advertiser)).model_dump(),
         commercials=[CommercialPublic.model_validate(c) for c in advertiser.commercials],
+        alias_links=[BrandAliasLink(**link) for link in alias_links],
     )
 
 

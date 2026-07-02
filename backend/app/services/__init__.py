@@ -171,7 +171,11 @@ class EditService:
 
     @staticmethod
     async def _apply_edit_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
-        result = await db.execute(select(Commercial).where(Commercial.sbid == edit.entity_id))
+        result = await db.execute(
+            select(Commercial)
+            .options(selectinload(Commercial.products))
+            .where(Commercial.sbid == edit.entity_id)
+        )
         commercial = result.scalar_one_or_none()
         if not commercial:
             edit.status = EditStatus.FAILED
@@ -179,9 +183,19 @@ class EditService:
         for field in ("title", "year", "decade", "campaign_name", "description", "advertiser_id", "agency_id"):
             if field in state:
                 val = state[field]
-                if field.endswith("_id") and val:
-                    val = UUID(val) if isinstance(val, str) else val
+                if field.endswith("_id"):
+                    val = UUID(val) if isinstance(val, str) and val else None
                 setattr(commercial, field, val)
+
+        if "products" in state:
+            desired = [str(p).strip() for p in state["products"] if str(p).strip()]
+            existing = {p.name: p for p in commercial.products}
+            for name, product in list(existing.items()):
+                if name not in desired:
+                    await db.delete(product)
+            for name in desired:
+                if name not in existing:
+                    db.add(CommercialProduct(commercial_id=commercial.sbid, name=name))
 
     @staticmethod
     async def _apply_create_video(db: AsyncSession, edit: Edit, state: dict) -> UUID | None:
@@ -514,19 +528,33 @@ class EditService:
 
     @staticmethod
     async def cast_vote(
-        db: AsyncSession, edit: Edit, voter: User, choice: VoteChoice, comment: str | None = None
-    ) -> Vote:
-        existing = await db.execute(
+        db: AsyncSession, edit: Edit, voter: User, choice: VoteChoice | None, comment: str | None = None
+    ) -> Vote | None:
+        result = await db.execute(
             select(Vote).where(Vote.edit_id == edit.id, Vote.voter_id == voter.id)
         )
-        if existing.scalar_one_or_none():
-            raise ValueError("Already voted on this edit")
+        existing = result.scalar_one_or_none()
+
+        if choice is None:
+            if not existing:
+                return None
+            await db.delete(existing)
+            await db.flush()
+            await EditService._evaluate_votes(db, edit)
+            return None
 
         if user_is_mod(voter) and choice == VoteChoice.ABSTAIN:
             raise ValueError("Moderator votes must be yes or no")
 
-        vote = Vote(edit_id=edit.id, voter_id=voter.id, choice=choice, comment=comment)
-        db.add(vote)
+        if existing:
+            existing.choice = choice
+            if comment is not None:
+                existing.comment = comment
+            vote = existing
+        else:
+            vote = Vote(edit_id=edit.id, voter_id=voter.id, choice=choice, comment=comment)
+            db.add(vote)
+
         await db.flush()
 
         if choice == VoteChoice.NO and not user_is_mod(voter):
@@ -550,6 +578,17 @@ class EditService:
             await EditService._apply_mod_decision(db, edit, decision)
 
     @staticmethod
+    def _lapse_decision(votes: list[Vote]) -> str:
+        """Return apply/reject when an open edit reaches expires_at without a mod decision."""
+        if not votes:
+            return "apply"
+        yes = sum(1 for v in votes if v.choice == VoteChoice.YES)
+        no = sum(1 for v in votes if v.choice == VoteChoice.NO)
+        if no >= yes and no > 0:
+            return "reject"
+        return "apply"
+
+    @staticmethod
     async def expire_open_edits(db: AsyncSession) -> tuple[int, list[UUID]]:
         now = datetime.now(UTC)
         pending_jobs: list[UUID] = []
@@ -563,24 +602,15 @@ class EditService:
             votes = vote_result.scalars().all()
             voters_by_id = await EditService._load_voters_for_votes(db, votes)
             decision = EditService._mod_vote_decision(votes, voters_by_id)
+            if not decision:
+                decision = EditService._lapse_decision(votes)
             if decision == "reject":
                 await EditService.reject_edit(db, edit)
-            elif decision == "apply":
+            else:
                 edit.status = EditStatus.APPLIED
                 pending_hash = await EditService._complete_applied_edit(db, edit)
                 if pending_hash is not None:
                     pending_jobs.append(pending_hash)
-            else:
-                yes = sum(1 for v in votes if v.choice == VoteChoice.YES)
-                no = sum(1 for v in votes if v.choice == VoteChoice.NO)
-
-                if no >= yes and no > 0:
-                    await EditService.reject_edit(db, edit)
-                else:
-                    edit.status = EditStatus.APPLIED
-                    pending_hash = await EditService._complete_applied_edit(db, edit)
-                    if pending_hash is not None:
-                        pending_jobs.append(pending_hash)
 
             edit.closed_at = now
             count += 1

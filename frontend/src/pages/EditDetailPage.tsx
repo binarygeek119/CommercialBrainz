@@ -4,6 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth, isMod } from "../auth";
 import { api } from "../api";
 import BrandMetadataDiff, { hasMetadataChanges } from "../components/BrandMetadataDiff";
+import CommercialMetadataDiff, {
+  hasCommercialMetadataChanges,
+} from "../components/CommercialMetadataDiff";
 import { formatLogoContext } from "../utils/brandLogos";
 
 export default function EditDetailPage() {
@@ -32,11 +35,11 @@ export default function EditDetailPage() {
     enabled: !!id && edit?.fingerprint_preview?.status === "completed",
   });
 
-  const handleVote = async (choice: string) => {
+  const handleVote = async (choice: string | null) => {
     if (!user) return;
     setError("");
     try {
-      await api.vote(id!, choice, voteComment || undefined);
+      await api.vote(id!, choice, choice === null ? undefined : voteComment || undefined);
       queryClient.invalidateQueries({ queryKey: ["edit", id] });
       queryClient.invalidateQueries({ queryKey: ["open-edits"] });
     } catch (err) {
@@ -49,6 +52,7 @@ export default function EditDetailPage() {
 
   const yesVotes = edit.votes.filter((v) => v.choice === "yes").length;
   const noVotes = edit.votes.filter((v) => v.choice === "no").length;
+  const viewerVote = user ? edit.votes.find((v) => v.voter_id === user.id) : undefined;
   const fp = edit.fingerprint_preview;
   const brandEditId = edit.after_state.brand_edit_id as string | undefined;
   const viewerIsMod = isMod(user);
@@ -71,7 +75,7 @@ export default function EditDetailPage() {
               {" "}
               · {viewerIsMod
                 ? "Your yes/no vote applies or rejects this edit immediately"
-                : "Only moderator yes/no votes decide this edit"}
+                : "Edits with no votes after 14 days are auto-approved; otherwise a moderator decides"}
             </>
           )}
         </p>
@@ -103,6 +107,11 @@ export default function EditDetailPage() {
       {edit.edit_type === "edit_advertiser" &&
         hasMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
           <BrandMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
+        )}
+
+      {edit.edit_type === "edit_commercial" &&
+        hasCommercialMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
+          <CommercialMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
         )}
 
       {(edit.edit_type === "add_advertiser_logo" ||
@@ -291,7 +300,8 @@ export default function EditDetailPage() {
             </p>
           ) : (
             <p className="muted" style={{ marginBottom: "0.75rem" }}>
-              Community votes are recorded for feedback. A moderator or admin yes/no vote decides the edit.
+              Community votes are recorded for feedback. If nobody votes within 14 days, the edit
+              is auto-approved. Otherwise a moderator or admin yes/no vote decides the edit.
             </p>
           )}
           <div className="form-group">
@@ -299,15 +309,29 @@ export default function EditDetailPage() {
             <textarea value={voteComment} onChange={(e) => setVoteComment(e.target.value)} />
           </div>
           <div className="vote-buttons">
-            <button className="btn btn-success" onClick={() => handleVote("yes")}>
+            <button
+              className={`btn btn-success${viewerVote?.choice === "yes" ? " active" : ""}`}
+              onClick={() => handleVote("yes")}
+            >
               Yes
             </button>
-            <button className="btn btn-danger" onClick={() => handleVote("no")}>
+            <button
+              className={`btn btn-danger${viewerVote?.choice === "no" ? " active" : ""}`}
+              onClick={() => handleVote("no")}
+            >
               No
             </button>
             {!viewerIsMod && (
-              <button className="btn btn-secondary" onClick={() => handleVote("abstain")}>
+              <button
+                className={`btn btn-secondary${viewerVote?.choice === "abstain" ? " active" : ""}`}
+                onClick={() => handleVote("abstain")}
+              >
                 Abstain
+              </button>
+            )}
+            {viewerVote && (
+              <button className="btn btn-secondary" onClick={() => handleVote(null)}>
+                Remove vote
               </button>
             )}
           </div>
