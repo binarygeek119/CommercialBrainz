@@ -22,7 +22,7 @@ deletion_status = postgresql.ENUM(
     "rejected",
     "cancelled",
     name="accountdeletionstatus",
-    create_type=True,
+    create_type=False,
 )
 
 
