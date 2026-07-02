@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, setToken, type User } from "./api";
+import { api, getToken, setToken, type User } from "./api";
 
 interface AuthContextType {
   user: User | null;
@@ -17,6 +17,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
+    if (!getToken()) {
+      setUser(null);
+      return;
+    }
     try {
       const u = await api.me();
       setUser(u);

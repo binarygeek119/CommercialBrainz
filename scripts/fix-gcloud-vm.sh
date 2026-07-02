@@ -66,6 +66,14 @@ echo "==> Container ages (web/caddy should match api after deploy)"
 $COMPOSE ps -a --format 'table {{.Name}}\t{{.Status}}\t{{.RunningFor}}' api worker web caddy 2>/dev/null || $COMPOSE ps api worker web caddy
 
 echo ""
+echo "==> Test login endpoint (expect 401 for bad password, not 503)"
+curl -s -o /tmp/cb-login-test.json -w "HTTP %{http_code}\n" \
+  -X POST http://127.0.0.1/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"__login_probe__","password":"wrong"}' || true
+cat /tmp/cb-login-test.json 2>/dev/null || true
+
+echo ""
 echo "==> Verify database"
 HEALTH="$(curl -sf http://127.0.0.1/health || true)"
 echo "$HEALTH"

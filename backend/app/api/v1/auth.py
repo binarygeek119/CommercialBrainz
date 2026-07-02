@@ -124,10 +124,10 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     try:
         user = await authenticate_user(db, data.username, data.password)
     except Exception as exc:
-        logger.exception("Login failed for username %s", data.username)
+        logger.exception("Login failed for %s", data.username)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service unavailable. Check database connectivity and migrations.",
+            detail=f"Login failed ({exc.__class__.__name__}). Check API logs.",
         ) from exc
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")

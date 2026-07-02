@@ -59,8 +59,11 @@ async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
-    user = await get_user_by_username(db, username)
+async def authenticate_user(db: AsyncSession, login: str, password: str) -> User | None:
+    login = login.strip()
+    user = await get_user_by_username(db, login)
+    if not user and "@" in login:
+        user = await get_user_by_email(db, login)
     if not user or not verify_password(password, user.hashed_password):
         return None
     return user

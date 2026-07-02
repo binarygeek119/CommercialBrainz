@@ -406,7 +406,7 @@ export interface YouTubeMetadataPreview {
 
 const TOKEN_KEY = "commercialbrainz_token";
 
-function getToken(): string | null {
+export function getToken(): string | null {
   return sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY);
 }
 
