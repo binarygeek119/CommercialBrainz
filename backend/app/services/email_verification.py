@@ -33,12 +33,11 @@ async def send_verification_email_for_user(
 
     raw_token = secrets.token_urlsafe(32)
     token = EmailVerificationToken(
-    user_id=user.id,
-    token_hash=hash_reset_token(raw_token),
-    expires_at=datetime.now(UTC) +
-    timedelta(
-        minutes=settings.email_verification_expire_minutes),
-         )
+        user_id=user.id,
+        token_hash=hash_reset_token(raw_token),
+        expires_at=datetime.now(UTC)
+        + timedelta(minutes=settings.email_verification_expire_minutes),
+    )
     db.add(token)
     await db.flush()
 
