@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.auth.security import user_is_mod
 from app.config import get_settings
 from app.models import (
     Advertiser,
@@ -15,8 +16,8 @@ from app.models import (
     AuditLog,
     Commercial,
     CommercialProduct,
-    DMCATakedown,
     DMCAStatus,
+    DMCATakedown,
     Edit,
     EditStatus,
     EditType,
@@ -33,7 +34,6 @@ from app.models import (
     Vote,
     VoteChoice,
 )
-from app.auth.security import user_is_mod
 from app.services.media_hash import copy_preview_to_video
 from app.services.reputation import assert_can_submit, award_reputation_for_applied_edit
 from app.utils import extract_youtube_id, make_unique_slug, youtube_thumbnail_url, youtube_watch_url
@@ -55,14 +55,14 @@ class EditService:
         comment: str | None = None,
         force_votable: bool = False,
     ) -> Edit:
-        is_auto = (
-            editor.role in (UserRole.MOD, UserRole.ADMIN) or editor.is_auto_editor
-        ) and not force_votable
+        is_auto = ( editor.role in (UserRole.MOD, UserRole.ADMIN)
+                   or editor.is_auto_editor ) and not force_votable
 
         if not is_auto:
             await assert_can_submit(db, editor)
 
-        expires_at = datetime.now(UTC) + timedelta(days=settings.edit_open_days)
+        expires_at = datetime.now(
+            UTC) + timedelta(days=settings.edit_open_days)
         edit = Edit(
             edit_type=edit_type,
             entity_type=entity_type,
@@ -93,7 +93,9 @@ class EditService:
         return edit
 
     @staticmethod
-    async def _complete_applied_edit(db: AsyncSession, edit: Edit) -> UUID | None:
+    async def _complete_applied_edit(
+    db: AsyncSession,
+     edit: Edit) -> UUID | None:
         pending_hash = await EditService.apply_edit(db, edit)
         editor = await db.get(User, edit.editor_id)
         if editor:
@@ -141,10 +143,14 @@ class EditService:
         return pending_hash
 
     @staticmethod
-    async def _apply_create_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_create_commercial(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         advertiser_id = state.get("advertiser_id")
         if state.get("advertiser_name") and not advertiser_id:
-            raise ValueError("New brands must be approved before use — use advertiser_id")
+            raise ValueError(
+                "New brands must be approved before use — use advertiser_id")
 
         agency_id = state.get("agency_id")
         if state.get("agency_name") and not agency_id:
@@ -171,10 +177,16 @@ class EditService:
         edit.entity_id = commercial.sbid
 
         for product in state.get("products", []):
-            db.add(CommercialProduct(commercial_id=commercial.sbid, name=product))
+            db.add(
+    CommercialProduct(
+        commercial_id=commercial.sbid,
+         name=product))
 
     @staticmethod
-    async def _apply_edit_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_edit_commercial(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         result = await db.execute(
             select(Commercial)
             .options(selectinload(Commercial.products))
@@ -184,7 +196,14 @@ class EditService:
         if not commercial:
             edit.status = EditStatus.FAILED
             return
-        for field in ("title", "year", "decade", "campaign_name", "description", "advertiser_id", "agency_id"):
+        for field in (
+    "title",
+    "year",
+    "decade",
+    "campaign_name",
+    "description",
+    "advertiser_id",
+     "agency_id"):
             if field in state:
                 val = state[field]
                 if field.endswith("_id"):
@@ -192,23 +211,31 @@ class EditService:
                 setattr(commercial, field, val)
 
         if "products" in state:
-            desired = [str(p).strip() for p in state["products"] if str(p).strip()]
+            desired = [str(p).strip()
+                           for p in state["products"] if str(p).strip()]
             existing = {p.name: p for p in commercial.products}
             for name, product in list(existing.items()):
                 if name not in desired:
                     await db.delete(product)
             for name in desired:
                 if name not in existing:
-                    db.add(CommercialProduct(commercial_id=commercial.sbid, name=name))
+                    db.add(
+    CommercialProduct(
+        commercial_id=commercial.sbid,
+         name=name))
 
     @staticmethod
     def _video_metadata_from_state(state: dict) -> dict:
         from app.services.submission_genres import merge_genres_into_metadata
 
-        return merge_genres_into_metadata(state.get("metadata"), state.get("genres"))
+        return merge_genres_into_metadata(
+    state.get("metadata"), state.get("genres"))
 
     @staticmethod
-    async def _apply_create_video(db: AsyncSession, edit: Edit, state: dict) -> UUID | None:
+    async def _apply_create_video(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> UUID | None:
         commercial_id = state.get("commercial_id")
         if not commercial_id and state.get("commercial"):
             sub_edit = Edit(
@@ -225,14 +252,18 @@ class EditService:
             await EditService._apply_create_commercial(db, sub_edit, state["commercial"])
             commercial_id = str(sub_edit.entity_id)
 
-        youtube_id = state.get("youtube_id") or extract_youtube_id(state["youtube_url"])
+        youtube_id = state.get("youtube_id") or extract_youtube_id(
+            state["youtube_url"])
         video = Video(
-            commercial_id=UUID(commercial_id) if isinstance(commercial_id, str) else commercial_id,
-            youtube_id=youtube_id,
-            youtube_url=youtube_watch_url(youtube_id),
-            thumbnail_url=state.get("thumbnail_url") or youtube_thumbnail_url(youtube_id),
-            channel_name=state.get("channel_name"),
-            upload_date=date.fromisoformat(state["upload_date"]) if state.get("upload_date") else None,
+    commercial_id=UUID(commercial_id) if isinstance(
+        commercial_id,
+        str) else commercial_id,
+        youtube_id=youtube_id,
+        youtube_url=youtube_watch_url(youtube_id),
+        thumbnail_url=state.get("thumbnail_url") or youtube_thumbnail_url(youtube_id),
+        channel_name=state.get("channel_name"),
+        upload_date=date.fromisoformat(
+            state["upload_date"]) if state.get("upload_date") else None,
             duration_ms=state.get("duration_ms"),
             aspect_ratio=state.get("aspect_ratio"),
             resolution=state.get("resolution"),
@@ -240,26 +271,28 @@ class EditService:
             region=state.get("region"),
             sub_region=state.get("sub_region"),
             market=state.get("market"),
-            first_aired_date=date.fromisoformat(state["first_aired_date"])
-            if state.get("first_aired_date")
-            else None,
-            last_aired_date=date.fromisoformat(state["last_aired_date"])
-            if state.get("last_aired_date")
-            else None,
-            network=state.get("network"),
-            transcript=state.get("transcript"),
-            slogan=state.get("slogan"),
-            cta_text=state.get("cta_text"),
-            version_label=state.get("version_label"),
-            extra_data=EditService._video_metadata_from_state(state),
-            submitted_by_id=edit.editor_id,
-        )
+            first_aired_date=date.fromisoformat(
+                state["first_aired_date"]) if state.get("first_aired_date") else None,
+                last_aired_date=date.fromisoformat(
+                    state["last_aired_date"]) if state.get("last_aired_date") else None,
+                    network=state.get("network"),
+                    transcript=state.get("transcript"),
+                    slogan=state.get("slogan"),
+                    cta_text=state.get("cta_text"),
+                    version_label=state.get("version_label"),
+                    extra_data=EditService._video_metadata_from_state(state),
+                    submitted_by_id=edit.editor_id,
+                     )
         db.add(video)
         await db.flush()
         edit.entity_id = video.sbid
 
         for credit in state.get("credits", []):
-            db.add(VideoCredit(video_id=video.sbid, role=credit["role"], name=credit["name"]))
+            db.add(
+    VideoCredit(
+        video_id=video.sbid,
+        role=credit["role"],
+         name=credit["name"]))
         for tag in state.get("tags", []):
             db.add(VideoTag(video_id=video.sbid, tag=tag.lower()))
 
@@ -285,7 +318,10 @@ class EditService:
         return fp.id
 
     @staticmethod
-    async def _apply_edit_video(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_edit_video(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         result = await db.execute(select(Video).where(Video.sbid == edit.entity_id))
         video = result.scalar_one_or_none()
         if not video:
@@ -298,10 +334,12 @@ class EditService:
             from app.services.thumbnail_storage import finalize_staged_thumbnail
 
             try:
-                state["thumbnail_url"] = finalize_staged_thumbnail(staging, video.sbid)
+                state["thumbnail_url"] = finalize_staged_thumbnail(
+                    staging, video.sbid)
             except (ValueError, FileNotFoundError) as exc:
                 edit.status = EditStatus.FAILED
-                logger.error("Thumbnail finalize failed for edit %s: %s", edit.id, exc)
+                logger.error(
+    "Thumbnail finalize failed for edit %s: %s", edit.id, exc)
                 return
 
         date_fields = {"upload_date", "first_aired_date", "last_aired_date"}
@@ -325,15 +363,28 @@ class EditService:
             await recompute_main_video(db, commercial_id)
 
     @staticmethod
-    async def _apply_add_tag(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_add_tag(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         db.add(VideoTag(video_id=edit.entity_id, tag=state["tag"].lower()))
 
     @staticmethod
-    async def _apply_add_credit(db: AsyncSession, edit: Edit, state: dict) -> None:
-        db.add(VideoCredit(video_id=edit.entity_id, role=state["role"], name=state["name"]))
+    async def _apply_add_credit(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
+        db.add(
+    VideoCredit(
+        video_id=edit.entity_id,
+        role=state["role"],
+         name=state["name"]))
 
     @staticmethod
-    async def _apply_create_advertiser(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_create_advertiser(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         advertiser_id = edit.entity_id
         if not advertiser_id:
             raw = state.get("advertiser_id")
@@ -356,7 +407,10 @@ class EditService:
         edit.entity_id = advertiser.sbid
 
     @staticmethod
-    async def _apply_edit_advertiser(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_edit_advertiser(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         advertiser_id = edit.entity_id
         if not advertiser_id:
             raw = state.get("advertiser_id")
@@ -390,10 +444,12 @@ class EditService:
             db.add(logo)
             await db.flush()
             try:
-                logo.image_url = finalize_staged_logo(staging, advertiser.sbid, logo.id)
+                logo.image_url = finalize_staged_logo(
+                    staging, advertiser.sbid, logo.id)
             except (ValueError, FileNotFoundError) as exc:
                 edit.status = EditStatus.FAILED
-                logger.error("Logo finalize failed for edit %s: %s", edit.id, exc)
+                logger.error(
+    "Logo finalize failed for edit %s: %s", edit.id, exc)
                 return
             await recompute_main_logo(db, advertiser.sbid)
             state.pop("logo_url", None)
@@ -403,7 +459,10 @@ class EditService:
         apply_advertiser_state(advertiser, state)
 
     @staticmethod
-    async def _apply_add_advertiser_logo(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_add_advertiser_logo(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         advertiser_id = edit.entity_id
         if not advertiser_id:
             raw = state.get("advertiser_id")
@@ -439,7 +498,8 @@ class EditService:
             notes=state.get("notes"),
         )
         try:
-            logo.image_url = finalize_staged_logo(staging, advertiser.sbid, logo.id)
+            logo.image_url = finalize_staged_logo(
+                staging, advertiser.sbid, logo.id)
         except (ValueError, FileNotFoundError) as exc:
             edit.status = EditStatus.FAILED
             logger.error("Logo finalize failed for edit %s: %s", edit.id, exc)
@@ -451,7 +511,10 @@ class EditService:
         await recompute_main_logo(db, advertiser.sbid)
 
     @staticmethod
-    async def _apply_edit_advertiser_logo(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_edit_advertiser_logo(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         logo_id = edit.entity_id
         if not logo_id:
             raw = state.get("logo_id")
@@ -518,7 +581,10 @@ class EditService:
         return settings.edit_early_close_votes
 
     @staticmethod
-    async def _apply_merge_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_merge_commercial(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         source_id = UUID(state["source_id"])
         target_id = UUID(state["target_id"])
         result = await db.execute(select(Video).where(Video.commercial_id == source_id))
@@ -530,7 +596,10 @@ class EditService:
             await db.delete(source)
 
     @staticmethod
-    async def _apply_split_commercial(db: AsyncSession, edit: Edit, state: dict) -> None:
+    async def _apply_split_commercial(
+    db: AsyncSession,
+    edit: Edit,
+     state: dict) -> None:
         source_id = UUID(state["source_commercial_id"])
         video_id = UUID(state["video_id"])
         commercial_data = state.get("commercial")
@@ -579,7 +648,8 @@ class EditService:
         edit.entity_id = new_commercial_id
 
     @staticmethod
-    def _mod_vote_decision(votes: list[Vote], voters_by_id: dict[UUID, User]) -> str | None:
+    def _mod_vote_decision(
+        votes: list[Vote], voters_by_id: dict[UUID, User]) -> str | None:
         """Return apply/reject when a mod or admin has voted yes/no; None otherwise."""
         mod_yes = False
         mod_no = False
@@ -598,7 +668,8 @@ class EditService:
         return None
 
     @staticmethod
-    async def _load_voters_for_votes(db: AsyncSession, votes: list[Vote]) -> dict[UUID, User]:
+    async def _load_voters_for_votes(
+        db: AsyncSession, votes: list[Vote]) -> dict[UUID, User]:
         voter_ids = {vote.voter_id for vote in votes}
         if not voter_ids:
             return {}
@@ -606,7 +677,10 @@ class EditService:
         return {user.id: user for user in result.scalars().all()}
 
     @staticmethod
-    async def _apply_mod_decision(db: AsyncSession, edit: Edit, decision: str) -> UUID | None:
+    async def _apply_mod_decision(
+    db: AsyncSession,
+    edit: Edit,
+     decision: str) -> UUID | None:
         if decision == "apply":
             edit.status = EditStatus.APPLIED
             edit.closed_at = datetime.now(UTC)
@@ -620,8 +694,11 @@ class EditService:
 
     @staticmethod
     async def cast_vote(
-        db: AsyncSession, edit: Edit, voter: User, choice: VoteChoice | None, comment: str | None = None
-    ) -> Vote | None:
+    db: AsyncSession,
+    edit: Edit,
+    voter: User,
+    choice: VoteChoice | None,
+     comment: str | None = None ) -> Vote | None:
         result = await db.execute(
             select(Vote).where(Vote.edit_id == edit.id, Vote.voter_id == voter.id)
         )
@@ -644,13 +721,18 @@ class EditService:
                 existing.comment = comment
             vote = existing
         else:
-            vote = Vote(edit_id=edit.id, voter_id=voter.id, choice=choice, comment=comment)
+            vote = Vote(
+    edit_id=edit.id,
+    voter_id=voter.id,
+    choice=choice,
+     comment=comment)
             db.add(vote)
 
         await db.flush()
 
         if choice == VoteChoice.NO and not user_is_mod(voter):
-            min_expiry = datetime.now(UTC) + timedelta(hours=settings.voting_no_vote_extension_hours)
+            min_expiry = datetime.now(
+                UTC) + timedelta(hours=settings.voting_no_vote_extension_hours)
             if edit.expires_at < min_expiry:
                 edit.expires_at = min_expiry
 
@@ -669,7 +751,8 @@ class EditService:
         if decision:
             await EditService._apply_mod_decision(db, edit, decision)
             return
-        if edit.edit_type == EditType.SPLIT_COMMERCIAL and EditService._should_early_apply_split(votes):
+        if edit.edit_type == EditType.SPLIT_COMMERCIAL and EditService._should_early_apply_split(
+            votes):
             edit.status = EditStatus.APPLIED
             edit.closed_at = datetime.now(UTC)
             pending_hash = await EditService._complete_applied_edit(db, edit)
@@ -686,7 +769,8 @@ class EditService:
 
     @staticmethod
     def _should_early_apply_split(votes: list[Vote]) -> bool:
-        return EditService._split_yes_count(votes) >= settings.split_vote_threshold
+        return EditService._split_yes_count(
+            votes) >= settings.split_vote_threshold
 
     @staticmethod
     def _lapse_decision_split(votes: list[Vote]) -> str:
@@ -803,7 +887,11 @@ class DMCAService:
 
 class SearchService:
     @staticmethod
-    async def search(db: AsyncSession, query: str, entity_type: str = "video", limit: int = 25) -> list:
+    async def search(
+    db: AsyncSession,
+    query: str,
+    entity_type: str = "video",
+     limit: int = 25) -> list:
         q = f"%{query.lower()}%"
         results = []
 
@@ -823,13 +911,18 @@ class SearchService:
             )
             rows = await db.execute(stmt)
             for video, title in rows.all():
-                results.append({"type": "video", "sbid": video.sbid, "title": title, "subtitle": video.youtube_id})
+                results.append({"type": "video",
+    "sbid": video.sbid,
+    "title": title,
+     "subtitle": video.youtube_id})
 
         if entity_type in ("commercial", "all"):
-            stmt = select(Commercial).where(func.lower(Commercial.title).like(q)).limit(limit)
+            stmt = select(Commercial).where(func.lower(
+                Commercial.title).like(q)).limit(limit)
             rows = await db.execute(stmt)
             for c in rows.scalars().all():
-                results.append({"type": "commercial", "sbid": c.sbid, "title": c.title, "subtitle": None})
+                results.append(
+                    {"type": "commercial", "sbid": c.sbid, "title": c.title, "subtitle": None})
 
         if entity_type in ("advertiser", "all"):
             stmt = (
@@ -842,22 +935,30 @@ class SearchService:
             )
             rows = await db.execute(stmt)
             for a in rows.scalars().all():
-                results.append({"type": "advertiser", "sbid": a.sbid, "title": a.name, "subtitle": None})
+                results.append(
+                    {"type": "advertiser", "sbid": a.sbid, "title": a.name, "subtitle": None})
 
         return results[:limit]
 
     @staticmethod
-    async def get_video_detail(db: AsyncSession, sbid: UUID, include_hidden: bool = False) -> Video | None:
+    async def get_video_detail(
+    db: AsyncSession,
+    sbid: UUID,
+     include_hidden: bool = False) -> Video | None:
         stmt = (
-            select(Video)
-            .options(
-                selectinload(Video.commercial).selectinload(Commercial.advertiser),
-                selectinload(Video.commercial).selectinload(Commercial.agency),
-                selectinload(Video.credits),
-                selectinload(Video.tags),
-            )
-            .where(Video.sbid == sbid)
-        )
+    select(Video) .options(
+        selectinload(
+            Video.commercial).selectinload(
+                Commercial.advertiser),
+                selectinload(
+                    Video.commercial).selectinload(
+                        Commercial.agency),
+                        selectinload(
+                            Video.credits),
+                            selectinload(
+                                Video.tags),
+                                ) .where(
+                                    Video.sbid == sbid) )
         if not include_hidden:
             stmt = stmt.where(Video.visibility == VideoVisibility.PUBLIC)
         result = await db.execute(stmt)

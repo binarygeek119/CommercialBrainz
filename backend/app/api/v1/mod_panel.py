@@ -11,23 +11,29 @@ from app.database import get_db
 from app.models import (
     AccountDeletionRequest,
     AccountDeletionStatus,
-    DMCATakedown,
     DMCAStatus,
+    DMCATakedown,
     Edit,
     EditStatus,
     FingerprintStatus,
     MediaFingerprint,
     User,
 )
-from app.schemas import AccountDeletionRequestPublic, AccountDeletionReview, EditPublic, FingerprintQueueStatus, ModStats
-from app.services.fingerprint_queue_status import get_fingerprint_queue_status
+from app.schemas import (
+    AccountDeletionRequestPublic,
+    AccountDeletionReview,
+    EditPublic,
+    FingerprintQueueStatus,
+    ModStats,
+)
 from app.services import EditService
-from app.services.edit_response import build_edit_public
 from app.services.account_settings import (
     approve_deletion_request,
     list_pending_deletion_requests,
     reject_deletion_request,
 )
+from app.services.edit_response import build_edit_public
+from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 
 router = APIRouter(prefix="/mod", tags=["mod"])
 

@@ -41,7 +41,10 @@ app.include_router(api_router)
 @app.get("/health")
 async def health(response: Response):
     payload: dict = {"status": "ok", "app": settings.app_name, "database": "unknown"}
-    db_host = settings.database_url.split("@")[-1].split("/")[0] if "@" in settings.database_url else "unknown"
+    if "@" in settings.database_url:
+        db_host = settings.database_url.split("@")[-1].split("/")[0]
+    else:
+        db_host = "unknown"
     payload["database_host"] = db_host
     try:
         async with async_session_factory() as session:

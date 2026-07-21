@@ -12,15 +12,26 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import require_submitter
 from app.database import get_db
-from app.models import Advertiser, AdvertiserStatus, Commercial, EditType, User, Video, VideoVisibility
+from app.models import (
+    Advertiser,
+    AdvertiserStatus,
+    Commercial,
+    EditType,
+    User,
+    VideoVisibility,
+)
 from app.schemas import AdvertiserMetadataUpdate, CommercialMetadataUpdate, EditPublic
 from app.services import EditService, SearchService
 from app.services.advertiser_metadata import (
     advertiser_to_state,
+)
+from app.services.advertiser_metadata import (
     metadata_snapshot_changed as advertiser_metadata_changed,
 )
 from app.services.commercial_metadata import (
     commercial_to_state,
+)
+from app.services.commercial_metadata import (
     metadata_snapshot_changed as commercial_metadata_changed,
 )
 from app.services.edit_response import build_edit_public

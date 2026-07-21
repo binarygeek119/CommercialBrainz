@@ -42,7 +42,11 @@ def _opaque_webp() -> bytes:
 
 
 def _simple_svg() -> bytes:
-    return b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="red"/></svg>'
+    return (
+        b'<?xml version="1.0"?>'
+        b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        b'<circle cx="32" cy="32" r="24" fill="red"/></svg>'
+    )
 
 
 def _malicious_svg() -> bytes:
@@ -94,7 +98,7 @@ def test_process_logo_accepts_transparent_webp():
 
 
 def test_process_logo_rejects_opaque_webp():
-    with pytest.raises(ValueError, match="transparency"):
+    with pytest.raises(ValueError, match="transparent"):
         process_logo_webp(_opaque_webp())
 
 

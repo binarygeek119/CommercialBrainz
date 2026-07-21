@@ -4,7 +4,8 @@ from app.models import Edit, EditStatus, EditType
 from app.services.user_profile import edit_summary_title
 
 
-def _edit(*, edit_type: EditType, after_state: dict, entity_type: str = "video") -> Edit:
+def _edit(*, edit_type: EditType, after_state: dict,
+          entity_type: str = "video") -> Edit:
     return Edit(
         edit_type=edit_type,
         status=EditStatus.OPEN,
@@ -16,7 +17,11 @@ def _edit(*, edit_type: EditType, after_state: dict, entity_type: str = "video")
 
 
 def test_edit_summary_title_create_advertiser():
-    edit = _edit(edit_type=EditType.CREATE_ADVERTISER, after_state={"name": "Acme Corp"}, entity_type="advertiser")
+    edit = _edit(
+    edit_type=EditType.CREATE_ADVERTISER,
+    after_state={
+        "name": "Acme Corp"},
+         entity_type="advertiser")
     assert edit_summary_title(edit) == "Acme Corp"
 
 

@@ -7,7 +7,7 @@ import logging
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import UUID
+from urllib.parse import unquote
 
 import httpx
 from sqlalchemy import select
@@ -52,7 +52,10 @@ def _logo_relative(url: str | None) -> str | None:
     return _media_relative(url, "/api/v1/media/logos/")
 
 
-async def _download_url(client: httpx.AsyncClient, url: str, dest: Path) -> bool:
+async def _download_url(
+    client: httpx.AsyncClient,
+    url: str,
+     dest: Path) -> bool:
     try:
         response = await client.get(url, follow_redirects=True, timeout=30.0)
         response.raise_for_status()
@@ -64,10 +67,12 @@ async def _download_url(client: httpx.AsyncClient, url: str, dest: Path) -> bool
         return False
 
 
-async def build_archive_export_bundle(output_root: Path | None = None) -> tuple[Path, dict]:
+async def build_archive_export_bundle(
+    output_root: Path | None = None) -> tuple[Path, dict]:
     """Assemble metadata JSON and image files for Archive.org upload."""
     stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H%M%SZ")
-    bundle_dir = (output_root or Path(settings.archive_export_dir)) / f"commercialbrainz-{stamp}"
+    bundle_dir = (output_root or Path(settings.archive_export_dir)
+                  ) / f"commercialbrainz-{stamp}"
     if bundle_dir.exists():
         shutil.rmtree(bundle_dir)
     bundle_dir.mkdir(parents=True)
@@ -140,23 +145,27 @@ async def build_archive_export_bundle(output_root: Path | None = None) -> tuple[
                     stats["youtube_thumbnails_fetched"] += 1
 
     dataset = {
-        "generated_at": datetime.now(UTC).isoformat(),
-        "license": "CC0-1.0",
-        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-        "project": settings.app_name,
-        "site_url": settings.app_public_url.rstrip("/"),
-        "api_base": settings.api_public_url.rstrip("/"),
-        "description": (
-            "CommercialBrainz open commercial video database export with metadata, "
-            "brand records, site links, and thumbnail/logo images."
-        ),
+    "generated_at": datetime.now(UTC).isoformat(),
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "project": settings.app_name,
+    "site_url": settings.app_public_url.rstrip("/"),
+    "api_base": settings.api_public_url.rstrip("/"),
+    "description": (
+        "CommercialBrainz open commercial video database export with metadata, "
+        "brand records, site links, and thumbnail/logo images." ),
         "brands": brand_rows,
         "videos": video_rows,
         "stats": stats,
-    }
+         }
 
     dataset_path = bundle_dir / "dataset.json"
-    dataset_path.write_text(json.dumps(dataset, indent=2, default=str), encoding="utf-8")
+    dataset_path.write_text(
+    json.dumps(
+        dataset,
+        indent=2,
+        default=str),
+         encoding="utf-8")
 
     readme = bundle_dir / "README.txt"
     readme.write_text(
@@ -169,7 +178,10 @@ async def build_archive_export_bundle(output_root: Path | None = None) -> tuple[
                 "",
                 f"Videos: {stats['video_count']}",
                 f"Brands: {stats['brand_count']}",
-                f"Thumbnail images: {stats['thumbnail_files'] + stats['youtube_thumbnails_fetched']}",
+                (
+                    "Thumbnail images: "
+                    f"{stats['thumbnail_files'] + stats['youtube_thumbnails_fetched']}"
+                ),
                 f"Logo images: {stats['logo_files']}",
                 "",
                 "See dataset.json for full metadata and site links.",
@@ -217,7 +229,10 @@ async def _load_brands(db: AsyncSession) -> list[dict]:
                 "sbid": str(public["sbid"]),
                 "main_logo_id": str(advertiser.main_logo_id) if advertiser.main_logo_id else None,
                 "site_url": _site_url(f"/advertiser/{advertiser.sbid}"),
-                "api_url": f"{settings.api_public_url.rstrip('/')}/api/v1/advertisers/{advertiser.sbid}",
+                "api_url": (
+                    f"{settings.api_public_url.rstrip('/')}"
+                    f"/api/v1/advertisers/{advertiser.sbid}"
+                ),
                 "logos": logos,
             }
         )
@@ -311,5 +326,8 @@ def collect_bundle_files(bundle_dir: Path) -> list[tuple[Path, str]]:
     files: list[tuple[Path, str]] = []
     for path in sorted(bundle_dir.rglob("*")):
         if path.is_file():
-            files.append((path, str(path.relative_to(bundle_dir)).replace("\\", "/")))
+            files.append(
+    (path, str(
+        path.relative_to(bundle_dir)).replace(
+            "\\", "/")))
     return files

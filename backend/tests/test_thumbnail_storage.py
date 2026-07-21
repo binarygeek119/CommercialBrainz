@@ -18,4 +18,4 @@ def test_validate_thumbnail_png():
 
 def test_validate_thumbnail_rejects_text():
     with pytest.raises(ValueError, match="JPEG, PNG, or WebP"):
-        validate_thumbnail_bytes(b"not an image")
+        validate_thumbnail_bytes(b"not an image" + b"x" * 64)

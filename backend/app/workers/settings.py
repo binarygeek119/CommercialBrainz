@@ -52,7 +52,13 @@ async def shutdown(ctx):
 
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [expire_edits, generate_dump, export_to_archive_org, hash_media, process_pending_queue]
+    functions = [
+        expire_edits,
+        generate_dump,
+        export_to_archive_org,
+        hash_media,
+        process_pending_queue,
+    ]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),
         cron(generate_dump, hour=2, minute=0),

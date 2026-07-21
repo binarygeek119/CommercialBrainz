@@ -1,6 +1,17 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin, advertiser_logos, auth, commercial_videos, dmca, dumps, edits, media, mod_panel, public
+from app.api.v1 import (
+    admin,
+    advertiser_logos,
+    auth,
+    commercial_videos,
+    dmca,
+    dumps,
+    edits,
+    media,
+    mod_panel,
+    public,
+)
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)

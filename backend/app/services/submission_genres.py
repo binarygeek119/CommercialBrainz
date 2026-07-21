@@ -13,13 +13,21 @@ GENRE_BOOL_FIELDS = (
     "real",
     "ai_enhanced",
 )
-GENRE_TEXT_FIELDS = ("age_range", "target_channel", "holiday", "event", "store", "service")
+GENRE_TEXT_FIELDS = (
+    "age_range",
+    "target_channel",
+    "holiday",
+    "event",
+    "store",
+     "service")
 
 
-def compact_submission_genres(genres: SubmissionGenres | dict | None) -> dict | None:
+def compact_submission_genres(
+    genres: SubmissionGenres | dict | None) -> dict | None:
     if genres is None:
         return None
-    raw = genres.model_dump() if isinstance(genres, SubmissionGenres) else dict(genres)
+    raw = genres.model_dump() if isinstance(
+    genres, SubmissionGenres) else dict(genres)
     compact: dict = {}
     for key in GENRE_TEXT_FIELDS:
         value = raw.get(key)
@@ -31,7 +39,9 @@ def compact_submission_genres(genres: SubmissionGenres | dict | None) -> dict | 
     return compact or None
 
 
-def merge_genres_into_metadata(metadata: dict | None, genres: SubmissionGenres | dict | None) -> dict:
+def merge_genres_into_metadata(
+    metadata: dict | None,
+     genres: SubmissionGenres | dict | None) -> dict:
     merged = dict(metadata or {})
     compact = compact_submission_genres(genres)
     if compact:

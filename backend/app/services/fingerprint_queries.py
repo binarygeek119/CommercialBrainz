@@ -17,7 +17,10 @@ settings = get_settings()
 async def get_preview_fingerprint(db: AsyncSession, edit_id: UUID) -> MediaFingerprint | None:
     result = await db.execute(
         select(MediaFingerprint)
-        .where(MediaFingerprint.edit_id == edit_id, MediaFingerprint.phase == FingerprintPhase.PREVIEW)
+        .where(
+            MediaFingerprint.edit_id == edit_id,
+            MediaFingerprint.phase == FingerprintPhase.PREVIEW,
+        )
         .order_by(MediaFingerprint.created_at.desc())
         .limit(1)
     )

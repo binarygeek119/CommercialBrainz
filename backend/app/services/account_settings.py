@@ -28,7 +28,9 @@ from app.services.api_tokens import revoke_all_api_tokens
 from app.services.email_verification import send_verification_email_for_user
 
 
-async def change_password(db: AsyncSession, user: User, current_password: str, new_password: str) -> None:
+async def change_password(
+    db: AsyncSession, user: User, current_password: str, new_password: str
+) -> None:
     if not verify_password(current_password, user.hashed_password):
         raise ValueError("Current password is incorrect")
     user.hashed_password = hash_password(new_password)
@@ -101,7 +103,8 @@ async def request_account_deletion(
     open_edits = await _count_open_edits(db, user.id)
     if open_edits > 0:
         raise ValueError(
-            f"You have {open_edits} open edit(s). Wait for them to close or cancel them before deleting your account."
+            f"You have {open_edits} open edit(s). Wait for them to close or "
+            "cancel them before deleting your account."
         )
 
     recipient: User | None = None
@@ -117,7 +120,8 @@ async def request_account_deletion(
     points = float(user.reputation_points or 0)
     if recipient is None and points > 0:
         raise ValueError(
-            "Specify a recipient username to transfer your reputation points, or wait until your balance is zero"
+            "Specify a recipient username to transfer your reputation "
+            "points, or wait until your balance is zero"
         )
 
     record = AccountDeletionRequest(

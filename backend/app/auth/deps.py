@@ -4,7 +4,14 @@ from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.security import decode_access_token, get_user_by_id, user_email_verified, user_is_admin, user_is_mod, user_can_submit
+from app.auth.security import (
+    decode_access_token,
+    get_user_by_id,
+    user_can_submit,
+    user_email_verified,
+    user_is_admin,
+    user_is_mod,
+)
 from app.database import get_db
 from app.models import User
 from app.services.api_tokens import API_TOKEN_PREFIX, authenticate_api_token
@@ -96,14 +103,20 @@ async def require_submitter(user: User = Depends(require_write_access)) -> User:
     if not user_can_submit(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Submission access required. Complete the submission terms quiz to upgrade your account.",
+            detail=(
+                "Submission access required. Complete the submission terms "
+                "quiz to upgrade your account."
+            ),
         )
     return user
 
 
 async def require_mod(user: User = Depends(require_write_access)) -> User:
     if not user_is_mod(user):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Moderator access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Moderator access required",
+        )
     return user
 
 

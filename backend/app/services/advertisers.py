@@ -27,14 +27,17 @@ async def find_advertiser_by_name(
     normalized = name.strip()
     if not normalized:
         return None
-    stmt = select(Advertiser).where(func.lower(Advertiser.name) == normalized.lower())
+    stmt = select(Advertiser).where(func.lower(
+        Advertiser.name) == normalized.lower())
     if status is not None:
         stmt = stmt.where(Advertiser.status == status)
     result = await db.execute(stmt.limit(1))
     return result.scalar_one_or_none()
 
 
-async def find_approved_advertiser_by_name(db: AsyncSession, name: str) -> Advertiser | None:
+async def find_approved_advertiser_by_name(
+    db: AsyncSession,
+     name: str) -> Advertiser | None:
     return await find_advertiser_by_name(db, name, status=AdvertiserStatus.APPROVED)
 
 
@@ -71,7 +74,8 @@ async def resolve_commercial_advertiser(
         if not adv:
             raise ValueError("Advertiser not found")
         if adv.status == AdvertiserStatus.REJECTED:
-            raise ValueError("That brand was rejected — pick another or propose a new name")
+            raise ValueError(
+                "That brand was rejected — pick another or propose a new name")
         updated = {**commercial, "advertiser_id": str(adv.sbid)}
         updated.pop("advertiser_name", None)
         return CommercialAdvertiserResult(commercial=updated)
@@ -97,13 +101,18 @@ async def resolve_commercial_advertiser(
             "advertiser",
             after_state={"name": pending.name, "advertiser_id": str(pending.sbid)},
             entity_id=pending.sbid,
-            comment=brand_comment or f'New brand "{pending.name}" proposed with a video submission.',
+            comment=(
+                brand_comment
+                or f'New brand "{pending.name}" proposed with a video submission.'
+            ),
             force_votable=True,
         )
 
     updated = {**commercial, "advertiser_id": str(pending.sbid)}
     updated.pop("advertiser_name", None)
-    return CommercialAdvertiserResult(commercial=updated, brand_edit=brand_edit)
+    return CommercialAdvertiserResult(
+        commercial=updated, brand_edit=brand_edit
+    )
 
 
 async def prepare_create_advertiser_edit(db: AsyncSession, edit) -> None:
@@ -114,7 +123,8 @@ async def prepare_create_advertiser_edit(db: AsyncSession, edit) -> None:
 
     advertiser_id = state.get("advertiser_id")
     if advertiser_id:
-        edit.entity_id = UUID(advertiser_id) if isinstance(advertiser_id, str) else advertiser_id
+        edit.entity_id = UUID(advertiser_id) if isinstance(
+            advertiser_id, str) else advertiser_id
         edit.after_state = state
         return
 

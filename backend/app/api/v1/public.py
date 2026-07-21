@@ -1,4 +1,3 @@
-from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
@@ -11,19 +10,17 @@ from app.database import get_db
 from app.models import (
     Advertiser,
     AdvertiserStatus,
-    Agency,
     Commercial,
-    CommercialProduct,
     Edit,
     User,
     Video,
-    VideoCredit,
     VideoTag,
     VideoVisibility,
 )
 from app.schemas import (
     AdvertiserDetail,
     AdvertiserPublic,
+    AgencyPublic,
     BrandAliasLink,
     CommercialDetail,
     CommercialListItem,
@@ -37,9 +34,8 @@ from app.schemas import (
 )
 from app.services import SearchService
 from app.services.advertiser_metadata import advertiser_public_dict, resolve_alias_links
-from app.services.user_profile import edit_summary_title
-from app.services.fingerprint_queries import format_phash_hex
 from app.services.rate_limit import check_rate_limit, compute_etag
+from app.services.user_profile import edit_summary_title
 from app.services.video_response import list_commercial_videos_public, video_to_public
 
 router = APIRouter(tags=["public"])
@@ -144,7 +140,6 @@ async def get_commercial(
     if not commercial:
         raise HTTPException(status_code=404, detail="Commercial not found")
 
-    from app.services.video_response import list_commercial_videos_public
 
     videos = await list_commercial_videos_public(db, commercial, viewer=user)
     return CommercialDetail(
@@ -198,7 +193,9 @@ async def get_advertiser(
 ):
     await check_rate_limit(request, user is not None)
     result = await db.execute(
-        select(Advertiser).options(selectinload(Advertiser.commercials)).where(Advertiser.sbid == sbid)
+        select(Advertiser)
+        .options(selectinload(Advertiser.commercials))
+        .where(Advertiser.sbid == sbid)
     )
     advertiser = result.scalar_one_or_none()
     if not advertiser or advertiser.status != AdvertiserStatus.APPROVED:
@@ -229,7 +226,11 @@ async def get_user_profile(
         raise HTTPException(status_code=404, detail="User not found")
 
     submission_count = (
-        await db.scalar(select(func.count()).select_from(Edit).where(Edit.editor_id == profile_user.id))
+        await db.scalar(
+            select(func.count())
+            .select_from(Edit)
+            .where(Edit.editor_id == profile_user.id)
+        )
         or 0
     )
     return UserProfilePublic(
@@ -328,7 +329,9 @@ async def browse_videos(
         stmt = stmt.where(Commercial.advertiser_id == advertiser)
         count_stmt = count_stmt.where(Commercial.advertiser_id == advertiser)
     if tag:
-        stmt = stmt.join(VideoTag, VideoTag.video_id == Video.sbid).where(VideoTag.tag == tag.lower())
+        stmt = stmt.join(VideoTag, VideoTag.video_id == Video.sbid).where(
+            VideoTag.tag == tag.lower()
+        )
         count_stmt = count_stmt.join(VideoTag, VideoTag.video_id == Video.sbid).where(
             VideoTag.tag == tag.lower()
         )

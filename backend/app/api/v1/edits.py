@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
@@ -99,7 +99,10 @@ async def submit_video(
     if data.commercial_id and data.commercial:
         raise HTTPException(
             status_code=400,
-            detail="Provide either commercial_id (add link) or commercial (new campaign), not both.",
+            detail=(
+                "Provide either commercial_id (add link) or commercial "
+                "(new campaign), not both."
+            ),
         )
     if not data.commercial_id and not data.commercial:
         raise HTTPException(
