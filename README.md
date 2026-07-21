@@ -142,6 +142,56 @@ Caddy obtains and renews certificates automatically (HTTP-01 challenge on port 8
 
 **Troubleshooting:** run `GCP_PROJECT_ID=your-project ./scripts/diagnose-gcloud-vm.sh`
 
+### Auto-deploy on push to `main`
+
+GitHub Actions workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the GCE VM after **CI** succeeds on `main` (also runnable manually from the Actions tab).
+
+1. Create a GCP service account that can SSH to the VM, e.g.:
+
+```bash
+PROJECT_ID=your-project
+gcloud iam service-accounts create github-deploy \
+  --display-name="GitHub Actions deploy"
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/compute.instanceAdmin.v1"
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/compute.osAdminLogin"
+
+# Allow the SA to act as itself for OS Login / SSH
+gcloud iam service-accounts add-iam-policy-binding \
+  "github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+
+gcloud iam service-accounts keys create github-deploy-key.json \
+  --iam-account="github-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
+```
+
+2. On the VM, grant the SA OS Login access (once):
+
+```bash
+gcloud compute instances add-iam-policy-binding commercialbrainz-vm \
+  --zone=YOUR_ZONE \
+  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/compute.osAdminLogin"
+```
+
+3. In the GitHub repo: **Settings → Secrets and variables → Actions**, add:
+   - `GCP_PROJECT_ID` — your GCP project id
+   - `GCP_SA_KEY` — full contents of `github-deploy-key.json`
+
+Optional repository variable: `VM_NAME` (default `commercialbrainz-vm`).
+
+Manual deploy from your laptop is unchanged:
+
+```bash
+GCP_PROJECT_ID=your-project ./scripts/deploy-gcloud-vm.sh
+```
+
 ## Google Cloud — production (Cloud Run)
 
 Prerequisites: `gcloud` CLI, billing enabled, Docker.
