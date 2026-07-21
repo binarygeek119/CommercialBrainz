@@ -216,12 +216,13 @@ cd backend
 pip install -e ".[dev]"
 alembic upgrade head
 uvicorn app.main:app --reload
-pytest
+pytest --cov=app
 ruff check app tests
 
 # Frontend
 cd frontend
 npm ci
+npm test
 npm run dev
 npm run build
 
