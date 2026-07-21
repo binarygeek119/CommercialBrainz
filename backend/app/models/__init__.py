@@ -422,9 +422,15 @@ class Commercial(Base):
 
     advertiser: Mapped["Advertiser | None"] = relationship(back_populates="commercials")
     agency: Mapped["Agency | None"] = relationship(back_populates="commercials")
-    videos: Mapped[list["Video"]] = relationship(back_populates="commercial")
+    videos: Mapped[list["Video"]] = relationship(
+        back_populates="commercial",
+        foreign_keys="Video.commercial_id",
+    )
     products: Mapped[list["CommercialProduct"]] = relationship(back_populates="commercial")
-    main_video: Mapped["Video | None"] = relationship(foreign_keys=[main_video_id])
+    main_video: Mapped["Video | None"] = relationship(
+        foreign_keys=[main_video_id],
+        post_update=True,
+    )
 
 
 class CommercialProduct(Base):
@@ -485,7 +491,10 @@ class Video(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    commercial: Mapped["Commercial"] = relationship(back_populates="videos")
+    commercial: Mapped["Commercial"] = relationship(
+        back_populates="videos",
+        foreign_keys=[commercial_id],
+    )
     submitted_by: Mapped["User | None"] = relationship()
     credits: Mapped[list["VideoCredit"]] = relationship(back_populates="video", cascade="all, delete-orphan")
     tags: Mapped[list["VideoTag"]] = relationship(back_populates="video", cascade="all, delete-orphan")
