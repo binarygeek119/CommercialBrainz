@@ -2,7 +2,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,7 +45,7 @@ def decode_access_token(token: str) -> TokenData:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         return TokenData(user_id=UUID(user_id) if user_id else None)
-    except (JWTError, ValueError):
+    except (InvalidTokenError, ValueError, TypeError):
         return TokenData(user_id=None)
 
 
