@@ -30,6 +30,7 @@ dependencies = [
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
     "httpx>=0.28.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
@@ -64,3 +65,11 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/data/*", "app/alembic/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
