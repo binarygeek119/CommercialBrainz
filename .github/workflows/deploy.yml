@@ -1,0 +1,64 @@
+# Auto-deploy CommercialBrainz to the GCE VM after CI succeeds on main.
+#
+# Required GitHub secrets (Settings → Secrets and variables → Actions):
+#   GCP_PROJECT_ID  — GCP project id (e.g. commercialbrainz)
+#   GCP_SA_KEY      — JSON key for a deploy service account that can
+#                     gcloud compute ssh to commercialbrainz-vm
+#
+# Optional variables:
+#   VM_NAME         — instance name (default: commercialbrainz-vm)
+#
+# Manual run: Actions → Deploy → Run workflow
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to GCE VM
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          VM_NAME: ${{ vars.VM_NAME || 'commercialbrainz-vm' }}
+          CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
+        run: |
+          set -euo pipefail
+          if [[ -z "${GCP_PROJECT_ID}" ]]; then
+            echo "ERROR: secret GCP_PROJECT_ID is not set"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.GCP_SA_KEY }}" ]]; then
+            echo "ERROR: secret GCP_SA_KEY is not set"
+            exit 1
+          fi
+          chmod +x scripts/deploy-gcloud-vm.sh
+          ./scripts/deploy-gcloud-vm.sh
