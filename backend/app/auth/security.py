@@ -1,13 +1,13 @@
-import bcrypt
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import bcrypt
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import User, UserRole, UserAccess
+from app.models import User, UserAccess, UserRole
 from app.schemas import TokenData
 
 settings = get_settings()
@@ -29,7 +29,11 @@ def hash_password(password: str) -> str:
 
 
 def create_access_token(user_id: UUID, *, remember_me: bool = True) -> str:
-    minutes = settings.access_token_expire_minutes if remember_me else settings.session_token_expire_minutes
+    minutes = (
+        settings.access_token_expire_minutes
+        if remember_me
+        else settings.session_token_expire_minutes
+    )
     expire = datetime.now(UTC) + timedelta(minutes=minutes)
     payload = {"sub": str(user_id), "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)

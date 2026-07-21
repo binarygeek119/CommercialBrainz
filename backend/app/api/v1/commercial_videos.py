@@ -14,7 +14,12 @@ from app.auth.deps import get_current_user_optional, require_submitter, require_
 from app.config import get_settings
 from app.database import get_db
 from app.models import Commercial, EditType, LogoPopularityChoice, User, VideoVisibility
-from app.schemas import AdvertiserLogoPopularityVoteCreate, CommercialSplitSubmit, EditPublic, VideoPublic
+from app.schemas import (
+    AdvertiserLogoPopularityVoteCreate,
+    CommercialSplitSubmit,
+    EditPublic,
+    VideoPublic,
+)
 from app.services import EditService
 from app.services.commercial_split import (
     count_public_videos,
@@ -63,7 +68,8 @@ async def vote_commercial_video_popularity(
     if not video:
         raise HTTPException(status_code=404, detail="Video link not found")
 
-    choice = LogoPopularityChoice(body.choice) if body.choice is not None else None
+    choice = LogoPopularityChoice(
+    body.choice) if body.choice is not None else None
     await cast_video_popularity_vote(db, video, user, choice)
     await db.commit()
     await db.refresh(commercial, attribute_names=["videos"])
@@ -105,12 +111,16 @@ async def submit_commercial_split(
     if not video:
         raise HTTPException(status_code=404, detail="Video link not found")
     if video.visibility != VideoVisibility.PUBLIC:
-        raise HTTPException(status_code=400, detail="Only public links can be split off")
+        raise HTTPException(status_code=400,
+     detail="Only public links can be split off")
 
     if await count_public_videos(db, commercial.sbid) < 2:
         raise HTTPException(
             status_code=400,
-            detail="Cannot split the only link on a commercial — add another link first or remove this one instead.",
+            detail=(
+                "Cannot split the only link on a commercial — add another "
+                "link first or remove this one instead."
+            ),
         )
 
     if await has_open_split_edit(db, video.sbid):
@@ -121,16 +131,17 @@ async def submit_commercial_split(
 
     payload = body.model_dump(exclude={"comment", "terms_agreed"})
     if "products" in payload:
-        payload["products"] = [str(p).strip() for p in payload["products"] if str(p).strip()]
+        payload["products"] = [str(p).strip()
+                                   for p in payload["products"] if str(p).strip()]
     before_state = split_before_state(commercial, video)
     after_state = split_after_state(commercial, video, payload)
 
     video_label = video.version_label or video.slogan or video.youtube_id or "link"
     comment = body.comment.strip() if body.comment and body.comment.strip() else None
     default_comment = (
-        f'Propose splitting "{video_label}" from "{commercial.title}" into its own commercial '
-        f'"{payload["title"].strip()}".'
-    )
+    f'Propose splitting "{video_label}" from "{
+        commercial.title}" into its own commercial ' f'"{
+            payload["title"].strip()}".' )
 
     try:
         edit = await EditService.create_edit(
@@ -147,7 +158,8 @@ async def submit_commercial_split(
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    edit.expires_at = datetime.now(UTC) + timedelta(days=get_settings().split_open_days)
+    edit.expires_at = datetime.now(
+        UTC) + timedelta(days=get_settings().split_open_days)
 
     await db.refresh(edit, ["votes"])
     return await build_edit_public(db, edit, editor_username=user.username)

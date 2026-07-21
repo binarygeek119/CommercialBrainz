@@ -5,11 +5,10 @@ from pathlib import Path
 
 from fastapi import APIRouter
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import async_session_factory
-from app.models import Advertiser, Commercial, Video, VideoVisibility
+from app.models import Commercial, Video, VideoVisibility
 
 router = APIRouter(prefix="/dumps", tags=["dumps"])
 
@@ -75,7 +74,11 @@ async def generate_dump(output_dir: Path | None = None) -> Path:
                     "advertiser": v.commercial.advertiser.name
                     if v.commercial and v.commercial.advertiser
                     else None,
-                    "agency": v.commercial.agency.name if v.commercial and v.commercial.agency else None,
+                    "agency": (
+                        v.commercial.agency.name
+                        if v.commercial and v.commercial.agency
+                        else None
+                    ),
                     "duration_ms": v.duration_ms,
                     "language": v.language,
                     "region": v.region,

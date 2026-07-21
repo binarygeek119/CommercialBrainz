@@ -11,7 +11,10 @@ settings = get_settings()
 async def send_email(to: str, subject: str, body: str) -> bool:
     """Send email if SMTP is configured. Returns True on success."""
     if not settings.smtp_host:
-        logger.info("SMTP not configured; skipping email to %s: %s", to, subject)
+        logger.info(
+    "SMTP not configured; skipping email to %s: %s",
+    to,
+     subject)
         return False
 
     msg = EmailMessage()
@@ -45,7 +48,10 @@ async def notify_dmca_submitted(claimant_email: str, video_id: str) -> None:
     )
 
 
-async def notify_dmca_decision(claimant_email: str, video_id: str, status: str) -> None:
+async def notify_dmca_decision(
+    claimant_email: str,
+    video_id: str,
+     status: str) -> None:
     await send_email(
         claimant_email,
         f"CommercialBrainz DMCA Decision: {status}",
@@ -53,7 +59,10 @@ async def notify_dmca_decision(claimant_email: str, video_id: str, status: str) 
     )
 
 
-async def send_password_reset_email(to: str, username: str, reset_url: str) -> bool:
+async def send_password_reset_email(
+    to: str,
+    username: str,
+     reset_url: str) -> bool:
     minutes = settings.password_reset_expire_minutes
     body = (
         f"Hello {username},\n\n"
@@ -65,12 +74,20 @@ async def send_password_reset_email(to: str, username: str, reset_url: str) -> b
     return await send_email(to, "Reset your CommercialBrainz password", body)
 
 
-async def send_verification_email(to: str, username: str, verify_url: str) -> bool:
+async def send_verification_email(
+    to: str,
+    username: str,
+    verify_url: str,
+) -> bool:
     hours = settings.email_verification_expire_minutes // 60
-    expiry = f"{hours} hours" if hours else f"{settings.email_verification_expire_minutes} minutes"
+    if hours:
+        expiry = f"{hours} hours"
+    else:
+        expiry = f"{settings.email_verification_expire_minutes} minutes"
     body = (
         f"Hello {username},\n\n"
-        "Welcome to CommercialBrainz! Please verify your email address to vote and submit edits.\n\n"
+        "Welcome to CommercialBrainz! Please verify your email address "
+        "to vote and submit edits.\n\n"
         f"Verify your email (link expires in {expiry}):\n{verify_url}\n\n"
         "If you did not create this account, you can ignore this email.\n\n"
         "— CommercialBrainz"

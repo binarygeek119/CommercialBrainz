@@ -142,7 +142,11 @@ def _is_short(info: dict[str, Any]) -> bool:
     if "/shorts/" in page:
         return True
     duration = info.get("duration")
-    return isinstance(duration, (int, float)) and duration <= 60 and (info.get("height") or 0) >= (info.get("width") or 0)
+    return (
+        isinstance(duration, (int, float))
+        and duration <= 60
+        and (info.get("height") or 0) >= (info.get("width") or 0)
+    )
 
 
 def _build_suggested_comment(

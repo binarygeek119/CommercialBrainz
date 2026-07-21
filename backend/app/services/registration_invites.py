@@ -47,7 +47,9 @@ async def is_registration_invite_only(db: AsyncSession) -> bool:
     return settings.registration_invite_only
 
 
-async def set_registration_invite_only(db: AsyncSession, enabled: bool) -> bool:
+async def set_registration_invite_only(
+    db: AsyncSession,
+     enabled: bool) -> bool:
     row = await _get_setting(db, INVITE_ONLY_KEY)
     if row is None:
         row = SiteSetting(key=INVITE_ONLY_KEY, value={"enabled": enabled})
@@ -59,7 +61,8 @@ async def set_registration_invite_only(db: AsyncSession, enabled: bool) -> bool:
     return enabled
 
 
-def invite_is_valid(invite: RegistrationInvite, *, now: datetime | None = None) -> bool:
+def invite_is_valid(invite: RegistrationInvite, *,
+                    now: datetime | None = None) -> bool:
     now = now or datetime.now(UTC)
     if invite.revoked_at is not None:
         return False
@@ -68,18 +71,29 @@ def invite_is_valid(invite: RegistrationInvite, *, now: datetime | None = None) 
     return invite.use_count < invite.max_uses
 
 
-async def get_invite_by_code(db: AsyncSession, code: str) -> RegistrationInvite | None:
+async def get_invite_by_code(
+    db: AsyncSession,
+     code: str) -> RegistrationInvite | None:
     from sqlalchemy import func as sa_func
 
     normalized = _normalize_code(code)
     if not normalized:
         return None
-    compact = sa_func.replace(sa_func.replace(sa_func.upper(RegistrationInvite.code), "-", ""), " ", "")
+    compact = sa_func.replace(
+    sa_func.replace(
+        sa_func.upper(
+            RegistrationInvite.code),
+            "-",
+            ""),
+            " ",
+             "")
     result = await db.execute(select(RegistrationInvite).where(compact == normalized))
     return result.scalar_one_or_none()
 
 
-async def validate_invite_code(db: AsyncSession, code: str) -> RegistrationInvite:
+async def validate_invite_code(
+    db: AsyncSession,
+     code: str) -> RegistrationInvite:
     invite = await get_invite_by_code(db, code)
     if not invite or not invite_is_valid(invite):
         raise ValueError("Invalid or expired invite code")
@@ -131,14 +145,17 @@ async def list_registration_invites(
     include_revoked: bool = False,
     limit: int = 100,
 ) -> list[RegistrationInvite]:
-    stmt = select(RegistrationInvite).order_by(RegistrationInvite.created_at.desc()).limit(limit)
+    stmt = select(RegistrationInvite).order_by(
+    RegistrationInvite.created_at.desc()).limit(limit)
     if not include_revoked:
         stmt = stmt.where(RegistrationInvite.revoked_at.is_(None))
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
 
-async def revoke_registration_invite(db: AsyncSession, invite_id: UUID) -> RegistrationInvite:
+async def revoke_registration_invite(
+    db: AsyncSession,
+     invite_id: UUID) -> RegistrationInvite:
     invite = await db.get(RegistrationInvite, invite_id)
     if not invite:
         raise ValueError("Invite not found")

@@ -61,7 +61,9 @@ async def list_user_api_tokens(db: AsyncSession, user_id: UUID) -> list[ApiToken
     return list(result.scalars().all())
 
 
-async def create_api_token(db: AsyncSession, user: User, label: str | None = None) -> tuple[ApiToken, str]:
+async def create_api_token(
+    db: AsyncSession, user: User, label: str | None = None
+) -> tuple[ApiToken, str]:
     count = await db.scalar(
         select(func.count())
         .select_from(ApiToken)

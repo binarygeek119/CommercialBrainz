@@ -1,5 +1,5 @@
-from functools import lru_cache
 import os
+from functools import lru_cache
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -75,15 +75,17 @@ class Settings(BaseSettings):
         if os.getenv("RUNNING_IN_DOCKER") != "1":
             return self
         if "@localhost" in self.database_url or "@127.0.0.1" in self.database_url:
-            self.database_url = (
-                self.database_url.replace("@localhost", "@postgres").replace("@127.0.0.1", "@postgres")
-            )
+            self.database_url = self.database_url.replace(
+                "@localhost", "@postgres"
+            ).replace("@127.0.0.1", "@postgres")
         if "@localhost" in self.database_url_sync or "@127.0.0.1" in self.database_url_sync:
-            self.database_url_sync = (
-                self.database_url_sync.replace("@localhost", "@postgres").replace("@127.0.0.1", "@postgres")
-            )
+            self.database_url_sync = self.database_url_sync.replace(
+                "@localhost", "@postgres"
+            ).replace("@127.0.0.1", "@postgres")
         if "localhost" in self.redis_url or "127.0.0.1" in self.redis_url:
-            self.redis_url = self.redis_url.replace("localhost", "redis").replace("127.0.0.1", "redis")
+            self.redis_url = self.redis_url.replace(
+                "localhost", "redis"
+            ).replace("127.0.0.1", "redis")
         return self
 
     @property

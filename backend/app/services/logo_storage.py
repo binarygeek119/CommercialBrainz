@@ -23,10 +23,14 @@ WEBP_MAGIC = b"WEBP"
 LOGO_EXTENSIONS = (".png", ".svg", ".webp")
 SAFE_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
 SAFE_LEGACY_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
-SAFE_GALLERY_PATH = re.compile(r"^[a-f0-9-]{36}/[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
+SAFE_GALLERY_PATH = re.compile(
+    r"^[a-f0-9-]{36}/[a-f0-9-]{36}\.(?:png|svg|webp)$", re.I)
 _SVG_SCRIPT = re.compile(r"<script[\s>].*?</script>", re.I | re.S)
-_SVG_FOREIGN_OBJECT = re.compile(r"<foreignObject[\s>].*?</foreignObject>", re.I | re.S)
-_SVG_EVENT_HANDLER = re.compile(r'\s(on\w+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
+_SVG_FOREIGN_OBJECT = re.compile(
+    r"<foreignObject[\s>].*?</foreignObject>",
+     re.I | re.S)
+_SVG_EVENT_HANDLER = re.compile(
+    r'\s(on\w+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
 _SVG_JS_URL = re.compile(
     r'(\s(?:href|xlink:href)\s*=\s*["\'])javascript:[^"\']*(["\'])',
     re.I,
@@ -62,7 +66,8 @@ def _detect_logo_extension(data: bytes) -> str:
         stripped = stripped[3:]
 
     head = stripped[:4096].lower()
-    if stripped[:5].lower() == b"<?xml" or stripped[:4].lower() == b"<svg" or b"<svg" in head:
+    if stripped[:5].lower() == b"<?xml" or stripped[:4].lower(
+    ) == b"<svg" or b"<svg" in head:
         return ".svg"
 
     raise ValueError("Logo must be a PNG, WebP, or SVG file")
@@ -79,7 +84,11 @@ def _sanitize_svg(text: str) -> str:
 def process_logo_png(data: bytes) -> bytes:
     """Validate transparent PNG and re-encode at maximum quality."""
     if len(data) > settings.logo_max_bytes:
-        raise ValueError(f"Logo too large (max {settings.logo_max_bytes // 1024 // 1024} MB)")
+        raise ValueError(
+    f"Logo too large (max {
+        settings.logo_max_bytes //
+        1024 //
+         1024} MB)")
     if len(data) < 68 or not data.startswith(PNG_MAGIC):
         raise ValueError("Logo must be a PNG file")
 
@@ -97,10 +106,12 @@ def process_logo_png(data: bytes) -> bytes:
     elif img.mode == "LA":
         img = img.convert("RGBA")
     elif img.mode != "RGBA":
-        raise ValueError("Logo must be a transparent PNG (RGBA with alpha channel)")
+        raise ValueError(
+            "Logo must be a transparent PNG (RGBA with alpha channel)")
 
     if not _has_transparency(img):
-        raise ValueError("Logo must include transparency — upload a PNG with a transparent background")
+        raise ValueError(
+            "Logo must include transparency — upload a PNG with a transparent background")
 
     if img.width < 32 or img.height < 32:
         raise ValueError("Logo must be at least 32×32 pixels")
@@ -115,8 +126,13 @@ def process_logo_png(data: bytes) -> bytes:
 def process_logo_webp(data: bytes) -> bytes:
     """Validate transparent WebP and re-encode losslessly."""
     if len(data) > settings.logo_max_bytes:
-        raise ValueError(f"Logo too large (max {settings.logo_max_bytes // 1024 // 1024} MB)")
-    if len(data) < 16 or not (data[:4] == WEBP_RIFF and data[8:12] == WEBP_MAGIC):
+        raise ValueError(
+    f"Logo too large (max {
+        settings.logo_max_bytes //
+        1024 //
+         1024} MB)")
+    if len(data) < 16 or not (
+        data[:4] == WEBP_RIFF and data[8:12] == WEBP_MAGIC):
         raise ValueError("Logo must be a WebP file")
 
     try:
@@ -133,10 +149,12 @@ def process_logo_webp(data: bytes) -> bytes:
     elif img.mode == "LA":
         img = img.convert("RGBA")
     elif img.mode != "RGBA":
-        raise ValueError("Logo must be a transparent WebP (RGBA with alpha channel)")
+        raise ValueError(
+            "Logo must be a transparent WebP (RGBA with alpha channel)")
 
     if not _has_transparency(img):
-        raise ValueError("Logo must include transparency — upload a WebP with a transparent background")
+        raise ValueError(
+            "Logo must include transparency — upload a WebP with a transparent background")
 
     if img.width < 32 or img.height < 32:
         raise ValueError("Logo must be at least 32×32 pixels")
@@ -154,7 +172,11 @@ def process_logo_webp(data: bytes) -> bytes:
 def process_logo_svg(data: bytes) -> bytes:
     """Validate SVG and strip unsafe markup before storage."""
     if len(data) > settings.logo_max_bytes:
-        raise ValueError(f"Logo too large (max {settings.logo_max_bytes // 1024 // 1024} MB)")
+        raise ValueError(
+    f"Logo too large (max {
+        settings.logo_max_bytes //
+        1024 //
+         1024} MB)")
     if len(data) < 16:
         raise ValueError("Logo must be an SVG file")
 
@@ -204,7 +226,10 @@ def _staging_extension(staging_file: str) -> str:
     return ext
 
 
-def finalize_staged_logo(staging_file: str, advertiser_sbid: UUID, logo_id: UUID) -> str:
+def finalize_staged_logo(
+    staging_file: str,
+    advertiser_sbid: UUID,
+     logo_id: UUID) -> str:
     """Move staged logo into the brand gallery path."""
     if not SAFE_FILENAME.match(staging_file):
         raise ValueError("Invalid staging logo")
@@ -223,7 +248,9 @@ def finalize_staged_logo(staging_file: str, advertiser_sbid: UUID, logo_id: UUID
     return logo_media_url(relative)
 
 
-def finalize_staged_logo_legacy(staging_file: str, advertiser_sbid: UUID) -> str:
+def finalize_staged_logo_legacy(
+    staging_file: str,
+     advertiser_sbid: UUID) -> str:
     """Legacy single-logo path used by older edit_advertiser edits."""
     if not SAFE_FILENAME.match(staging_file):
         raise ValueError("Invalid staging logo")

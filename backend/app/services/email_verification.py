@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-async def send_verification_email_for_user(db: AsyncSession, user: User) -> None:
+async def send_verification_email_for_user(
+    db: AsyncSession, user: User) -> None:
     """Create verification token and email link. No-op if already verified."""
     if user.email_verified:
         return
@@ -32,14 +33,17 @@ async def send_verification_email_for_user(db: AsyncSession, user: User) -> None
 
     raw_token = secrets.token_urlsafe(32)
     token = EmailVerificationToken(
-        user_id=user.id,
-        token_hash=hash_reset_token(raw_token),
-        expires_at=datetime.now(UTC) + timedelta(minutes=settings.email_verification_expire_minutes),
-    )
+    user_id=user.id,
+    token_hash=hash_reset_token(raw_token),
+    expires_at=datetime.now(UTC) +
+    timedelta(
+        minutes=settings.email_verification_expire_minutes),
+         )
     db.add(token)
     await db.flush()
 
-    verify_url = f"{settings.app_public_url.rstrip('/')}/verify-email?token={raw_token}"
+    verify_url = f"{
+    settings.app_public_url.rstrip('/')}/verify-email?token={raw_token}"
     sent = await send_verification_email(user.email, user.username, verify_url)
     if not sent:
         logger.warning(

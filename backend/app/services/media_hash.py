@@ -16,7 +16,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import async_session_factory
-from app.models import Edit, EditStatus, EditType, FingerprintStatus, MediaFingerprint, Video, VideoHashStatus
+from app.models import (
+    Edit,
+    EditStatus,
+    EditType,
+    FingerprintStatus,
+    MediaFingerprint,
+    Video,
+    VideoHashStatus,
+)
 from app.services.media_probe import merge_probe_into_state, probe_media_file, probe_video_fields
 from app.services.phash import compute_phash, phash_to_db
 

@@ -4,11 +4,9 @@ import getpass
 import json
 import sys
 
-from sqlalchemy import select
-
 from app.auth.security import get_user_by_email, get_user_by_username, hash_password
 from app.database import async_session_factory
-from app.models import User, UserRole, UserAccess
+from app.models import User, UserAccess, UserRole
 
 
 async def seed_admin(email: str, username: str, password: str) -> None:

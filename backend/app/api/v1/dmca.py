@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import require_admin, require_mod, require_write_access
+from app.auth.deps import require_mod, require_write_access
 from app.database import get_db
-from app.models import DMCATakedown, DMCAStatus, User, Video
+from app.models import DMCAStatus, DMCATakedown, User, Video
 from app.schemas import DMCACounterSubmit, DMCAPublic, DMCAReview, DMCASubmit, PaginatedResponse
 from app.services import DMCAService
 from app.services.email import notify_dmca_decision, notify_dmca_submitted

@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,8 +8,8 @@ from app.auth.deps import require_admin
 from app.auth.serializers import user_to_public_basic
 from app.database import get_db
 from app.models import (
-    DMCATakedown,
     DMCAStatus,
+    DMCATakedown,
     Edit,
     EditStatus,
     FingerprintStatus,
@@ -34,7 +33,14 @@ from app.schemas import (
     RegistrationInvitePublic,
     RegistrationSettingsPublic,
 )
+from app.services.archive_export_queue import (
+    enqueue_archive_export,
+    get_archive_export_status,
+    is_archive_export_running,
+)
+from app.services.archive_org_upload import archive_org_configured
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
+from app.services.hash_queue import enqueue_hash_job
 from app.services.registration_invites import (
     create_registration_invite,
     invite_to_public,
@@ -43,13 +49,6 @@ from app.services.registration_invites import (
     revoke_registration_invite,
     set_registration_invite_only,
 )
-from app.services.archive_export_queue import (
-    enqueue_archive_export,
-    get_archive_export_status,
-    is_archive_export_running,
-)
-from app.services.archive_org_upload import archive_org_configured
-from app.services.hash_queue import enqueue_hash_job
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -279,7 +278,10 @@ async def trigger_archive_export(
         if not settings.ia_skip_upload:
             raise HTTPException(
                 status_code=400,
-                detail="Configure IA_ACCESS_KEY and IA_SECRET_KEY, or set IA_SKIP_UPLOAD=true for local bundles only",
+                detail=(
+                    "Configure IA_ACCESS_KEY and IA_SECRET_KEY, or set "
+                    "IA_SKIP_UPLOAD=true for local bundles only"
+                ),
             )
     try:
         await enqueue_archive_export(admin.id)
