@@ -1,9 +1,5 @@
 # Dependency vulnerability audit (known CVEs in pip/npm packages).
 # Complements CodeQL (source analysis) and Dependabot (update PRs).
-#
-# Currently report-only (continue-on-error) so known transitive advisories
-# surface in Actions without blocking merges. Flip continue-on-error to false
-# once the dependency tree is clean.
 name: Security audit
 
 on:
@@ -18,6 +14,7 @@ jobs:
   python-deps:
     name: pip-audit
     runs-on: ubuntu-latest
+    # Report-only until python-jose/ecdsa is removed (see PyJWT migration PR).
     continue-on-error: true
     defaults:
       run:
@@ -37,12 +34,11 @@ jobs:
           .audit-venv/bin/pip install -U pip
           .audit-venv/bin/pip install -e .
           .audit-venv/bin/pip install pip-audit
-          .audit-venv/bin/pip-audit --progress-spinner=off
+          .audit-venv/bin/pip-audit --progress-spinner=off --skip-editable
 
   npm-deps:
     name: npm audit
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: frontend
