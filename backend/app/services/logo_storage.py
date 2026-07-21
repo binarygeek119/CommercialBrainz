@@ -84,11 +84,8 @@ def _sanitize_svg(text: str) -> str:
 def process_logo_png(data: bytes) -> bytes:
     """Validate transparent PNG and re-encode at maximum quality."""
     if len(data) > settings.logo_max_bytes:
-        raise ValueError(
-    f"Logo too large (max {
-        settings.logo_max_bytes //
-        1024 //
-         1024} MB)")
+        max_mb = settings.logo_max_bytes // 1024 // 1024
+        raise ValueError(f"Logo too large (max {max_mb} MB)")
     if len(data) < 68 or not data.startswith(PNG_MAGIC):
         raise ValueError("Logo must be a PNG file")
 
@@ -126,13 +123,9 @@ def process_logo_png(data: bytes) -> bytes:
 def process_logo_webp(data: bytes) -> bytes:
     """Validate transparent WebP and re-encode losslessly."""
     if len(data) > settings.logo_max_bytes:
-        raise ValueError(
-    f"Logo too large (max {
-        settings.logo_max_bytes //
-        1024 //
-         1024} MB)")
-    if len(data) < 16 or not (
-        data[:4] == WEBP_RIFF and data[8:12] == WEBP_MAGIC):
+        max_mb = settings.logo_max_bytes // 1024 // 1024
+        raise ValueError(f"Logo too large (max {max_mb} MB)")
+    if len(data) < 16 or not (data[:4] == WEBP_RIFF and data[8:12] == WEBP_MAGIC):
         raise ValueError("Logo must be a WebP file")
 
     try:
@@ -172,11 +165,8 @@ def process_logo_webp(data: bytes) -> bytes:
 def process_logo_svg(data: bytes) -> bytes:
     """Validate SVG and strip unsafe markup before storage."""
     if len(data) > settings.logo_max_bytes:
-        raise ValueError(
-    f"Logo too large (max {
-        settings.logo_max_bytes //
-        1024 //
-         1024} MB)")
+        max_mb = settings.logo_max_bytes // 1024 // 1024
+        raise ValueError(f"Logo too large (max {max_mb} MB)")
     if len(data) < 16:
         raise ValueError("Logo must be an SVG file")
 

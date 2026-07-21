@@ -82,8 +82,10 @@ def test_lapse_rejects_when_no_outweighs_yes():
 def test_lapse_applies_when_yes_outweighs_no():
     user_a = _FakeUser()
     user_b = _FakeUser()
+    user_c = _FakeUser()
     votes = [
         Vote(edit_id=uuid4(), voter_id=user_a.id, choice=VoteChoice.YES),
+        Vote(edit_id=uuid4(), voter_id=user_c.id, choice=VoteChoice.YES),
         Vote(edit_id=uuid4(), voter_id=user_b.id, choice=VoteChoice.NO),
     ]
     assert EditService._lapse_decision(votes) == "apply"

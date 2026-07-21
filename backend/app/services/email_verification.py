@@ -42,8 +42,8 @@ async def send_verification_email_for_user(
     db.add(token)
     await db.flush()
 
-    verify_url = f"{
-    settings.app_public_url.rstrip('/')}/verify-email?token={raw_token}"
+    base = settings.app_public_url.rstrip("/")
+    verify_url = f"{base}/verify-email?token={raw_token}"
     sent = await send_verification_email(user.email, user.username, verify_url)
     if not sent:
         logger.warning(

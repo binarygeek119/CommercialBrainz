@@ -98,7 +98,7 @@ def test_process_logo_accepts_transparent_webp():
 
 
 def test_process_logo_rejects_opaque_webp():
-    with pytest.raises(ValueError, match="transparency"):
+    with pytest.raises(ValueError, match="transparent"):
         process_logo_webp(_opaque_webp())
 
 
