@@ -1,0 +1,75 @@
+name: Bug report
+description: Something is broken in the site, API, or deploy.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve CommercialBrainz. Fill in as much as you can — reproduction steps matter most.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web UI
+        - API
+        - Auth / login
+        - Submit / edits / voting
+        - Deploy / Docker / VM
+        - Fingerprints / media
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the bug.
+      placeholder: Login returns 503 with InvalidRequestError…
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps we can follow.
+      placeholder: |
+        1. Go to /login
+        2. Enter username and password
+        3. Click Log in
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error text, HTTP status, or screenshots if useful.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Where you saw this (production URL, local Docker, commit SHA, browser).
+      placeholder: https://commercialbrainz.duckdns.org — Chrome 131
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack traces (optional)
+      render: text

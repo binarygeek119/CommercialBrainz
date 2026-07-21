@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation / README
+    url: https://github.com/binarygeek119/CommercialBrainz#readme
+    about: Setup, deploy, DuckDNS/HTTPS, and development commands.
+  - name: API docs (live)
+    url: https://commercialbrainz.duckdns.org/docs
+    about: Interactive OpenAPI docs for the public API.
+  - name: Security vulnerability
+    url: https://github.com/binarygeek119/CommercialBrainz/security/advisories/new
+    about: Report security issues privately (do not open a public issue).
+  - name: DMCA / copyright
+    url: mailto:commercialbrainz@outlook.com
+    about: Copyright takedown requests (or use the site /dmca form).

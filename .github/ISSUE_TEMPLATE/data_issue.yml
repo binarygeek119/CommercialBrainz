@@ -1,0 +1,45 @@
+name: Data / metadata issue
+description: Wrong, missing, or duplicate commercial/brand data.
+title: "[Data]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer proposing a community edit on the site when you can. Use this issue for systemic data problems or when you cannot submit an edit.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of issue
+      options:
+        - Incorrect metadata
+        - Duplicate entry
+        - Missing brand / commercial
+        - Broken YouTube link
+        - Wrong main link / logo
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: Page or API URL
+      placeholder: https://commercialbrainz.duckdns.org/commercial/…
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: What’s wrong?
+      description: Current value vs expected, or why the entry should be merged/split.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources (optional)
+      description: Links that support the correction.
