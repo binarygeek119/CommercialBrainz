@@ -208,6 +208,24 @@ Copyright holders may submit takedown notices via `/dmca` or `POST /api/v1/dmca`
 
 CommercialBrainz data is released under **[CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/)** (public domain dedication).
 
+## Contributing / GitHub Issues
+
+Issues are enabled. Use the forms under
+[New issue](https://github.com/binarygeek119/CommercialBrainz/issues/new/choose):
+
+- **Bug report** — site, API, auth, or deploy failures
+- **Feature request** — product ideas
+- **Data / metadata issue** — wrong or missing commercials (prefer an on-site edit when you can)
+
+Security vulnerabilities: see [SECURITY.md](.github/SECURITY.md) (private advisory — not public issues).
+
+Optional labels (repo admin once):
+
+```bash
+chmod +x scripts/setup-github-labels.sh
+./scripts/setup-github-labels.sh
+```
+
 ## Development
 
 ```bash
