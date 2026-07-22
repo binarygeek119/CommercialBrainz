@@ -2,6 +2,7 @@ export const COMMERCIAL_METADATA_FIELDS = [
   { key: "sbid", label: "Commercial ID" },
   { key: "title", label: "Title" },
   { key: "commercial_type", label: "Type of commercial" },
+  { key: "bumper_channel", label: "Channel" },
   { key: "campaign_name", label: "Campaign name" },
   { key: "description", label: "Description" },
   { key: "year", label: "Year aired" },
@@ -32,6 +33,7 @@ export function formatCommercialFieldValue(key: string, value: unknown): string 
       psa: "PSA",
       service: "Service",
       store: "Store",
+      bumper: "Bumper",
     };
     return labels[value] ?? value.replace(/_/g, " ");
   }

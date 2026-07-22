@@ -186,6 +186,7 @@ class CommercialType(enum.StrEnum):
     PSA = "psa"
     SERVICE = "service"
     STORE = "store"
+    BUMPER = "bumper"
 
 
 class User(Base):
@@ -536,6 +537,7 @@ class Commercial(Base):
     commercial_type: Mapped[CommercialType | None] = mapped_column(
         pg_enum(CommercialType, name="commercialtype"), nullable=True
     )
+    bumper_channel: Mapped[str | None] = mapped_column(String(255), nullable=True)
     campaign_name: Mapped[str | None] = mapped_column(String(512))
     description: Mapped[str | None] = mapped_column(Text)
     external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)

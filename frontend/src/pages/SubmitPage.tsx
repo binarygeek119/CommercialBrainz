@@ -18,7 +18,7 @@ import SubmissionGenresFields, {
 import type { SubmissionGenres } from "../utils/submissionGenres";
 import { submissionGenresPayload } from "../utils/submissionGenres";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
-import { COMMERCIAL_TYPES } from "../utils/commercialTypes";
+import { COMMERCIAL_TYPES, isBumperType } from "../utils/commercialTypes";
 import {
   addLinkDefaultsFromVideo,
   commercialInheritanceSummary,
@@ -35,6 +35,7 @@ const EMPTY_FORM = {
   year: "",
   decade: "",
   commercial_type: "",
+  bumper_channel: "",
   language: "",
   transcript: "",
   slogan: "",
@@ -250,6 +251,14 @@ export default function SubmitPage() {
       setError("You must agree to the Terms of Submission.");
       return;
     }
+    if (
+      !addLinkCommercial &&
+      isBumperType(form.commercial_type) &&
+      !form.bumper_channel.trim()
+    ) {
+      setError("Channel is required when type is Bumper.");
+      return;
+    }
     setLoading(true);
     try {
       const shared = {
@@ -294,7 +303,12 @@ export default function SubmitPage() {
                 year: form.year ? parseInt(form.year, 10) : undefined,
                 decade: form.decade ? parseInt(form.decade, 10) : undefined,
                 ...(form.commercial_type
-                  ? { commercial_type: form.commercial_type }
+                  ? {
+                      commercial_type: form.commercial_type,
+                      ...(isBumperType(form.commercial_type)
+                        ? { bumper_channel: form.bumper_channel.trim() }
+                        : {}),
+                    }
                   : {}),
               },
             }
@@ -526,7 +540,13 @@ export default function SubmitPage() {
           <label>Type of commercial</label>
           <select
             value={form.commercial_type}
-            onChange={(e) => setForm({ ...form, commercial_type: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                commercial_type: e.target.value,
+                ...(e.target.value === "bumper" ? {} : { bumper_channel: "" }),
+              })
+            }
           >
             <option value="">Unknown / not sure</option>
             {COMMERCIAL_TYPES.map((t) => (
@@ -536,6 +556,20 @@ export default function SubmitPage() {
             ))}
           </select>
         </div>
+        {isBumperType(form.commercial_type) && (
+          <div className="form-group">
+            <label>Channel *</label>
+            <input
+              required
+              value={form.bumper_channel}
+              onChange={(e) => setForm({ ...form, bumper_channel: e.target.value })}
+              placeholder="e.g. Cartoon Network, Nickelodeon"
+            />
+            <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
+              Which channel this bumper is for.
+            </p>
+          </div>
+        )}
         <div className="form-group">
           <label>Decade aired (rough estimate)</label>
           <select

@@ -4,7 +4,11 @@ import { api, type CommercialDetail, type SubmissionTerms, type Video } from "..
 import { useAuth, canSubmit } from "../auth";
 import SubmissionTermsView from "./SubmissionTermsView";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
-import { COMMERCIAL_TYPES, type CommercialTypeValue } from "../utils/commercialTypes";
+import {
+  COMMERCIAL_TYPES,
+  isBumperType,
+  type CommercialTypeValue,
+} from "../utils/commercialTypes";
 import { commercialInheritanceSummary } from "../utils/addLinkDefaults";
 import { videoDisplayTitle } from "../utils/videoMetadata";
 
@@ -17,6 +21,7 @@ interface Props {
 type FormState = {
   title: string;
   commercial_type: string;
+  bumper_channel: string;
   campaign_name: string;
   description: string;
   year: string;
@@ -35,6 +40,7 @@ function toFormState(commercial: CommercialDetail, video: Video): FormState {
   return {
     title: suggestedSplitTitle(commercial, video),
     commercial_type: commercial.commercial_type ?? "",
+    bumper_channel: commercial.bumper_channel ?? "",
     campaign_name: commercial.campaign_name ?? "",
     description: commercial.description ?? "",
     year: commercial.year != null ? String(commercial.year) : "",
@@ -83,6 +89,10 @@ export default function SplitCommercialLinkForm({ commercial, video, onSubmitted
       setError("Title is required for the new commercial.");
       return;
     }
+    if (isBumperType(form.commercial_type) && !form.bumper_channel.trim()) {
+      setError("Channel is required when type is Bumper.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -92,10 +102,14 @@ export default function SplitCommercialLinkForm({ commercial, video, onSubmitted
         .split(/[,;\n]/)
         .map((s) => s.trim())
         .filter(Boolean);
+      const commercial_type = (form.commercial_type.trim() || null) as CommercialTypeValue | null;
 
       const edit = await api.submitCommercialSplit(commercial.sbid, video.sbid, {
         title: form.title.trim(),
-        commercial_type: (form.commercial_type.trim() || null) as CommercialTypeValue | null,
+        commercial_type,
+        bumper_channel: isBumperType(commercial_type)
+          ? form.bumper_channel.trim() || null
+          : null,
         campaign_name: form.campaign_name.trim() || null,
         description: form.description.trim() || null,
         year: year != null && !Number.isNaN(year) ? year : null,
@@ -158,7 +172,13 @@ export default function SplitCommercialLinkForm({ commercial, video, onSubmitted
         <select
           id={`split-type-${video.sbid}`}
           value={form.commercial_type}
-          onChange={(e) => setForm({ ...form, commercial_type: e.target.value })}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              commercial_type: e.target.value,
+              ...(e.target.value === "bumper" ? {} : { bumper_channel: "" }),
+            })
+          }
         >
           <option value="">Unknown / not sure</option>
           {COMMERCIAL_TYPES.map((t) => (
@@ -168,6 +188,18 @@ export default function SplitCommercialLinkForm({ commercial, video, onSubmitted
           ))}
         </select>
       </div>
+      {isBumperType(form.commercial_type) && (
+        <div className="form-group">
+          <label htmlFor={`split-bumper-channel-${video.sbid}`}>Channel *</label>
+          <input
+            id={`split-bumper-channel-${video.sbid}`}
+            required
+            value={form.bumper_channel}
+            onChange={(e) => setForm({ ...form, bumper_channel: e.target.value })}
+            placeholder="e.g. Cartoon Network, Nickelodeon"
+          />
+        </div>
+      )}
       <div className="form-group">
         <label htmlFor={`split-campaign-${video.sbid}`}>Campaign name</label>
         <input

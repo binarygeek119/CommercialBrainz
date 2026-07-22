@@ -69,6 +69,7 @@ def split_after_state(
         "year": payload.get("year"),
         "decade": payload.get("decade"),
         "commercial_type": payload.get("commercial_type"),
+        "bumper_channel": payload.get("bumper_channel"),
         "campaign_name": payload.get("campaign_name"),
         "description": payload.get("description"),
         "products": products,

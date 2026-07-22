@@ -4,6 +4,7 @@ import { api, type Edit } from "../api";
 import {
   COMMERCIAL_DECADES,
   COMMERCIAL_TYPES,
+  isBumperType,
   type CommercialDetail,
   type CommercialMetadataUpdate,
   type CommercialTypeValue,
@@ -17,6 +18,7 @@ interface Props {
 type FormState = {
   title: string;
   commercial_type: string;
+  bumper_channel: string;
   campaign_name: string;
   description: string;
   year: string;
@@ -28,6 +30,7 @@ function toFormState(commercial: CommercialDetail): FormState {
   return {
     title: commercial.title ?? "",
     commercial_type: commercial.commercial_type ?? "",
+    bumper_channel: commercial.bumper_channel ?? "",
     campaign_name: commercial.campaign_name ?? "",
     description: commercial.description ?? "",
     year: commercial.year != null ? String(commercial.year) : "",
@@ -44,10 +47,14 @@ function toPayload(form: FormState): CommercialMetadataUpdate {
     .map((s) => s.trim())
     .filter(Boolean);
   const commercial_type = (form.commercial_type.trim() || null) as CommercialTypeValue | null;
+  const bumper_channel = isBumperType(commercial_type)
+    ? form.bumper_channel.trim() || null
+    : null;
 
   return {
     title: form.title.trim() || null,
     commercial_type,
+    bumper_channel,
     campaign_name: form.campaign_name.trim() || null,
     description: form.description.trim() || null,
     year: year != null && !Number.isNaN(year) ? year : null,
@@ -67,8 +74,12 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    if (isBumperType(form.commercial_type) && !form.bumper_channel.trim()) {
+      setError("Channel is required for bumpers.");
+      return;
+    }
+    setLoading(true);
     try {
       const edit = await api.submitCommercialMetadata(commercial.sbid, toPayload(form));
       setResult(edit);
@@ -102,7 +113,12 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
           <select
             id="commercial-type"
             value={form.commercial_type}
-            onChange={(e) => update({ commercial_type: e.target.value })}
+            onChange={(e) =>
+              update({
+                commercial_type: e.target.value,
+                ...(e.target.value === "bumper" ? {} : { bumper_channel: "" }),
+              })
+            }
           >
             <option value="">Unknown / not set</option>
             {COMMERCIAL_TYPES.map((t) => (
@@ -112,6 +128,21 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
             ))}
           </select>
         </div>
+        {isBumperType(form.commercial_type) && (
+          <div className="form-group">
+            <label htmlFor="commercial-bumper-channel">Channel *</label>
+            <input
+              id="commercial-bumper-channel"
+              required
+              value={form.bumper_channel}
+              onChange={(e) => update({ bumper_channel: e.target.value })}
+              placeholder="e.g. Cartoon Network, Nickelodeon"
+            />
+            <p className="muted" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+              Which channel this bumper is for.
+            </p>
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="commercial-campaign">Campaign name</label>
           <input
