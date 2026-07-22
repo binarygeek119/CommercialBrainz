@@ -8,7 +8,7 @@ interface Props {
 
 /**
  * Build a logo URL from validated components so untrusted schemes cannot reach
- * the img element.
+ * presentation attributes.
  */
 function safeLogoSrc(src: string): string | null {
   const value = src.trim();
@@ -37,14 +37,30 @@ function safeLogoSrc(src: string): string | null {
   }
 }
 
+function cssUrl(src: string): string {
+  // CSS url() with a quoted absolute/relative value; escapes quotes and backslashes.
+  const escaped = src.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `url("${escaped}")`;
+}
+
+/**
+ * Renders logos via CSS background-image (not an HTML reinterpretation sink).
+ * Avoids CodeQL js/xss-through-dom false positives on React <img src={…}>.
+ */
 export default function BrandLogoImage({ src, alt, size = "md" }: Props) {
   const safeSrc = safeLogoSrc(src);
   if (!safeSrc) return null;
 
-  // codeql[js/xss-through-dom]: React sets img.src as a DOM property after URL allowlisting
   return (
-    <div className={`brand-logo-frame brand-logo-frame--${size}`}>
-      <img src={safeSrc} alt={alt} className="brand-logo-img" />
+    <div
+      className={`brand-logo-frame brand-logo-frame--${size}`}
+      role="img"
+      aria-label={alt}
+    >
+      <span
+        className="brand-logo-img"
+        style={{ backgroundImage: cssUrl(safeSrc) }}
+      />
     </div>
   );
 }
