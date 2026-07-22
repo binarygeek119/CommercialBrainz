@@ -56,8 +56,9 @@ def test_metadata_cmd_includes_cookies(tmp_path: Path):
     ):
         get_settings.return_value.ytdlp_cookies_file = str(cookies)
         get_settings.return_value.ytdlp_cookies_from_browser = ""
-        from app.services.youtube_metadata import _run_ytdlp_json
         import pytest
+
+        from app.services.youtube_metadata import _run_ytdlp_json
 
         with pytest.raises(RuntimeError, match="boom"):
             _run_ytdlp_json("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
