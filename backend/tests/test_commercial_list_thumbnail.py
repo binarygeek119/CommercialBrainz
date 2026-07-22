@@ -1,6 +1,6 @@
 """Unit tests for commercials list thumbnail selection."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -16,7 +16,7 @@ def _video(**kwargs):
         "thumbnail_url": None,
         "youtube_id": None,
         "popularity_score": 0,
-        "created_at": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        "created_at": datetime(2024, 1, 1, tzinfo=UTC),
         "youtube_url": None,
         "channel_name": None,
         "upload_date": None,
@@ -39,7 +39,7 @@ def _video(**kwargs):
         "audio_fingerprint": None,
         "hash_status": None,
         "hashed_at": None,
-        "updated_at": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        "updated_at": datetime(2024, 1, 1, tzinfo=UTC),
         "commercial_id": uuid4(),
     }
     defaults.update(kwargs)
@@ -52,8 +52,16 @@ def test_prefers_main_video_thumbnail():
     commercial = SimpleNamespace(
         main_video_id=main_id,
         videos=[
-            _video(sbid=other_id, thumbnail_url="https://example.com/other.jpg", popularity_score=99),
-            _video(sbid=main_id, thumbnail_url="https://example.com/main.jpg", popularity_score=0),
+            _video(
+                sbid=other_id,
+                thumbnail_url="https://example.com/other.jpg",
+                popularity_score=99,
+            ),
+            _video(
+                sbid=main_id,
+                thumbnail_url="https://example.com/main.jpg",
+                popularity_score=0,
+            ),
         ],
     )
     assert commercial_list_thumbnail_url(commercial) == "https://example.com/main.jpg"
