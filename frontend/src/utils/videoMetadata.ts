@@ -88,8 +88,7 @@ export function videoDisplayTitle(video: Video): string {
     typeof video.metadata?.youtube_title === "string" ? video.metadata.youtube_title.trim() : "";
   const linkLabel = video.link_label?.trim() || "";
   // Prefer human labels; ignore link_label when it is only the raw YouTube id.
-  const meaningfulLink =
-    linkLabel && linkLabel !== video.youtube_id ? linkLabel : "";
+  const meaningfulLink = linkLabel && linkLabel !== video.youtube_id ? linkLabel : "";
 
   return (
     video.commercial_title ||

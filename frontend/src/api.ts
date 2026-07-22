@@ -145,6 +145,9 @@ export interface Video {
   is_main?: boolean;
   viewer_vote?: "up" | "down" | null;
   commercial_title?: string | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+  bumper_channel?: string | null;
+
   visibility: string;
   phash?: string | null;
   file_sha256?: string | null;
@@ -153,10 +156,42 @@ export interface Video {
   hashed_at?: string | null;
   metadata?: Record<string, unknown>;
   created_at: string;
+  updated_at?: string;
   commercial?: { sbid: string; title: string };
   advertiser?: { sbid: string; name: string };
   tags?: string[];
   credits?: { role: string; name: string }[];
+}
+
+export interface BrowseSection {
+  id: string;
+  title: string;
+  kind: "videos" | "edits" | "catalog";
+  catalog_key?: string | null;
+  total: number;
+  items: Video[] | Edit[] | BrowseCatalogEntity[];
+  see_all_path?: string | null;
+}
+
+export interface BrowseHome {
+  sections: BrowseSection[];
+}
+
+export interface BrowseCatalogEntity {
+  sbid: string;
+  name: string;
+  slug?: string;
+  description?: string | null;
+  logo_url?: string | null;
+  country?: string | null;
+  industry?: string | null;
+  store_type?: string | null;
+  service_type?: string | null;
+  location?: string | null;
+  date_text?: string | null;
+  catalog_key?: "brand" | "store" | "service" | "event" | "holiday";
+  created_at?: string;
+  updated_at?: string | null;
 }
 
 export interface FingerprintPreview {
@@ -538,6 +573,7 @@ export interface CatalogEntity {
   year?: number | null;
   month?: number | null;
   day?: number | null;
+  updated_at?: string | null;
   commercials?: { sbid: string; title: string }[];
   alias_links?: BrandAliasLink[];
 }
@@ -602,6 +638,7 @@ export interface Advertiser {
   external_ids: Record<string, unknown>;
   status?: string;
   created_at: string;
+  updated_at?: string | null;
   commercials?: { sbid: string; title: string }[];
   alias_links?: BrandAliasLink[];
 }
@@ -787,8 +824,51 @@ export const api = {
       `/commercials?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
     ),
 
-  browseVideos: (offset = 0, limit = 25) =>
-    request<Paginated<Video>>(`/browse/videos?offset=${offset}&limit=${limit}`),
+  browseSections: (perSection = 16) =>
+    request<BrowseHome>(`/browse/sections?per_section=${perSection}`),
+
+  browseCatalog: (
+    catalogKey: "brand" | "store" | "service" | "event" | "holiday",
+    offset = 0,
+    limit = 25,
+    opts: { sort?: "created_at" | "updated_at"; updated_only?: boolean } = {}
+  ) => {
+    const qs = new URLSearchParams({
+      catalog_key: catalogKey,
+      offset: String(offset),
+      limit: String(limit),
+    });
+    if (opts.sort) qs.set("sort", opts.sort);
+    if (opts.updated_only) qs.set("updated_only", "true");
+    return request<Paginated<BrowseCatalogEntity>>(`/browse/catalog?${qs.toString()}`);
+  },
+
+  browseVideos: (
+    offset = 0,
+    limit = 25,
+    opts: {
+      commercial_type?: string;
+      channel_commercials?: boolean;
+      sort?: "created_at" | "updated_at";
+      updated_only?: boolean;
+      main_only?: boolean;
+      advertiser?: string;
+      tag?: string;
+    } = {}
+  ) => {
+    const qs = new URLSearchParams({
+      offset: String(offset),
+      limit: String(limit),
+    });
+    if (opts.commercial_type) qs.set("commercial_type", opts.commercial_type);
+    if (opts.channel_commercials) qs.set("channel_commercials", "true");
+    if (opts.sort) qs.set("sort", opts.sort);
+    if (opts.updated_only) qs.set("updated_only", "true");
+    if (opts.main_only) qs.set("main_only", "true");
+    if (opts.advertiser) qs.set("advertiser", opts.advertiser);
+    if (opts.tag) qs.set("tag", opts.tag);
+    return request<Paginated<Video>>(`/browse/videos?${qs.toString()}`);
+  },
 
   getVideo: (sbid: string) => request<Video>(`/videos/${sbid}`),
 

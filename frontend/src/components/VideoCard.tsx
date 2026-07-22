@@ -11,7 +11,11 @@ export default function VideoCard({ video }: { video: Video }) {
   const title = videoDisplayTitle(video);
   const duration = formatDurationMs(video.duration_ms);
   const region = formatRegionDisplay(video.region, video.sub_region);
-  const meta = [video.channel_name, video.language, region].filter(Boolean);
+  const typeMeta =
+    video.commercial_type === "bumper" && video.bumper_channel
+      ? video.bumper_channel
+      : null;
+  const meta = [typeMeta, video.channel_name, video.language, region].filter(Boolean);
 
   return (
     <Link to={commercialUrl(video.commercial_id, video.sbid)} className="video-card">

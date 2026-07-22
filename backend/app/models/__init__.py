@@ -450,6 +450,9 @@ class Advertiser(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     commercials: Mapped[list["Commercial"]] = relationship(
         back_populates="advertiser")
@@ -554,6 +557,9 @@ class Store(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     commercials: Mapped[list["Commercial"]] = relationship(back_populates="store")
     logos: Mapped[list["StoreLogo"]] = relationship(
@@ -652,6 +658,9 @@ class Service(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     commercials: Mapped[list["Commercial"]] = relationship(back_populates="service")
     logos: Mapped[list["ServiceLogo"]] = relationship(
@@ -751,6 +760,9 @@ class Event(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     commercials: Mapped[list["Commercial"]] = relationship(back_populates="event")
     logos: Mapped[list["EventLogo"]] = relationship(
@@ -849,6 +861,9 @@ class Holiday(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     commercials: Mapped[list["Commercial"]] = relationship(back_populates="holiday")
     logos: Mapped[list["HolidayLogo"]] = relationship(

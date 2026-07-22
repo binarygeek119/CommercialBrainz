@@ -328,6 +328,7 @@ class AdvertiserPublic(ORMModel):
     external_ids: dict
     status: str
     created_at: datetime
+    updated_at: datetime | None = None
 
 
 class AgencyCreate(BaseModel):
@@ -558,6 +559,9 @@ class VideoPublic(ORMModel):
     link_label: str | None = None
     viewer_vote: str | None = None
     commercial_title: str | None = None
+    commercial_type: str | None = None
+    bumper_channel: str | None = None
+
     metadata: dict
     visibility: str
     phash: str | None = None
@@ -567,6 +571,20 @@ class VideoPublic(ORMModel):
     hashed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class BrowseSection(BaseModel):
+    id: str
+    title: str
+    kind: Literal["videos", "edits", "catalog"]
+    catalog_key: str | None = None
+    total: int = 0
+    items: list = Field(default_factory=list)
+    see_all_path: str | None = None
+
+
+class BrowseHomeResponse(BaseModel):
+    sections: list[BrowseSection] = Field(default_factory=list)
 
 
 class VideoDetail(VideoPublic):
@@ -1045,6 +1063,7 @@ class CatalogEntityPublic(ORMModel):
     external_ids: dict = Field(default_factory=dict)
     status: str
     created_at: datetime
+    updated_at: datetime | None = None
     # Store / Service
     founded_year: int | None = None
     store_type: str | None = None
