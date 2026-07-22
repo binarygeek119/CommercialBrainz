@@ -8,6 +8,7 @@ import pytest
 
 from app.auth.security import (
     user_bulk_submit_eligible,
+    user_bulk_submit_granted,
     user_can_bulk_submit,
     user_can_see_bulk_import_marker,
 )
@@ -47,6 +48,15 @@ def test_bulk_submit_eligible_mod_admin():
     assert user_bulk_submit_eligible(_user(role=UserRole.ADMIN, reputation_points=0))
 
 
+def test_bulk_submit_granted_mod_admin_without_flag():
+    assert user_bulk_submit_granted(_user(role=UserRole.MOD, reputation_points=0))
+    assert user_bulk_submit_granted(_user(role=UserRole.ADMIN, reputation_points=0))
+    assert not user_bulk_submit_granted(_user(reputation_points=600))
+    assert user_bulk_submit_granted(
+        _user(bulk_submit_enabled=True, reputation_points=600)
+    )
+
+
 def test_can_bulk_submit_requires_terms():
     user = _user(
         bulk_submit_enabled=True,
@@ -56,6 +66,14 @@ def test_can_bulk_submit_requires_terms():
     assert not user_can_bulk_submit(user, active_terms_version=1)
     user.power_user_terms_version = 1
     assert user_can_bulk_submit(user, active_terms_version=1)
+
+
+def test_admin_can_bulk_submit_after_terms():
+    admin = _user(role=UserRole.ADMIN, reputation_points=0, power_user_terms_version=None)
+    assert user_bulk_submit_granted(admin)
+    assert not user_can_bulk_submit(admin, active_terms_version=1)
+    admin.power_user_terms_version = 1
+    assert user_can_bulk_submit(admin, active_terms_version=1)
 
 
 def test_normalize_strips_system_tag():
