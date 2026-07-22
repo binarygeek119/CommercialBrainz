@@ -456,6 +456,7 @@ export interface CommercialListItem {
   created_at: string;
   advertiser_name?: string | null;
   public_video_count?: number;
+  thumbnail_url?: string | null;
   was_bulk_imported?: boolean | null;
 }
 

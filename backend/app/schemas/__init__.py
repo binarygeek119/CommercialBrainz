@@ -437,6 +437,7 @@ class CommercialPublic(ORMModel):
 class CommercialListItem(CommercialPublic):
     advertiser_name: str | None = None
     public_video_count: int = 0
+    thumbnail_url: str | None = None
 
 
 class CommercialMetadataUpdate(BaseModel):
