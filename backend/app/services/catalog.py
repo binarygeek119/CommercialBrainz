@@ -254,7 +254,7 @@ def entity_public_dict(kind: CatalogKind, entity: Any) -> dict:
 
 
 def apply_entity_state(kind: CatalogKind, entity: Any, state: dict) -> None:
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
     for field in kind.scalar_fields:
         if field not in state:
@@ -279,7 +279,7 @@ def apply_entity_state(kind: CatalogKind, entity: Any, state: dict) -> None:
         if field in state:
             meta[field] = state[field]
     entity.extra_data = meta
-    entity.updated_at = datetime.now(timezone.utc)
+    entity.updated_at = datetime.now(UTC)
 
 
 def metadata_snapshot_changed(kind: CatalogKind, before: dict, after: dict) -> bool:
