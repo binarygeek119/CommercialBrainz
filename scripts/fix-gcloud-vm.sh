@@ -46,20 +46,28 @@ bash infra/gcloud/generate-caddyfile.sh infra/caddy/Caddyfile.runtime "${DOMAIN}
 echo ""
 # Prefer images prebuilt+pushed by GitHub Actions (GHCR). Fall back to on-VM
 # build only if pull fails (e.g. first boot before packages exist / private).
-# Allow IMAGE_TAG / GHCR_* from the environment or the VM .env file.
+# IMAGE_TAG from the caller wins; otherwise .env / latest.
+_DEPLOY_IMAGE_TAG="${IMAGE_TAG:-}"
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source <(grep -E '^(IMAGE_TAG|GHCR_TOKEN|GHCR_USER)=' .env || true)
-  set +a
+  _env_val() { grep -E "^${1}=" .env 2>/dev/null | head -1 | cut -d= -f2- || true; }
+  : "${GHCR_TOKEN:=$(_env_val GHCR_TOKEN)}"
+  : "${GHCR_USER:=$(_env_val GHCR_USER)}"
+  : "${_DEPLOY_IMAGE_TAG:=$(_env_val IMAGE_TAG)}"
 fi
-export IMAGE_TAG="${IMAGE_TAG:-latest}"
+export IMAGE_TAG="${_DEPLOY_IMAGE_TAG:-latest}"
 echo "==> App images IMAGE_TAG=${IMAGE_TAG}"
 
 if [[ -n "${GHCR_TOKEN:-}" ]]; then
   echo "==> docker login ghcr.io"
-  echo "${GHCR_TOKEN}" | sudo docker login ghcr.io \
-    -u "${GHCR_USER:-binarygeek119}" --password-stdin
+  # Root and non-root compose paths both need credentials in the docker config
+  # used by the daemon client (`sudo docker` when not root).
+  if [[ "$(id -u)" -eq 0 ]]; then
+    echo "${GHCR_TOKEN}" | docker login ghcr.io \
+      -u "${GHCR_USER:-binarygeek119}" --password-stdin
+  else
+    echo "${GHCR_TOKEN}" | sudo docker login ghcr.io \
+      -u "${GHCR_USER:-binarygeek119}" --password-stdin
+  fi
 fi
 
 echo "==> Pull prebuilt images from GHCR"
