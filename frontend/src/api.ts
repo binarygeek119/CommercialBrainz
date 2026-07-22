@@ -379,6 +379,17 @@ export interface ArchiveExportStatus {
   error?: string | null;
 }
 
+export interface YtdlpCookiesStatus {
+  present: boolean;
+  path: string;
+  size_bytes: number;
+  updated_at?: string | null;
+  active: boolean;
+  active_path?: string | null;
+  env_override: boolean;
+  browser_fallback: boolean;
+}
+
 export interface Edit {
   id: string;
   edit_type: string;
@@ -1172,6 +1183,17 @@ export const api = {
 
   adminRevokeInvite: (inviteId: string) =>
     request<RegistrationInvite>(`/admin/invites/${inviteId}/revoke`, { method: "POST" }),
+
+  adminYtdlpCookiesStatus: () => request<YtdlpCookiesStatus>("/admin/ytdlp-cookies"),
+
+  adminSetYtdlpCookies: (cookies: string) =>
+    request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", {
+      method: "PUT",
+      body: JSON.stringify({ cookies }),
+    }),
+
+  adminClearYtdlpCookies: () =>
+    request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", { method: "DELETE" }),
 
   modStats: () => request<ModStats>("/mod/stats"),
 

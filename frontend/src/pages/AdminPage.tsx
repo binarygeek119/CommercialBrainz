@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type RegistrationInvite } from "../api";
+import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type RegistrationInvite, type YtdlpCookiesStatus } from "../api";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
-type Tab = "overview" | "users" | "fingerprints" | "fp-queue" | "registration" | "exports";
+type Tab = "overview" | "users" | "fingerprints" | "fp-queue" | "registration" | "exports" | "ytdlp";
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -19,6 +19,9 @@ export default function AdminPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [cookiesText, setCookiesText] = useState("");
+  const [cookiesError, setCookiesError] = useState("");
+  const [cookiesLoading, setCookiesLoading] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -57,6 +60,12 @@ export default function AdminPage() {
     enabled: tab === "registration",
   });
 
+  const { data: ytdlpCookies, refetch: refetchYtdlpCookies } = useQuery({
+    queryKey: ["admin-ytdlp-cookies"],
+    queryFn: () => api.adminYtdlpCookiesStatus(),
+    enabled: tab === "ytdlp",
+  });
+
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -65,6 +74,7 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-registration-settings"] });
     queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
     queryClient.invalidateQueries({ queryKey: ["registration-settings"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-ytdlp-cookies"] });
   };
 
   const handleRole = async (userId: string, role: string) => {
@@ -165,6 +175,50 @@ export default function AdminPage() {
     }
   };
 
+  const handleSaveYtdlpCookies = async () => {
+    setCookiesError("");
+    setCookiesLoading(true);
+    try {
+      await api.adminSetYtdlpCookies(cookiesText);
+      setCookiesText("");
+      await refetchYtdlpCookies();
+    } catch (err) {
+      setCookiesError((err as Error).message);
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleClearYtdlpCookies = async () => {
+    if (
+      !confirm(
+        "Remove the managed YouTube cookies file? yt-dlp may hit bot checks until replaced."
+      )
+    ) {
+      return;
+    }
+    setCookiesError("");
+    setCookiesLoading(true);
+    try {
+      await api.adminClearYtdlpCookies();
+      await refetchYtdlpCookies();
+    } catch (err) {
+      setCookiesError((err as Error).message);
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleCookiesFile = async (file: File | null) => {
+    if (!file) return;
+    setCookiesError("");
+    try {
+      setCookiesText(await file.text());
+    } catch (err) {
+      setCookiesError((err as Error).message || "Could not read file");
+    }
+  };
+
   return (
     <div>
       <div className="flex-between" style={{ marginBottom: "1.5rem" }}>
@@ -184,6 +238,7 @@ export default function AdminPage() {
             ["fingerprints", "Fingerprints"],
             ["fp-queue", "Fingerprint queue"],
             ["registration", "Registration"],
+            ["ytdlp", "YouTube cookies"],
             ["exports", "Archive.org export"],
           ] as const
         ).map(([id, label]) => (
@@ -487,6 +542,35 @@ export default function AdminPage() {
         </div>
       )}
 
+      {tab === "ytdlp" && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>YouTube cookies (yt-dlp)</h2>
+          <p className="muted">
+            YouTube may block anonymous yt-dlp with a bot check. Paste a Netscape{" "}
+            <code>cookies.txt</code> exported from a logged-in browser. Contents are stored on
+            the server and never shown again after save.{" "}
+            <a
+              href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Export guide
+            </a>
+          </p>
+
+          <YtdlpCookiesPanel
+            status={ytdlpCookies}
+            cookiesText={cookiesText}
+            loading={cookiesLoading}
+            error={cookiesError}
+            onCookiesTextChange={setCookiesText}
+            onFile={handleCookiesFile}
+            onSave={handleSaveYtdlpCookies}
+            onClear={handleClearYtdlpCookies}
+          />
+        </div>
+      )}
+
       {tab === "exports" && (
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Internet Archive export</h2>
@@ -503,6 +587,110 @@ export default function AdminPage() {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function YtdlpCookiesPanel({
+  status,
+  cookiesText,
+  loading,
+  error,
+  onCookiesTextChange,
+  onFile,
+  onSave,
+  onClear,
+}: {
+  status?: YtdlpCookiesStatus;
+  cookiesText: string;
+  loading: boolean;
+  error: string;
+  onCookiesTextChange: (value: string) => void;
+  onFile: (file: File | null) => void;
+  onSave: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div>
+      <p>
+        Managed file:{" "}
+        <span className={`badge badge-${status?.present ? "applied" : "open"}`}>
+          {status?.present ? "present" : "missing"}
+        </span>
+        {status?.active && (
+          <span className="muted" style={{ marginLeft: "0.5rem" }}>
+            active for yt-dlp
+          </span>
+        )}
+      </p>
+      {status?.path && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Path: <code>{status.path}</code>
+        </p>
+      )}
+      {status?.present && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          {status.size_bytes} bytes
+          {status.updated_at && <> · updated {new Date(status.updated_at).toLocaleString()}</>}
+        </p>
+      )}
+      {status?.env_override && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Note: <code>YTDLP_COOKIES_FILE</code> is set and takes priority when that file exists.
+        </p>
+      )}
+      {status?.browser_fallback && !status.active && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Browser cookie extraction is configured as a fallback (
+          <code>YTDLP_COOKIES_FROM_BROWSER</code>).
+        </p>
+      )}
+
+      <div className="form-group" style={{ marginTop: "1rem" }}>
+        <label htmlFor="ytdlp-cookies-file">Load from file</label>
+        <input
+          id="ytdlp-cookies-file"
+          type="file"
+          accept=".txt,text/plain"
+          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+          disabled={loading}
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="ytdlp-cookies-text">cookies.txt contents</label>
+        <textarea
+          id="ytdlp-cookies-text"
+          value={cookiesText}
+          onChange={(e) => onCookiesTextChange(e.target.value)}
+          rows={10}
+          placeholder="# Netscape HTTP Cookie File&#10;…"
+          disabled={loading}
+          spellCheck={false}
+          style={{ fontFamily: "var(--mono)", fontSize: "0.85rem" }}
+        />
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={loading || !cookiesText.trim()}
+          onClick={onSave}
+        >
+          {loading ? "Saving…" : "Save cookies"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-danger"
+          disabled={loading || !status?.present}
+          onClick={onClear}
+        >
+          Clear cookies
+        </button>
+      </div>
     </div>
   );
 }

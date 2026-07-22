@@ -48,6 +48,8 @@ services:
     volumes:
       - thumbnail_uploads:/data/thumbnails
       - logo_uploads:/data/logos
+      # Admin UI / env cookies for yt-dlp (writable so admins can update cookies.txt)
+      - ../data/ytdlp:/data/ytdlp
     command: ["api"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
@@ -72,6 +74,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ../data/ytdlp:/data/ytdlp
     command: ["worker"]
 
   web:
