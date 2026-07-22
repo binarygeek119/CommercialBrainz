@@ -320,9 +320,13 @@ export default function EditDetailPage() {
               <h4>Possible duplicates</h4>
               <ul>
                 {duplicates.map((d) => (
-                  <li key={d.video_sbid}>
+                  <li key={`${d.video_sbid}-${d.match_type || "phash"}`}>
                     <Link to={`/video/${d.video_sbid}`}>{d.youtube_id}</Link>
-                    {" "}(distance {d.hamming_distance})
+                    {" "}
+                    <span className="muted">
+                      ({d.match_type || "phash"}
+                      {d.hamming_distance != null ? ` · distance ${d.hamming_distance}` : ""})
+                    </span>
                   </li>
                 ))}
               </ul>

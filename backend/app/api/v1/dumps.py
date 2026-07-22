@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import async_session_factory
 from app.models import Commercial, Video, VideoVisibility
+from app.services.fingerprint_queries import format_phash_hex
 
 router = APIRouter(prefix="/dumps", tags=["dumps"])
 
@@ -84,6 +85,11 @@ async def generate_dump(output_dir: Path | None = None) -> Path:
                     "region": v.region,
                     "sub_region": v.sub_region,
                     "metadata": v.extra_data,
+                    "phash": format_phash_hex(v.phash),
+                    "file_sha256": v.file_sha256,
+                    "audio_fingerprint": v.audio_fingerprint,
+                    "hash_status": v.hash_status.value if v.hash_status else None,
+                    "hashed_at": v.hashed_at.isoformat() if v.hashed_at else None,
                 }
             )
 

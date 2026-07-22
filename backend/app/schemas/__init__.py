@@ -541,8 +541,41 @@ class FingerprintPreviewPublic(BaseModel):
 class DuplicateMatchPublic(BaseModel):
     video_sbid: str
     youtube_id: str
+    commercial_id: str | None = None
+    match_type: str = "phash"
     phash: str | None = None
-    hamming_distance: int
+    file_sha256: str | None = None
+    audio_fingerprint: str | None = None
+    hamming_distance: int | None = None
+    visibility: str | None = None
+
+
+class HashLookupRequest(BaseModel):
+    phash: str | None = Field(default=None, max_length=32)
+    file_sha256: str | None = Field(default=None, max_length=128)
+    audio_fingerprint: str | None = Field(default=None, max_length=200_000)
+    threshold: int | None = Field(default=None, ge=0, le=64)
+
+
+class HashTypesPublic(BaseModel):
+    hash_types: list[str]
+    phash_duplicate_threshold: int
+    notes: dict[str, str] = Field(default_factory=dict)
+
+
+class VideoHashesPublic(BaseModel):
+    """All stored media hashes for a catalog video."""
+
+    sbid: UUID
+    youtube_id: str
+    commercial_id: UUID
+    phash: str | None = None
+    file_sha256: str | None = None
+    audio_fingerprint: str | None = None
+    hash_status: str | None = None
+    hashed_at: datetime | None = None
+    visibility: str
+
 
 
 class EditPublic(ORMModel):
