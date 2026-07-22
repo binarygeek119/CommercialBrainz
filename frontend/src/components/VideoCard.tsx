@@ -3,11 +3,12 @@ import { type Video } from "../api";
 import { formatRegionDisplay } from "../data/regions";
 import { commercialUrl } from "../utils/commercialUrls";
 import { formatDurationMs } from "../utils/youtube";
+import { videoDisplayTitle } from "../utils/videoMetadata";
 import { videoThumbnailUrl } from "../utils/videoThumbnail";
 
 export default function VideoCard({ video }: { video: Video }) {
   const thumb = videoThumbnailUrl(video);
-  const title = video.slogan || video.youtube_id || "Untitled";
+  const title = videoDisplayTitle(video);
   const duration = formatDurationMs(video.duration_ms);
   const region = formatRegionDisplay(video.region, video.sub_region);
   const meta = [video.channel_name, video.language, region].filter(Boolean);

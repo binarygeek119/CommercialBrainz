@@ -84,10 +84,20 @@ export function videoMetadataExtras(video: Video): { label: string; value: strin
 }
 
 export function videoDisplayTitle(video: Video): string {
+  const youtubeTitle =
+    typeof video.metadata?.youtube_title === "string" ? video.metadata.youtube_title.trim() : "";
+  const linkLabel = video.link_label?.trim() || "";
+  // Prefer human labels; ignore link_label when it is only the raw YouTube id.
+  const meaningfulLink =
+    linkLabel && linkLabel !== video.youtube_id ? linkLabel : "";
+
   return (
-    video.link_label ||
+    video.commercial_title ||
+    video.commercial?.title ||
+    meaningfulLink ||
     video.version_label ||
     video.slogan ||
+    youtubeTitle ||
     video.youtube_id ||
     "Untitled video"
   );

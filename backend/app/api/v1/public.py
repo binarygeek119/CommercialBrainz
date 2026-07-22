@@ -352,6 +352,7 @@ async def browse_videos(
     stmt = (
         select(Video)
         .join(Commercial, Video.commercial_id == Commercial.sbid)
+        .options(selectinload(Video.commercial))
         .where(Video.visibility == VideoVisibility.PUBLIC)
     )
     count_stmt = (
@@ -375,8 +376,13 @@ async def browse_videos(
     total = (await db.execute(count_stmt)).scalar() or 0
     result = await db.execute(stmt.order_by(Video.created_at.desc()).offset(offset).limit(limit))
     videos = result.scalars().all()
+    items = []
+    for v in videos:
+        item = _video_public(v).model_dump()
+        item["commercial_title"] = v.commercial.title if v.commercial else None
+        items.append(item)
     return PaginatedResponse(
-        items=[_video_public(v).model_dump() for v in videos],
+        items=items,
         total=total,
         offset=offset,
         limit=limit,

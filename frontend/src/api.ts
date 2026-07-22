@@ -144,6 +144,7 @@ export interface Video {
   popularity_score?: number;
   is_main?: boolean;
   viewer_vote?: "up" | "down" | null;
+  commercial_title?: string | null;
   visibility: string;
   phash?: string | null;
   file_sha256?: string | null;
