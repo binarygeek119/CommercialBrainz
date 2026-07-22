@@ -552,7 +552,9 @@ class Video(Base):
     )
     phash: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, index=True)
-    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
     audio_fingerprint: Mapped[str | None] = mapped_column(Text, nullable=True)
     hash_status: Mapped[VideoHashStatus] = mapped_column(
     pg_enum(

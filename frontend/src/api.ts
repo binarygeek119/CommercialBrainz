@@ -105,8 +105,26 @@ export interface FingerprintPreview {
 export interface DuplicateMatch {
   video_sbid: string;
   youtube_id: string;
+  commercial_id?: string | null;
+  match_type?: string;
   phash?: string | null;
-  hamming_distance: number;
+  file_sha256?: string | null;
+  audio_fingerprint?: string | null;
+  hamming_distance?: number | null;
+  visibility?: string | null;
+}
+
+export interface HashTypesInfo {
+  hash_types: string[];
+  phash_duplicate_threshold: number;
+  notes: Record<string, string>;
+}
+
+export interface HashLookupParams {
+  phash?: string;
+  file_sha256?: string;
+  audio_fingerprint?: string;
+  threshold?: number;
 }
 
 export interface ModStats {
@@ -686,6 +704,30 @@ export const api = {
   getEdit: (id: string) => request<Edit>(`/edits/${id}`),
 
   getEditDuplicates: (id: string) => request<DuplicateMatch[]>(`/edits/${id}/duplicates`),
+
+  hashTypes: () => request<HashTypesInfo>("/hashes/types"),
+
+  lookupHash: (params: HashLookupParams) => {
+    const qs = new URLSearchParams();
+    if (params.phash) qs.set("phash", params.phash);
+    if (params.file_sha256) qs.set("file_sha256", params.file_sha256);
+    if (params.audio_fingerprint) qs.set("audio_fingerprint", params.audio_fingerprint);
+    if (params.threshold != null) qs.set("threshold", String(params.threshold));
+    // Long Chromaprint strings should use POST.
+    if (params.audio_fingerprint && params.audio_fingerprint.length > 2000) {
+      return request<DuplicateMatch[]>("/hashes/lookup", {
+        method: "POST",
+        body: JSON.stringify(params),
+      });
+    }
+    return request<DuplicateMatch[]>(`/hashes/lookup?${qs.toString()}`);
+  },
+
+  lookupHashPost: (params: HashLookupParams) =>
+    request<DuplicateMatch[]>("/hashes/lookup", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
 
   vote: (editId: string, choice: string | null, comment?: string) =>
     request<unknown>(`/edits/${editId}/vote`, {

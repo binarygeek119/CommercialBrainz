@@ -24,7 +24,10 @@ from app.schemas import (
 from app.services import EditService
 from app.services.advertisers import resolve_commercial_advertiser
 from app.services.edit_response import build_edit_public
-from app.services.fingerprint_queries import find_phash_duplicates, get_preview_fingerprint
+from app.services.fingerprint_queries import (
+    find_all_hash_duplicates_for_fingerprint,
+    get_preview_fingerprint,
+)
 from app.services.hash_queue import create_preview_fingerprint, enqueue_hash_job
 from app.services.submission_terms import validate_and_record_terms_acceptance
 from app.services.youtube_metadata import fetch_youtube_metadata
@@ -225,10 +228,10 @@ async def get_edit_duplicates(edit_id: UUID, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail="Edit not found")
 
     fp = await get_preview_fingerprint(db, edit.id)
-    if not fp or fp.phash is None:
+    if not fp:
         return []
 
-    matches = await find_phash_duplicates(db, fp.phash)
+    matches = await find_all_hash_duplicates_for_fingerprint(db, fp)
     return [DuplicateMatchPublic(**match) for match in matches]
 
 
