@@ -77,10 +77,13 @@ def advertiser_public_dict(advertiser: Advertiser) -> dict:
         "external_ids": advertiser.external_ids or {},
         "status": advertiser.status.value,
         "created_at": advertiser.created_at,
+        "updated_at": advertiser.updated_at,
     }
 
 
 def apply_advertiser_state(advertiser: Advertiser, state: dict) -> None:
+    from datetime import datetime, timezone
+
     meta = dict(advertiser.extra_data or {})
     meta_changed = False
 
@@ -101,6 +104,8 @@ def apply_advertiser_state(advertiser: Advertiser, state: dict) -> None:
     for field in ADVERTISER_SCALAR_FIELDS:
         if field in state:
             setattr(advertiser, field, state[field])
+
+    advertiser.updated_at = datetime.now(timezone.utc)
 
 
 def metadata_snapshot_changed(before: dict, after: dict) -> bool:

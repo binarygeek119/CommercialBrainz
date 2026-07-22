@@ -35,7 +35,7 @@ from app.schemas import (
 )
 from app.services import SearchService
 from app.services.advertiser_metadata import advertiser_public_dict, resolve_alias_links
-from app.services.browse import build_browse_home, list_browse_videos
+from app.services.browse import build_browse_home, list_browse_catalog, list_browse_videos
 from app.services.bulk_import_marker import (
     commercial_was_bulk_imported_for_viewer,
     filter_tags_for_viewer,
@@ -350,6 +350,33 @@ async def browse_sections(
     """Netflix-style browse shelves (needs votes, new, types, channel commercials)."""
     await check_rate_limit(request, user is not None)
     return BrowseHomeResponse(**await build_browse_home(db, per_section=per_section))
+
+
+@router.get("/browse/catalog", response_model=PaginatedResponse)
+async def browse_catalog(
+    request: Request,
+    catalog_key: str = Query(
+        ...,
+        pattern="^(brand|store|service|event|holiday)$",
+    ),
+    sort: str = Query(default="created_at", pattern="^(created_at|updated_at)$"),
+    updated_only: bool = False,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    """Browse approved brands / catalog entities by recency."""
+    await check_rate_limit(request, user is not None)
+    items, total = await list_browse_catalog(
+        db,
+        catalog_key,
+        sort=sort,  # type: ignore[arg-type]
+        updated_only=updated_only,
+        offset=offset,
+        limit=limit,
+    )
+    return PaginatedResponse(items=items, total=total, offset=offset, limit=limit)
 
 
 @router.get("/browse/videos", response_model=PaginatedResponse)

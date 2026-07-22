@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import (
+    Advertiser,
+    AdvertiserStatus,
     Commercial,
     CommercialType,
     Edit,
@@ -18,10 +20,47 @@ from app.models import (
     VideoTag,
     VideoVisibility,
 )
+from app.services.advertiser_metadata import advertiser_public_dict
+from app.services.catalog import CATALOG_KINDS, entity_public_dict
 from app.services.edit_response import build_edit_public
 from app.services.video_response import video_to_public_dict
 
 BrowseSort = Literal["created_at", "updated_at"]
+CatalogBrowseKey = Literal["brand", "store", "service", "event", "holiday"]
+
+
+CATALOG_BROWSE_META: dict[str, dict[str, str]] = {
+    "brand": {
+        "label": "brands",
+        "title_new": "New brands",
+        "title_updated": "Updated brands",
+        "see_all": "/brands",
+    },
+    "store": {
+        "label": "stores",
+        "title_new": "New stores",
+        "title_updated": "Updated stores",
+        "see_all": "/stores",
+    },
+    "service": {
+        "label": "services",
+        "title_new": "New services",
+        "title_updated": "Updated services",
+        "see_all": "/services",
+    },
+    "event": {
+        "label": "events",
+        "title_new": "New events",
+        "title_updated": "Updated events",
+        "see_all": "/events",
+    },
+    "holiday": {
+        "label": "holidays",
+        "title_new": "New holidays",
+        "title_updated": "Updated holidays",
+        "see_all": "/holidays",
+    },
+}
 
 # Major US broadcast + kids networks for the "Channel commercials" shelf.
 CHANNEL_COMMERCIAL_EXACT = frozenset(
@@ -263,6 +302,81 @@ async def list_open_edits_for_browse(
     return items, total or 0
 
 
+async def list_browse_catalog(
+    db: AsyncSession,
+    catalog_key: CatalogBrowseKey | str,
+    *,
+    sort: BrowseSort = "created_at",
+    updated_only: bool = False,
+    offset: int = 0,
+    limit: int = 25,
+) -> tuple[list[dict[str, Any]], int]:
+    """Approved brands / catalog entities ordered by created_at or updated_at."""
+    from app.models import CatalogStatus
+
+    if catalog_key == "brand":
+        model = Advertiser
+        status_ok = Advertiser.status == AdvertiserStatus.APPROVED
+        kind = None
+    else:
+        kind = CATALOG_KINDS[catalog_key]
+        model = kind.model
+        status_ok = model.status == CatalogStatus.APPROVED
+
+    stmt = select(model).where(status_ok)
+    count_stmt = select(func.count()).select_from(model).where(status_ok)
+    if updated_only:
+        stmt = stmt.where(model.updated_at > model.created_at)
+        count_stmt = count_stmt.where(model.updated_at > model.created_at)
+
+    order = (
+        model.created_at.desc() if sort == "created_at" else model.updated_at.desc(),
+        model.sbid.desc(),
+    )
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(stmt.order_by(*order).offset(offset).limit(limit))
+    items: list[dict[str, Any]] = []
+    for entity in result.scalars().all():
+        if catalog_key == "brand":
+            item = advertiser_public_dict(entity)
+        else:
+            assert kind is not None
+            item = entity_public_dict(kind, entity)
+        item["catalog_key"] = catalog_key
+        items.append(item)
+    return items, total
+
+
+def _catalog_section_specs() -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    for key, meta in CATALOG_BROWSE_META.items():
+        new_id = f"new_{key}s"
+        updated_id = f"updated_{key}s"
+        specs.append(
+            {
+                "id": new_id,
+                "title": meta["title_new"],
+                "kind": "catalog",
+                "catalog_key": key,
+                "sort": "created_at",
+                "updated_only": False,
+                "see_all_path": f"/browse?section={new_id}",
+            }
+        )
+        specs.append(
+            {
+                "id": updated_id,
+                "title": meta["title_updated"],
+                "kind": "catalog",
+                "catalog_key": key,
+                "sort": "updated_at",
+                "updated_only": True,
+                "see_all_path": f"/browse?section={updated_id}",
+            }
+        )
+    return specs
+
+
 SECTION_SPECS: list[dict[str, Any]] = [
     {
         "id": "needs_votes",
@@ -287,6 +401,7 @@ SECTION_SPECS: list[dict[str, Any]] = [
         "main_only": False,
         "see_all_path": "/browse?section=updated",
     },
+    *_catalog_section_specs(),
     {
         "id": "psa",
         "title": "PSAs",
@@ -305,7 +420,7 @@ SECTION_SPECS: list[dict[str, Any]] = [
     },
     {
         "id": "service",
-        "title": "Services",
+        "title": "Service commercials",
         "kind": "videos",
         "commercial_type": CommercialType.SERVICE,
         "main_only": True,
@@ -313,7 +428,7 @@ SECTION_SPECS: list[dict[str, Any]] = [
     },
     {
         "id": "store",
-        "title": "Stores",
+        "title": "Store commercials",
         "kind": "videos",
         "commercial_type": CommercialType.STORE,
         "main_only": True,
@@ -345,12 +460,23 @@ async def build_browse_home(db: AsyncSession, *, per_section: int = 16) -> dict[
             "id": spec["id"],
             "title": spec["title"],
             "kind": spec["kind"],
+            "catalog_key": spec.get("catalog_key"),
             "see_all_path": spec.get("see_all_path"),
             "items": [],
             "total": 0,
         }
         if spec["kind"] == "edits":
             items, total = await list_open_edits_for_browse(db, limit=per_section)
+            section["items"] = items
+            section["total"] = total
+        elif spec["kind"] == "catalog":
+            items, total = await list_browse_catalog(
+                db,
+                spec["catalog_key"],
+                sort=spec.get("sort", "created_at"),
+                updated_only=bool(spec.get("updated_only")),
+                limit=per_section,
+            )
             section["items"] = items
             section["total"] = total
         else:

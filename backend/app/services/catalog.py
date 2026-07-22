@@ -244,6 +244,7 @@ def entity_public_dict(kind: CatalogKind, entity: Any) -> dict:
         "external_ids": entity.external_ids or {},
         "status": entity.status.value if entity.status else None,
         "created_at": entity.created_at,
+        "updated_at": getattr(entity, "updated_at", None),
     }
     for field in kind.scalar_fields:
         if field in data or field == "logo_url":
@@ -253,6 +254,8 @@ def entity_public_dict(kind: CatalogKind, entity: Any) -> dict:
 
 
 def apply_entity_state(kind: CatalogKind, entity: Any, state: dict) -> None:
+    from datetime import datetime, timezone
+
     for field in kind.scalar_fields:
         if field not in state:
             continue
@@ -276,6 +279,7 @@ def apply_entity_state(kind: CatalogKind, entity: Any, state: dict) -> None:
         if field in state:
             meta[field] = state[field]
     entity.extra_data = meta
+    entity.updated_at = datetime.now(timezone.utc)
 
 
 def metadata_snapshot_changed(kind: CatalogKind, before: dict, after: dict) -> bool:

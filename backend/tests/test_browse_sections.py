@@ -6,17 +6,20 @@ from app.services.browse import SECTION_SPECS, bumper_channel_is_major_network
 def test_section_order_puts_needs_votes_first():
     assert SECTION_SPECS[0]["id"] == "needs_votes"
     ids = [s["id"] for s in SECTION_SPECS]
-    assert ids == [
-        "needs_votes",
-        "newly_added",
-        "updated",
-        "psa",
-        "general_ad",
-        "service",
-        "store",
-        "bumper",
-        "channel_commercial",
-    ]
+    assert ids[:3] == ["needs_votes", "newly_added", "updated"]
+    assert "new_brands" in ids
+    assert "updated_brands" in ids
+    assert "new_stores" in ids
+    assert "updated_stores" in ids
+    assert "new_services" in ids
+    assert "updated_services" in ids
+    assert "new_events" in ids
+    assert "updated_events" in ids
+    assert "new_holidays" in ids
+    assert "updated_holidays" in ids
+    # Catalog shelves come before typed commercial video shelves.
+    assert ids.index("new_brands") < ids.index("psa")
+    assert ids.index("updated_holidays") < ids.index("psa")
 
 
 def test_major_network_channel_matching():
