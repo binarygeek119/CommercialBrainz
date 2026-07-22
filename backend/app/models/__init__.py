@@ -119,6 +119,14 @@ class VideoHashStatus(enum.StrEnum):
     FAILED = "failed"
 
 
+class VideoLinkCheckStatus(enum.StrEnum):
+    OK = "ok"
+    UNAVAILABLE = "unavailable"
+    PRIVATE = "private"
+    AGE_RESTRICTED = "age_restricted"
+    ERROR = "error"
+
+
 class ReputationCategory(enum.StrEnum):
     APPROVAL = "approval"
     LIKE = "like"
@@ -553,6 +561,16 @@ class Video(Base):
          default=VideoHashStatus.PENDING )
     hashed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    link_check_status: Mapped[VideoLinkCheckStatus | None] = mapped_column(
+        pg_enum(VideoLinkCheckStatus, name="videolinkcheckstatus"),
+        nullable=True,
+        index=True,
+    )
+    link_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    link_check_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    link_flagged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True)
     popularity_score: Mapped[int] = mapped_column(Integer, default=0)
     version_label: Mapped[str | None] = mapped_column(
         String(255), nullable=True)

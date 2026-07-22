@@ -42,6 +42,16 @@ async def export_to_archive_org(ctx, actor_id: str | None = None):
     return result
 
 
+async def check_public_youtube_links(ctx, limit: int | None = None):
+    """Monthly (or on-demand) scan of public YouTube links for dead/private videos."""
+    from app.services.link_check import check_public_youtube_links as run_check
+
+    async with async_session_factory() as db:
+        counts = await run_check(db, limit=limit)
+    logger.info("YouTube link check counts: %s", counts)
+    return counts
+
+
 async def startup(ctx):
     logger.info("CommercialBrainz worker started")
 
@@ -58,11 +68,14 @@ class WorkerSettings:
         export_to_archive_org,
         hash_media,
         process_pending_queue,
+        check_public_youtube_links,
     ]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),
         cron(generate_dump, hour=2, minute=0),
         cron(process_pending_queue, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),
+        # First day of each month at 04:00 UTC.
+        cron(check_public_youtube_links, day=1, hour=4, minute=0),
     ]
     max_jobs = 1
     on_startup = startup

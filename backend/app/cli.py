@@ -118,6 +118,14 @@ async def export_archive_org_cmd() -> None:
     print(json.dumps(result, indent=2, default=str))
 
 
+async def check_youtube_links_cmd(*, limit: int | None, delay: float) -> None:
+    from app.services.link_check import check_public_youtube_links
+
+    async with async_session_factory() as db:
+        summary = await check_public_youtube_links(db, limit=limit, delay_seconds=delay)
+    print(json.dumps(summary, indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="commercialbrainz", description="CommercialBrainz CLI")
     sub = parser.add_subparsers(dest="command")
@@ -140,6 +148,18 @@ def main() -> None:
     sub.add_parser("expire-edits", help="Process expired open edits")
     sub.add_parser("generate-dump", help="Generate public data dump")
     sub.add_parser("export-archive-org", help="Build dataset bundle and upload to Internet Archive")
+
+    links_cmd = sub.add_parser(
+        "check-youtube-links",
+        help="Probe public catalog YouTube links and flag dead/private/age-gated ones",
+    )
+    links_cmd.add_argument("--limit", type=int, default=None, help="Max public videos to check")
+    links_cmd.add_argument(
+        "--delay",
+        type=float,
+        default=0.75,
+        help="Pause between YouTube probes in seconds (default: 0.75)",
+    )
 
     args = parser.parse_args()
 
@@ -164,6 +184,8 @@ def main() -> None:
         asyncio.run(generate_dump_cmd())
     elif args.command == "export-archive-org":
         asyncio.run(export_archive_org_cmd())
+    elif args.command == "check-youtube-links":
+        asyncio.run(check_youtube_links_cmd(limit=args.limit, delay=args.delay))
     else:
         parser.print_help()
         sys.exit(1)

@@ -663,6 +663,33 @@ class ModStats(BaseModel):
     pending_fingerprints: int
     failed_fingerprints: int
     pending_deletion_requests: int = 0
+    dead_links: int = 0
+
+
+class DeadLinkPublic(ORMModel):
+    sbid: UUID
+    youtube_id: str
+    youtube_url: str
+    commercial_id: UUID
+    commercial_title: str | None = None
+    commercial_sbid: UUID | None = None
+    link_check_status: str | None = None
+    link_checked_at: datetime | None = None
+    link_check_detail: str | None = None
+    link_flagged_at: datetime | None = None
+    visibility: str
+
+
+class LinkCheckRunResult(BaseModel):
+    checked: int = 0
+    ok: int = 0
+    unavailable: int = 0
+    private: int = 0
+    age_restricted: int = 0
+    error: int = 0
+    flagged: int = 0
+    queued: bool = False
+    message: str | None = None
 
 
 class YouTubeMetadataPreview(BaseModel):

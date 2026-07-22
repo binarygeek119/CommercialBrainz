@@ -302,6 +302,7 @@ arq app.workers.settings.WorkerSettings
 commercialbrainz seed-admin --email admin@example.com --username admin
 commercialbrainz expire-edits
 commercialbrainz generate-dump
+commercialbrainz check-youtube-links   # monthly dead-link scan (also cron day=1 04:00 UTC)
 ```
 
 ## Project structure

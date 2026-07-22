@@ -117,6 +117,33 @@ export interface ModStats {
   pending_fingerprints: number;
   failed_fingerprints: number;
   pending_deletion_requests: number;
+  dead_links: number;
+}
+
+export interface DeadLink {
+  sbid: string;
+  youtube_id: string;
+  youtube_url: string;
+  commercial_id: string;
+  commercial_title?: string | null;
+  commercial_sbid?: string | null;
+  link_check_status?: string | null;
+  link_checked_at?: string | null;
+  link_check_detail?: string | null;
+  link_flagged_at?: string | null;
+  visibility: string;
+}
+
+export interface LinkCheckRunResult {
+  checked: number;
+  ok: number;
+  unavailable: number;
+  private: number;
+  age_restricted: number;
+  error: number;
+  flagged: number;
+  queued: boolean;
+  message?: string | null;
 }
 
 export interface AccountDeletionRequest {
@@ -762,4 +789,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ review_notes: reviewNotes ?? null }),
     }),
+
+  modDeadLinks: (offset = 0, limit = 50) =>
+    request<DeadLink[]>(`/mod/dead-links?offset=${offset}&limit=${limit}`),
+
+  modTriggerDeadLinkCheck: (limit?: number) =>
+    request<LinkCheckRunResult>(
+      `/mod/dead-links/check${limit != null ? `?limit=${limit}` : ""}`,
+      { method: "POST" }
+    ),
+
+  modDismissDeadLink: (videoId: string) =>
+    request<DeadLink>(`/mod/dead-links/${videoId}/dismiss`, { method: "POST" }),
+
+  modRecheckDeadLink: (videoId: string) =>
+    request<DeadLink>(`/mod/dead-links/${videoId}/recheck`, { method: "POST" }),
 };
