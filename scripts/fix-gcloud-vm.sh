@@ -17,13 +17,22 @@ else
   COMPOSE="sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 fi
 
-echo "==> git pull"
+echo "==> Sync to origin/main (discard local tracked changes; keep .env)"
+# Local edits on the VM (e.g. previous deploy script tweaks) used to block
+# git pull and leave production on a stale commit.
 if [[ "$(id -u)" -eq 0 ]]; then
-  git pull origin main || true
+  git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+  git fetch origin main
+  git reset --hard origin/main
+  git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
+  git rev-parse --short HEAD
 else
-  sudo git pull origin main || true
+  sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+  sudo git fetch origin main
+  sudo git reset --hard origin/main
+  sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
+  sudo git rev-parse --short HEAD
 fi
-git rev-parse --short HEAD
 
 echo "==> Full stack status"
 $COMPOSE ps -a
