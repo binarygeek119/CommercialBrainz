@@ -34,6 +34,10 @@ from app.schemas import (
 )
 from app.services import SearchService
 from app.services.advertiser_metadata import advertiser_public_dict, resolve_alias_links
+from app.services.bulk_import_marker import (
+    commercial_was_bulk_imported_for_viewer,
+    filter_tags_for_viewer,
+)
 from app.services.rate_limit import check_rate_limit, compute_etag
 from app.services.user_profile import edit_summary_title
 from app.services.video_response import list_commercial_videos_public, video_to_public
@@ -61,7 +65,18 @@ async def get_video(
 
     detail = VideoDetail(
         **_video_public(video).model_dump(),
-        commercial=CommercialPublic.model_validate(video.commercial) if video.commercial else None,
+        commercial=(
+            CommercialPublic(
+                **{
+                    **CommercialPublic.model_validate(video.commercial).model_dump(),
+                    "was_bulk_imported": commercial_was_bulk_imported_for_viewer(
+                        video.commercial, user
+                    ),
+                }
+            )
+            if video.commercial
+            else None
+        ),
         advertiser=AdvertiserPublic(**advertiser_public_dict(video.commercial.advertiser))
         if video.commercial and video.commercial.advertiser
         else None,
@@ -69,7 +84,7 @@ async def get_video(
         if video.commercial and video.commercial.agency
         else None,
         credits=[{"role": c.role, "name": c.name} for c in video.credits],
-        tags=[t.tag for t in video.tags],
+        tags=filter_tags_for_viewer([t.tag for t in video.tags], user),
     )
     etag = compute_etag(detail.model_dump(mode="json"))
     if if_none_match == etag:
@@ -78,10 +93,12 @@ async def get_video(
     return detail
 
 
-def _commercial_list_item(commercial: Commercial) -> CommercialListItem:
+def _commercial_list_item(commercial: Commercial, viewer: User | None = None) -> CommercialListItem:
     public_videos = [v for v in commercial.videos if v.visibility == VideoVisibility.PUBLIC]
+    base = CommercialPublic.model_validate(commercial).model_dump()
+    base["was_bulk_imported"] = commercial_was_bulk_imported_for_viewer(commercial, viewer)
     return CommercialListItem(
-        **CommercialPublic.model_validate(commercial).model_dump(),
+        **base,
         advertiser_name=commercial.advertiser.name if commercial.advertiser else None,
         public_video_count=len(public_videos),
     )
@@ -114,7 +131,7 @@ async def list_commercials(
         count_stmt = count_stmt.where(title_filter)
     total = (await db.execute(count_stmt)).scalar() or 0
     result = await db.execute(stmt.order_by(Commercial.title).offset(offset).limit(limit))
-    items = [_commercial_list_item(c).model_dump() for c in result.scalars().all()]
+    items = [_commercial_list_item(c, user).model_dump() for c in result.scalars().all()]
     return PaginatedResponse(items=items, total=total, offset=offset, limit=limit)
 
 
@@ -142,8 +159,12 @@ async def get_commercial(
 
 
     videos = await list_commercial_videos_public(db, commercial, viewer=user)
+    commercial_public = CommercialPublic.model_validate(commercial).model_dump()
+    commercial_public["was_bulk_imported"] = commercial_was_bulk_imported_for_viewer(
+        commercial, user
+    )
     return CommercialDetail(
-        **CommercialPublic.model_validate(commercial).model_dump(),
+        **commercial_public,
         advertiser=AdvertiserPublic(**advertiser_public_dict(commercial.advertiser))
         if commercial.advertiser
         else None,
@@ -240,6 +261,7 @@ async def get_user_profile(
         reputation_points=float(profile_user.reputation_points),
         accepted_edits_count=profile_user.accepted_edits_count,
         submission_count=submission_count,
+        is_power_user=bool(profile_user.bulk_submit_enabled),
         created_at=profile_user.created_at,
     )
 

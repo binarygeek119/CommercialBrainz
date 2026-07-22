@@ -141,6 +141,26 @@ class AccountDeletionStatus(enum.StrEnum):
     CANCELLED = "cancelled"
 
 
+class BulkSubmissionBatchStatus(enum.StrEnum):
+    IMPORTING = "importing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class BulkSubmissionItemStatus(enum.StrEnum):
+    PENDING_META = "pending_meta"
+    HASHING = "hashing"
+    READY = "ready"
+    SUBMITTED = "submitted"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+    DUPLICATE = "duplicate"
+
+
+# Reserved system tag applied to videos finalized from bulk submit.
+BULK_IMPORTED_TAG = "was-bulk-imported"
+
+
 class ContentReportReason(enum.StrEnum):
     BANNED = "banned"
     ADULT_AD = "adult_ad"
@@ -178,6 +198,14 @@ class User(Base):
         Integer, nullable=True)
     submission_terms_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    bulk_submit_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    power_user_terms_version: Mapped[int | None] = mapped_column(
+        Integer, nullable=True)
+    power_user_terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    bulk_submit_revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    bulk_submit_revoke_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_auto_editor: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -501,6 +529,7 @@ class Commercial(Base):
     campaign_name: Mapped[str | None] = mapped_column(String(512))
     description: Mapped[str | None] = mapped_column(Text)
     external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    was_bulk_imported: Mapped[bool] = mapped_column(Boolean, default=False)
     main_video_id: Mapped[uuid.UUID | None] = mapped_column( UUID(
         as_uuid=True), ForeignKey("videos.sbid", ondelete="SET NULL"), nullable=True )
     created_at: Mapped[datetime] = mapped_column(
@@ -898,3 +927,87 @@ class SubmissionTermsDocument(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+
+
+class PowerUserTermsDocument(Base):
+    __tablename__ = "power_user_terms_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    version: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    intro: Mapped[str] = mapped_column(Text)
+    sections: Mapped[list] = mapped_column(JSONB)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+
+class BulkSubmissionBatch(Base):
+    __tablename__ = "bulk_submission_batches"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    playlist_url: Mapped[str] = mapped_column(String(1024))
+    playlist_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    playlist_title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[BulkSubmissionBatchStatus] = mapped_column(
+        pg_enum(BulkSubmissionBatchStatus, name="bulksubmissionbatchstatus"),
+        default=BulkSubmissionBatchStatus.IMPORTING,
+        index=True,
+    )
+    item_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    items: Mapped[list["BulkSubmissionItem"]] = relationship(
+        back_populates="batch", cascade="all, delete-orphan"
+    )
+
+
+class BulkSubmissionItem(Base):
+    __tablename__ = "bulk_submission_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    batch_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("bulk_submission_batches.id", ondelete="CASCADE"),
+        index=True,
+    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    youtube_id: Mapped[str] = mapped_column(String(32), index=True)
+    youtube_url: Mapped[str] = mapped_column(String(512))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[BulkSubmissionItemStatus] = mapped_column(
+        pg_enum(BulkSubmissionItemStatus, name="bulksubmissionitemstatus"),
+        default=BulkSubmissionItemStatus.PENDING_META,
+        index=True,
+    )
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    fingerprint_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("media_fingerprints.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id", ondelete="SET NULL"), nullable=True
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    batch: Mapped["BulkSubmissionBatch"] = relationship(back_populates="items")

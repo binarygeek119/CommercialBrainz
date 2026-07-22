@@ -52,6 +52,16 @@ async def check_public_youtube_links(ctx, limit: int | None = None):
     return counts
 
 
+async def import_bulk_playlist(ctx, batch_id: str):
+    from uuid import UUID
+
+    from app.services.bulk_submit import import_bulk_playlist as run_import
+
+    result = await run_import(UUID(batch_id))
+    logger.info("Bulk playlist import finished: %s", result)
+    return result
+
+
 async def startup(ctx):
     logger.info("CommercialBrainz worker started")
 
@@ -69,6 +79,7 @@ class WorkerSettings:
         hash_media,
         process_pending_queue,
         check_public_youtube_links,
+        import_bulk_playlist,
     ]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),

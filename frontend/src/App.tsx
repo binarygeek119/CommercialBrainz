@@ -20,6 +20,9 @@ import ModPage from "./pages/ModPage";
 import ModRoute from "./components/ModRoute";
 import AdminPage from "./pages/AdminPage";
 import AdminRoute from "./components/AdminRoute";
+import BulkSubmitPage from "./pages/BulkSubmitPage";
+import BulkSubmitQueuePage from "./pages/BulkSubmitQueuePage";
+import BulkSubmitRoute from "./components/BulkSubmitRoute";
 import LoginPage from "./pages/LoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -48,6 +51,10 @@ export default function App() {
         <Route path="advertiser/:sbid" element={<AdvertiserPage />} />
         <Route path="submit" element={<SubmitPage />} />
         <Route path="submit/upgrade" element={<SubmitUpgradePage />} />
+        <Route element={<BulkSubmitRoute />}>
+          <Route path="submit/bulk" element={<BulkSubmitPage />} />
+          <Route path="submit/bulk/queue" element={<BulkSubmitQueuePage />} />
+        </Route>
         <Route path="edits" element={<EditsPage />} />
         <Route path="edits/:id" element={<EditDetailPage />} />
         <Route path="user/:username" element={<UserProfilePage />} />

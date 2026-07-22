@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     phash_duplicate_threshold: int = 8
     fingerprint_max_retries: int = 3
     fingerprint_retry_delay_minutes: int = 15
+    bulk_submit_min_reputation: float = 500.0
+    bulk_submit_max_playlist_items: int = 50
     registration_invite_only: bool = False
     thumbnail_max_bytes: int = 2 * 1024 * 1024
     thumbnail_upload_dir: str = "/data/thumbnails"

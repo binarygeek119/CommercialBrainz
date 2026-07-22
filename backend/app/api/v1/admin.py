@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -5,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_admin
+from app.auth.security import user_bulk_submit_eligible
 from app.auth.serializers import user_to_public_basic
 from app.database import get_db
 from app.models import (
@@ -21,6 +23,7 @@ from app.models import (
     VideoHashStatus,
 )
 from app.schemas import (
+    AdminBulkSubmitUpdate,
     AdminFingerprintPublic,
     AdminStats,
     AdminUserActiveUpdate,
@@ -51,6 +54,15 @@ from app.services.registration_invites import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _admin_user_public(user: User) -> AdminUserPublic:
+    return AdminUserPublic(
+        **user_to_public_basic(user).model_dump(),
+        is_active=user.is_active,
+        bulk_submit_revoked_at=user.bulk_submit_revoked_at,
+        bulk_submit_revoke_reason=user.bulk_submit_revoke_reason,
+    )
 
 
 @router.get("/stats", response_model=AdminStats)
@@ -110,13 +122,7 @@ async def list_users(
     total = await db.scalar(count_stmt)
     result = await db.execute(stmt.offset(offset).limit(limit))
     users = result.scalars().all()
-    items = [
-        AdminUserPublic(
-            **user_to_public_basic(u).model_dump(),
-            is_active=u.is_active,
-        ).model_dump()
-        for u in users
-    ]
+    items = [_admin_user_public(u).model_dump() for u in users]
     return PaginatedResponse(items=items, total=total or len(items), offset=offset, limit=limit)
 
 
@@ -145,7 +151,7 @@ async def set_user_role(
     if new_role in (UserRole.MOD, UserRole.ADMIN):
         user.access_level = UserAccess.SUBMIT_AND_VOTE
     await db.flush()
-    return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
+    return _admin_user_public(user)
 
 
 @router.post("/users/{user_id}/access/{access}", response_model=AdminUserPublic)
@@ -170,7 +176,7 @@ async def set_user_access(
 
     user.access_level = new_access
     await db.flush()
-    return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
+    return _admin_user_public(user)
 
 
 @router.post("/users/{user_id}/active", response_model=AdminUserPublic)
@@ -190,7 +196,43 @@ async def set_user_active(
 
     user.is_active = data.is_active
     await db.flush()
-    return AdminUserPublic(**user_to_public_basic(user).model_dump(), is_active=user.is_active)
+    return _admin_user_public(user)
+
+
+@router.post("/users/{user_id}/bulk-submit", response_model=AdminUserPublic)
+async def set_user_bulk_submit(
+    user_id: UUID,
+    data: AdminBulkSubmitUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if data.enabled:
+        if not user_bulk_submit_eligible(user):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "User must have 500+ reputation points or be a mod/admin "
+                    "to enable bulk submit"
+                ),
+            )
+        user.bulk_submit_enabled = True
+        user.bulk_submit_revoked_at = None
+        user.bulk_submit_revoke_reason = None
+    else:
+        user.bulk_submit_enabled = False
+        user.bulk_submit_revoked_at = datetime.now(UTC)
+        user.bulk_submit_revoke_reason = (data.revoke_reason or "").strip() or None
+        # Clear terms so re-grant requires fresh acceptance of current version.
+        user.power_user_terms_version = None
+        user.power_user_terms_accepted_at = None
+
+    await db.flush()
+    return _admin_user_public(user)
 
 
 @router.get("/fingerprint-queue", response_model=FingerprintQueueStatus)

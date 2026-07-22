@@ -53,6 +53,11 @@ export default function CommercialPage() {
           <h1 className="page-title" style={{ marginTop: 0 }}>
             {data.title}
           </h1>
+          {data.was_bulk_imported && (
+            <span className="badge badge-submitted" style={{ textTransform: "none" }}>
+              was bulk imported
+            </span>
+          )}
           {data.campaign_name && data.campaign_name !== data.title && (
             <p className="muted">{data.campaign_name}</p>
           )}

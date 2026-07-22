@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.security import (
     decode_access_token,
     get_user_by_id,
+    user_bulk_submit_granted,
+    user_can_bulk_submit,
     user_can_submit,
     user_email_verified,
     user_is_admin,
@@ -123,4 +125,28 @@ async def require_mod(user: User = Depends(require_write_access)) -> User:
 async def require_admin(user: User = Depends(require_write_access)) -> User:
     if not user_is_admin(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+
+async def require_bulk_submit_granted(user: User = Depends(require_write_access)) -> User:
+    """Admin-enabled power user (terms may still be pending). Silent 403 for others."""
+    if not user_email_verified(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    if not user_bulk_submit_granted(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return user
+
+
+async def require_bulk_submitter(
+    user: User = Depends(require_write_access),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Full bulk-submit access including accepted Power User Terms. Silent 403."""
+    if not user_email_verified(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    from app.services.power_user_terms import active_power_user_terms_version
+
+    version = await active_power_user_terms_version(db)
+    if not user_can_bulk_submit(user, active_terms_version=version):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     return user

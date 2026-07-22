@@ -114,6 +114,10 @@ class UserPublic(ORMModel):
     accepted_edits_count: int
     submission_terms_version: int | None = None
     submission_terms_accepted_at: datetime | None = None
+    bulk_submit_enabled: bool = False
+    can_bulk_submit: bool = False
+    power_user_terms_version: int | None = None
+    power_user_terms_accepted_at: datetime | None = None
     created_at: datetime
 
 
@@ -124,6 +128,7 @@ class UserProfilePublic(ORMModel):
     reputation_points: float = 0
     accepted_edits_count: int = 0
     submission_count: int = 0
+    is_power_user: bool = False
     created_at: datetime
 
 
@@ -182,6 +187,76 @@ class SubmissionTermsPublic(BaseModel):
     intro: str
     sections: list[SubmissionTermsSection]
     quiz_required: bool = True
+
+
+class PowerUserTermsPublic(BaseModel):
+    version: int
+    title: str
+    intro: str
+    sections: list[SubmissionTermsSection]
+    accepted: bool = False
+
+
+class PowerUserTermsAccept(BaseModel):
+    agreed: bool = False
+
+
+class BulkPlaylistImportRequest(BaseModel):
+    playlist_url: str = Field(min_length=8, max_length=1024)
+
+
+class BulkPlaylistCheckCounts(BaseModel):
+    total: int = 0
+    ok: int = 0
+    catalog: int = 0
+    queue: int = 0
+    playlist_duplicate: int = 0
+
+
+class BulkPlaylistCheckEntry(BaseModel):
+    youtube_id: str
+    youtube_url: str
+    title: str | None = None
+    position: int = 0
+    status: str
+    reason: str | None = None
+    existing_video_sbid: str | None = None
+
+
+class BulkPlaylistCheckPublic(BaseModel):
+    playlist_id: str | None = None
+    playlist_title: str | None = None
+    playlist_url: str
+    counts: BulkPlaylistCheckCounts
+    entries: list[BulkPlaylistCheckEntry] = Field(default_factory=list)
+
+
+class BulkSubmissionBatchPublic(ORMModel):
+    id: UUID
+    playlist_url: str
+    playlist_id: str | None = None
+    playlist_title: str | None = None
+    status: str
+    item_count: int = 0
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class BulkSubmissionItemPublic(ORMModel):
+    id: UUID
+    batch_id: UUID
+    youtube_id: str
+    youtube_url: str
+    position: int = 0
+    status: str
+    title: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    fingerprint_id: UUID | None = None
+    edit_id: UUID | None = None
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 # --- Entities ---
@@ -275,6 +350,35 @@ class CommercialCreate(BaseModel):
         return value
 
 
+class BulkItemSubmitRequest(BaseModel):
+    commercial_id: UUID | None = None
+    commercial: CommercialCreate | None = None
+    thumbnail_url: str | None = None
+    version_label: str | None = Field(default=None, max_length=255)
+    channel_name: str | None = None
+    upload_date: str | None = None
+    duration_ms: int | None = None
+    aspect_ratio: str | None = None
+    resolution: str | None = None
+    language: str | None = None
+    region: str | None = None
+    sub_region: str | None = None
+    market: str | None = None
+    first_aired_date: str | None = None
+    last_aired_date: str | None = None
+    network: str | None = None
+    transcript: str | None = None
+    slogan: str | None = None
+    cta_text: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    credits: list[dict] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    genres: dict | None = None
+    comment: str | None = None
+    force_votable: bool = False
+    terms_agreed: bool = False
+
+
 class CommercialPublic(ORMModel):
     sbid: UUID
     title: str
@@ -285,6 +389,7 @@ class CommercialPublic(ORMModel):
     campaign_name: str | None
     description: str | None
     external_ids: dict
+    was_bulk_imported: bool | None = None
     created_at: datetime
 
 
@@ -661,10 +766,17 @@ class AdminStats(BaseModel):
 
 class AdminUserPublic(UserPublic):
     is_active: bool
+    bulk_submit_revoked_at: datetime | None = None
+    bulk_submit_revoke_reason: str | None = None
 
 
 class AdminUserActiveUpdate(BaseModel):
     is_active: bool
+
+
+class AdminBulkSubmitUpdate(BaseModel):
+    enabled: bool
+    revoke_reason: str | None = None
 
 
 class ArchiveExportStatus(BaseModel):
