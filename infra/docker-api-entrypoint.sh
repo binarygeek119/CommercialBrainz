@@ -40,7 +40,39 @@ asyncio.run(wait_for_db())
 PY
 
 echo "==> Running migrations"
-alembic upgrade head
+python <<'PY'
+"""Serialize alembic across api/worker containers (advisory lock)."""
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+
+from sqlalchemy import create_engine, text
+
+
+def sync_database_url(url: str) -> str:
+    if url.startswith("postgresql+asyncpg://"):
+        return "postgresql://" + url.removeprefix("postgresql+asyncpg://")
+    if url.startswith("postgres://"):
+        return "postgresql://" + url.removeprefix("postgres://")
+    return url
+
+
+url = sync_database_url(os.environ["DATABASE_URL"])
+engine = create_engine(url)
+# Arbitrary app-specific lock key for CommercialBrainz migrations.
+LOCK_KEY = 872_364_031
+with engine.connect() as conn:
+    conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": LOCK_KEY})
+    conn.commit()
+    try:
+        subprocess.check_call(["alembic", "upgrade", "head"])
+    finally:
+        conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": LOCK_KEY})
+        conn.commit()
+engine.dispose()
+PY
 
 python <<'PY'
 import asyncio
