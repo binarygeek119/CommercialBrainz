@@ -48,8 +48,8 @@ services:
     volumes:
       - thumbnail_uploads:/data/thumbnails
       - logo_uploads:/data/logos
-      # Optional: place Netscape cookies at ../data/ytdlp/cookies.txt and set YTDLP_COOKIES_FILE
-      - ../data/ytdlp:/data/ytdlp:ro
+      # Admin UI / env cookies for yt-dlp (writable so admins can update cookies.txt)
+      - ../data/ytdlp:/data/ytdlp
     command: ["api"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
@@ -75,7 +75,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ../data/ytdlp:/data/ytdlp:ro
+      - ../data/ytdlp:/data/ytdlp
     command: ["worker"]
 
   web:

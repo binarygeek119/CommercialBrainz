@@ -1,31 +1,80 @@
-"""Tests for yt-dlp cookie auth helpers."""
+"""Tests for yt-dlp cookie auth helpers and managed cookies storage."""
 
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from app.services.ytdlp_auth import ytdlp_auth_args, ytdlp_error_message
+from app.services.ytdlp_cookies import (
+    clear_cookies,
+    cookies_status,
+    save_cookies_text,
+    validate_cookies_text,
+)
+
+
+def _settings(*, cookies_file: str = "", managed: str = "", browser: str = ""):
+    class S:
+        ytdlp_cookies_file = cookies_file
+        ytdlp_cookies_managed_path = managed
+        ytdlp_cookies_from_browser = browser
+
+    return S()
 
 
 def test_ytdlp_auth_args_prefer_cookies_file(tmp_path: Path):
     cookies = tmp_path / "cookies.txt"
-    cookies.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
-    with patch("app.services.ytdlp_auth.get_settings") as get_settings:
-        get_settings.return_value.ytdlp_cookies_file = str(cookies)
-        get_settings.return_value.ytdlp_cookies_from_browser = "chrome"
+    cookies.write_text("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tFALSE\t0\tA\tb\n")
+    managed = tmp_path / "managed.txt"
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
+            cookies_file=str(cookies), managed=str(managed), browser="chrome"
+        )),
+        patch("app.services.ytdlp_auth.get_settings", return_value=_settings(
+            cookies_file=str(cookies), managed=str(managed), browser="chrome"
+        )),
+    ):
         assert ytdlp_auth_args() == ["--cookies", str(cookies)]
 
 
-def test_ytdlp_auth_args_browser_fallback():
-    with patch("app.services.ytdlp_auth.get_settings") as get_settings:
-        get_settings.return_value.ytdlp_cookies_file = ""
-        get_settings.return_value.ytdlp_cookies_from_browser = "chrome:Profile 1"
+def test_ytdlp_auth_args_uses_managed_when_no_override(tmp_path: Path):
+    managed = tmp_path / "cookies.txt"
+    managed.write_text("# Netscape HTTP Cookie File\nyoutube.com\tTRUE\t/\tFALSE\t0\tA\tb\n")
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
+            cookies_file="", managed=str(managed)
+        )),
+        patch("app.services.ytdlp_auth.get_settings", return_value=_settings(
+            cookies_file="", managed=str(managed)
+        )),
+    ):
+        assert ytdlp_auth_args() == ["--cookies", str(managed)]
+
+
+def test_ytdlp_auth_args_browser_fallback(tmp_path: Path):
+    missing = tmp_path / "missing.txt"
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
+            cookies_file="", managed=str(missing), browser="chrome:Profile 1"
+        )),
+        patch("app.services.ytdlp_auth.get_settings", return_value=_settings(
+            cookies_file="", managed=str(missing), browser="chrome:Profile 1"
+        )),
+    ):
         assert ytdlp_auth_args() == ["--cookies-from-browser", "chrome:Profile 1"]
 
 
-def test_ytdlp_auth_args_empty_when_unset():
-    with patch("app.services.ytdlp_auth.get_settings") as get_settings:
-        get_settings.return_value.ytdlp_cookies_file = ""
-        get_settings.return_value.ytdlp_cookies_from_browser = ""
+def test_ytdlp_auth_args_empty_when_unset(tmp_path: Path):
+    missing = tmp_path / "missing.txt"
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
+            cookies_file="", managed=str(missing), browser=""
+        )),
+        patch("app.services.ytdlp_auth.get_settings", return_value=_settings(
+            cookies_file="", managed=str(missing), browser=""
+        )),
+    ):
         assert ytdlp_auth_args() == []
 
 
@@ -33,17 +82,41 @@ def test_ytdlp_error_message_adds_cookie_hint():
     msg = ytdlp_error_message(
         "ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies"
     )
-    assert "YTDLP_COOKIES_FILE" in msg
+    assert "Admin → YouTube cookies" in msg
     assert "Sign in to confirm" in msg
+
+
+def test_save_and_clear_cookies(tmp_path: Path):
+    managed = tmp_path / "cookies.txt"
+    with patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
+        managed=str(managed)
+    )):
+        status = save_cookies_text(
+            "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tFALSE\t0\tSID\tvalue\n"
+        )
+        assert status["present"] is True
+        assert managed.is_file()
+        assert "SID" in managed.read_text(encoding="utf-8")
+        assert cookies_status()["size_bytes"] > 0
+
+        cleared = clear_cookies()
+        assert cleared["present"] is False
+        assert not managed.exists()
+
+
+def test_validate_cookies_rejects_garbage():
+    with pytest.raises(ValueError, match="Does not look like"):
+        validate_cookies_text("hello world")
 
 
 def test_metadata_cmd_includes_cookies(tmp_path: Path):
     cookies = tmp_path / "cookies.txt"
-    cookies.write_text("# Netscape\n", encoding="utf-8")
+    cookies.write_text("# Netscape\n.youtube.com\tTRUE\t/\tFALSE\t0\tA\tb\n", encoding="utf-8")
     captured: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):
         captured.append(cmd)
+
         class Result:
             returncode = 1
             stderr = "boom"
@@ -51,13 +124,12 @@ def test_metadata_cmd_includes_cookies(tmp_path: Path):
 
         return Result()
 
-    with patch("app.services.ytdlp_auth.get_settings") as get_settings, patch(
-        "app.services.youtube_metadata.subprocess.run", side_effect=fake_run
+    settings = _settings(cookies_file=str(cookies), managed=str(tmp_path / "other.txt"))
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
+        patch("app.services.ytdlp_auth.get_settings", return_value=settings),
+        patch("app.services.youtube_metadata.subprocess.run", side_effect=fake_run),
     ):
-        get_settings.return_value.ytdlp_cookies_file = str(cookies)
-        get_settings.return_value.ytdlp_cookies_from_browser = ""
-        import pytest
-
         from app.services.youtube_metadata import _run_ytdlp_json
 
         with pytest.raises(RuntimeError, match="boom"):

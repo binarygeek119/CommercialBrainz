@@ -35,6 +35,8 @@ from app.schemas import (
     RegistrationInviteOnlyUpdate,
     RegistrationInvitePublic,
     RegistrationSettingsPublic,
+    YtdlpCookiesStatus,
+    YtdlpCookiesUpdate,
 )
 from app.services.archive_export_queue import (
     enqueue_archive_export,
@@ -391,3 +393,44 @@ async def admin_revoke_invite(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return RegistrationInvitePublic(**invite_to_public(invite))
+
+
+@router.get("/ytdlp-cookies", response_model=YtdlpCookiesStatus)
+async def admin_ytdlp_cookies_status(_admin: User = Depends(require_admin)):
+    """Status of the managed YouTube cookies file (never returns cookie contents)."""
+    from app.services.ytdlp_cookies import cookies_status
+
+    return YtdlpCookiesStatus(**cookies_status())
+
+
+@router.put("/ytdlp-cookies", response_model=YtdlpCookiesStatus)
+async def admin_set_ytdlp_cookies(
+    data: YtdlpCookiesUpdate,
+    _admin: User = Depends(require_admin),
+):
+    """Replace the managed Netscape cookies.txt used by yt-dlp."""
+    from app.services.ytdlp_cookies import save_cookies_text
+
+    try:
+        return YtdlpCookiesStatus(**save_cookies_text(data.cookies))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not write cookies file: {e}",
+        ) from e
+
+
+@router.delete("/ytdlp-cookies", response_model=YtdlpCookiesStatus)
+async def admin_clear_ytdlp_cookies(_admin: User = Depends(require_admin)):
+    """Delete the managed cookies file."""
+    from app.services.ytdlp_cookies import clear_cookies
+
+    try:
+        return YtdlpCookiesStatus(**clear_cookies())
+    except OSError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not clear cookies file: {e}",
+        ) from e

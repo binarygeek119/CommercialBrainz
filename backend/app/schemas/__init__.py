@@ -860,6 +860,23 @@ class ArchiveExportStatus(BaseModel):
     error: str | None = None
 
 
+class YtdlpCookiesStatus(BaseModel):
+    """Status of the admin-managed yt-dlp cookies file (never includes contents)."""
+
+    present: bool = False
+    path: str
+    size_bytes: int = 0
+    updated_at: str | None = None
+    active: bool = False
+    active_path: str | None = None
+    env_override: bool = False
+    browser_fallback: bool = False
+
+
+class YtdlpCookiesUpdate(BaseModel):
+    cookies: str = Field(..., min_length=1, max_length=2 * 1024 * 1024)
+
+
 class ModStats(BaseModel):
     open_edits: int
     dmca_submitted: int
