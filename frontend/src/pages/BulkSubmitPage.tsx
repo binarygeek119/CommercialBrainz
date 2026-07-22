@@ -139,8 +139,9 @@ export default function BulkSubmitPage() {
         </Link>
       </div>
       <p className="muted">
-        Paste a YouTube playlist URL, check for duplicate links, then import. Videos are hashed and
-        metadata is fetched immediately; nothing goes live until you review and submit each item.
+        Paste a YouTube playlist URL, check for duplicate links, then import. The full playlist is
+        saved as your link list. Only {check?.staging_window ?? 10} videos are staged for review and
+        hashing at a time; when you submit (or skip) one, the next link enters the queue.
       </p>
       <div className="card" style={{ marginTop: "1rem" }}>
         <label htmlFor="playlist-url">Playlist URL</label>
@@ -192,7 +193,14 @@ export default function BulkSubmitPage() {
                   check.counts.playlist_duplicate === 1 ? "" : "s"
                 }`
               : ""}
+            {` · stages ${check.staging_window ?? 10} at a time`}
           </p>
+          {importable > 0 && (
+            <p className="muted" style={{ marginBottom: "0.75rem" }}>
+              Import stores all {importable} link{importable === 1 ? "" : "s"}, then hashes the first{" "}
+              {Math.min(importable, check.staging_window ?? 10)} for review.
+            </p>
+          )}
           {importable < 1 && (
             <p className="error">Nothing new to import — every link is a duplicate.</p>
           )}

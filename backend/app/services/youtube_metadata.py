@@ -67,7 +67,7 @@ def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
         "--no-warnings",
         safe_url,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=120)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=300)
     if result.returncode != 0:
         raw = result.stderr or result.stdout or "yt-dlp playlist failed"
         raise RuntimeError(ytdlp_error_message(raw))

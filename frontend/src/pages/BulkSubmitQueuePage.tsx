@@ -19,6 +19,12 @@ export default function BulkSubmitQueuePage() {
     refetchInterval: 5000,
   });
 
+  const { data: batches } = useQuery({
+    queryKey: ["bulk-submit-batches"],
+    queryFn: () => api.bulkSubmitBatches(),
+    refetchInterval: 10000,
+  });
+
   const openItem = (item: BulkSubmissionItem) => {
     setSelected(item);
     const meta = item.metadata || {};
@@ -32,6 +38,7 @@ export default function BulkSubmitQueuePage() {
   const handleSkip = async (itemId: string) => {
     await api.bulkSubmitItemSkip(itemId);
     queryClient.invalidateQueries({ queryKey: ["bulk-submit-items"] });
+    queryClient.invalidateQueries({ queryKey: ["bulk-submit-batches"] });
     if (selected?.id === itemId) setSelected(null);
   };
 
@@ -56,6 +63,7 @@ export default function BulkSubmitQueuePage() {
       });
       setSelected(null);
       queryClient.invalidateQueries({ queryKey: ["bulk-submit-items"] });
+      queryClient.invalidateQueries({ queryKey: ["bulk-submit-batches"] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Submit failed");
     } finally {
@@ -74,8 +82,27 @@ export default function BulkSubmitQueuePage() {
         </Link>
       </div>
       <p className="muted">
-        Review metadata for each staged video, then submit. Prefetched hashes stay attached.
+        Up to 10 videos are staged for review at a time. Hashing starts when a link enters this
+        window. Submit one to public voting and the next playlist link is pulled in automatically.
       </p>
+
+      {batches && batches.length > 0 && (
+        <div className="card" style={{ marginTop: "1rem" }}>
+          <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Saved playlists</h2>
+          <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+            {batches.map((batch) => (
+              <li key={batch.id} style={{ marginBottom: "0.35rem" }}>
+                <strong>{batch.playlist_title || "Playlist"}</strong>
+                <span className="muted">
+                  {" "}
+                  · {batch.staging_count ?? 0} in review · {batch.queued_count ?? 0} waiting ·{" "}
+                  {batch.item_count} total
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {isLoading && <p className="muted">Loading queue…</p>}
       <div className="stack" style={{ marginTop: "1rem" }}>

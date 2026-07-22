@@ -148,3 +148,72 @@ async def test_classify_playlist_entries_flags_duplicates(monkeypatch):
     assert by_pos[1]["existing_video_sbid"] == str(catalog_sbid)
     assert by_pos[2]["reason"] == "queue"
     assert by_pos[3]["reason"] == "playlist_duplicate"
+
+
+@pytest.mark.asyncio
+async def test_stage_next_bulk_items_respects_window(monkeypatch):
+    from app.models import BulkSubmissionItemStatus
+    from app.services import bulk_submit as bs
+
+    monkeypatch.setattr(bs.settings, "bulk_submit_staging_window", 2)
+    batch_id = uuid4()
+    items = [
+        SimpleNamespace(youtube_id="aaaaaaaaaaa", status=BulkSubmissionItemStatus.QUEUED),
+        SimpleNamespace(youtube_id="bbbbbbbbbbb", status=BulkSubmissionItemStatus.QUEUED),
+        SimpleNamespace(youtube_id="ccccccccccc", status=BulkSubmissionItemStatus.QUEUED),
+    ]
+    staged: list[str] = []
+
+    async def fake_count(_db, _batch_id, _statuses):
+        return 0
+
+    async def fake_stage(_db, item):
+        staged.append(item.youtube_id)
+        return uuid4()
+
+    class Scalars:
+        def all(self):
+            return items[:2]
+
+    class ExecResult:
+        def scalars(self):
+            return Scalars()
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=ExecResult())
+    monkeypatch.setattr(bs, "_count_batch_status", fake_count)
+    monkeypatch.setattr(bs, "_stage_item", fake_stage)
+
+    fps = await bs.stage_next_bulk_items(db, batch_id)
+    assert len(fps) == 2
+    assert staged == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+
+
+@pytest.mark.asyncio
+async def test_stage_next_skips_when_window_full(monkeypatch):
+    from app.services import bulk_submit as bs
+
+    monkeypatch.setattr(bs.settings, "bulk_submit_staging_window", 10)
+
+    async def fake_count(_db, _batch_id, _statuses):
+        return 10
+
+    db = AsyncMock()
+    monkeypatch.setattr(bs, "_count_batch_status", fake_count)
+    fps = await bs.stage_next_bulk_items(db, uuid4())
+    assert fps == []
+    db.execute.assert_not_called()
+
+
+def test_open_queue_statuses_include_queued():
+    from app.models import BulkSubmissionItemStatus
+    from app.services.bulk_submit import _OPEN_QUEUE_STATUSES, _STAGING_STATUSES
+
+    assert BulkSubmissionItemStatus.QUEUED in _OPEN_QUEUE_STATUSES
+    assert BulkSubmissionItemStatus.QUEUED not in _STAGING_STATUSES
+    assert BulkSubmissionItemStatus.READY in _STAGING_STATUSES
+
+
+def test_staging_window_default():
+    assert get_settings().bulk_submit_staging_window == 10
+    assert get_settings().bulk_submit_max_playlist_items >= 2000

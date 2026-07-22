@@ -168,6 +168,7 @@ class BulkSubmissionBatchStatus(enum.StrEnum):
 
 
 class BulkSubmissionItemStatus(enum.StrEnum):
+    QUEUED = "queued"
     PENDING_META = "pending_meta"
     HASHING = "hashing"
     READY = "ready"
