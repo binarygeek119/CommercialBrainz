@@ -148,6 +148,25 @@ export interface ModStats {
   failed_fingerprints: number;
   pending_deletion_requests: number;
   dead_links: number;
+  open_commercial_reports?: number;
+}
+
+export interface CommercialReport {
+  id: string;
+  commercial_id: string;
+  commercial_title?: string | null;
+  reporter_id: string;
+  reporter_username?: string | null;
+  reason: string;
+  details?: string | null;
+  status: string;
+  review_notes?: string | null;
+  reviewed_by_id?: string | null;
+  reviewed_by_username?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  outcome_hint?: string | null;
 }
 
 export interface DeadLink {
@@ -597,6 +616,12 @@ export const api = {
 
   getCommercial: (sbid: string) => request<CommercialDetail>(`/commercials/${sbid}`),
 
+  reportCommercial: (sbid: string, data: { reason: string; details?: string }) =>
+    request<CommercialReport>(`/commercials/${sbid}/report`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   getCommercialVideos: (sbid: string) => request<Video[]>(`/commercials/${sbid}/videos`),
 
   voteCommercialVideoPopularity: (
@@ -868,4 +893,12 @@ export const api = {
 
   modRecheckDeadLink: (videoId: string) =>
     request<DeadLink>(`/mod/dead-links/${videoId}/recheck`, { method: "POST" }),
+
+  modCommercialReports: () => request<CommercialReport[]>("/mod/commercial-reports"),
+
+  modReviewCommercialReport: (reportId: string, status: string, reviewNotes?: string) =>
+    request<CommercialReport>(`/mod/commercial-reports/${reportId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ status, review_notes: reviewNotes ?? null }),
+    }),
 };
