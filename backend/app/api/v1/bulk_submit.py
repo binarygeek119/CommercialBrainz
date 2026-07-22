@@ -21,6 +21,7 @@ from app.schemas import (
     PowerUserTermsPublic,
 )
 from app.services.bulk_submit import (
+    batch_counts,
     batch_to_dict,
     create_bulk_batch,
     enqueue_bulk_playlist_import,
@@ -90,6 +91,7 @@ async def check_playlist_duplicates(
         playlist_url=result["playlist_url"],
         counts=BulkPlaylistCheckCounts(**result["counts"]),
         entries=[BulkPlaylistCheckEntry(**entry) for entry in result["entries"]],
+        staging_window=int(result.get("staging_window") or 10),
     )
 
 
@@ -112,7 +114,11 @@ async def list_batches(
     user: User = Depends(require_bulk_submitter),
 ):
     batches = await list_owner_batches(db, user.id)
-    return [BulkSubmissionBatchPublic(**batch_to_dict(b)) for b in batches]
+    out: list[BulkSubmissionBatchPublic] = []
+    for batch in batches:
+        counts = await batch_counts(db, batch.id)
+        out.append(BulkSubmissionBatchPublic(**batch_to_dict(batch, **counts)))
+    return out
 
 
 @router.get("/items", response_model=list[BulkSubmissionItemPublic])
@@ -153,7 +159,7 @@ async def submit_item(
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
     try:
-        edit = await finalize_bulk_item(db, user, item, body.model_dump())
+        edit, refill_fps = await finalize_bulk_item(db, user, item, body.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await db.commit()
@@ -172,6 +178,8 @@ async def submit_item(
     )
     for (fp_id,) in result.all():
         background_tasks.add_task(enqueue_hash_job, fp_id)
+    for fp_id in refill_fps:
+        background_tasks.add_task(enqueue_hash_job, fp_id)
 
     return await build_edit_public(db, edit, editor_username=user.username)
 
@@ -179,6 +187,7 @@ async def submit_item(
 @router.post("/items/{item_id}/skip", response_model=BulkSubmissionItemPublic)
 async def skip_bulk_item(
     item_id: UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_bulk_submitter),
 ):
@@ -186,10 +195,12 @@ async def skip_bulk_item(
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
     try:
-        await skip_item(db, item)
+        refill_fps = await skip_item(db, item)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await db.commit()
+    for fp_id in refill_fps:
+        background_tasks.add_task(enqueue_hash_job, fp_id)
     return BulkSubmissionItemPublic(**item_to_dict(item))
 
 

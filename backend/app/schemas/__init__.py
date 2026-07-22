@@ -245,6 +245,7 @@ class BulkPlaylistCheckPublic(BaseModel):
     playlist_url: str
     counts: BulkPlaylistCheckCounts
     entries: list[BulkPlaylistCheckEntry] = Field(default_factory=list)
+    staging_window: int = 10
 
 
 class BulkSubmissionBatchPublic(ORMModel):
@@ -254,6 +255,8 @@ class BulkSubmissionBatchPublic(ORMModel):
     playlist_title: str | None = None
     status: str
     item_count: int = 0
+    queued_count: int = 0
+    staging_count: int = 0
     error_message: str | None = None
     created_at: datetime
     updated_at: datetime

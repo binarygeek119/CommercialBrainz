@@ -73,6 +73,8 @@ export interface BulkSubmissionBatch {
   playlist_title?: string | null;
   status: string;
   item_count: number;
+  queued_count?: number;
+  staging_count?: number;
   error_message?: string | null;
   created_at: string;
   updated_at: string;
@@ -118,6 +120,7 @@ export interface BulkPlaylistCheck {
   playlist_url: string;
   counts: BulkPlaylistCheckCounts;
   entries: BulkPlaylistCheckEntry[];
+  staging_window?: number;
 }
 
 export interface QuizQuestion {

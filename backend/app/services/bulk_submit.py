@@ -9,7 +9,7 @@ from uuid import UUID
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -46,11 +46,18 @@ async def enqueue_bulk_playlist_import(batch_id: UUID) -> None:
         await pool.aclose()
 
 
-_OPEN_QUEUE_STATUSES = (
+# Items that occupy a staging/review slot (counted toward the window).
+_STAGING_STATUSES = (
     BulkSubmissionItemStatus.PENDING_META,
     BulkSubmissionItemStatus.HASHING,
     BulkSubmissionItemStatus.READY,
     BulkSubmissionItemStatus.FAILED,
+)
+
+# Items that block re-import of the same YouTube id for this owner.
+_OPEN_QUEUE_STATUSES = (
+    BulkSubmissionItemStatus.QUEUED,
+    *_STAGING_STATUSES,
 )
 
 
@@ -151,6 +158,7 @@ async def preview_playlist_duplicates(
         "playlist_url": playlist_url.strip(),
         "counts": counts,
         "entries": classified,
+        "staging_window": settings.bulk_submit_staging_window,
     }
 
 
@@ -169,8 +177,94 @@ async def create_bulk_batch(
     return batch
 
 
+async def _count_batch_status(
+    db: AsyncSession, batch_id: UUID, statuses: tuple[BulkSubmissionItemStatus, ...]
+) -> int:
+    result = await db.execute(
+        select(func.count())
+        .select_from(BulkSubmissionItem)
+        .where(
+            BulkSubmissionItem.batch_id == batch_id,
+            BulkSubmissionItem.status.in_(statuses),
+        )
+    )
+    return int(result.scalar() or 0)
+
+
+async def _stage_item(db: AsyncSession, item: BulkSubmissionItem) -> UUID | None:
+    """
+    Promote one queued item into the review window: fetch metadata and start hashing.
+
+    Returns fingerprint id to enqueue after commit, or None on failure.
+    """
+    try:
+        meta = fetch_youtube_metadata(item.youtube_id)
+        # Preserve playlist title if metadata has none.
+        if not meta.get("title") and not meta.get("youtube_title"):
+            prior = dict(item.extra_data or {})
+            if prior.get("title"):
+                meta = {**meta, "title": prior["title"]}
+        item.extra_data = meta
+        item.status = BulkSubmissionItemStatus.HASHING
+        fp = MediaFingerprint(
+            edit_id=None,
+            youtube_id=item.youtube_id,
+            phase=FingerprintPhase.PREVIEW,
+            status=FingerprintStatus.PENDING,
+        )
+        db.add(fp)
+        await db.flush()
+        item.fingerprint_id = fp.id
+        item.error_message = None
+        item.updated_at = datetime.now(UTC)
+        return fp.id
+    except Exception as exc:  # noqa: BLE001
+        item.status = BulkSubmissionItemStatus.FAILED
+        item.error_message = str(exc)[:500]
+        item.updated_at = datetime.now(UTC)
+        return None
+
+
+async def stage_next_bulk_items(
+    db: AsyncSession,
+    batch_id: UUID,
+    *,
+    limit: int | None = None,
+) -> list[UUID]:
+    """
+    Fill the per-batch staging window from QUEUED playlist links.
+
+    Hashing starts only when an item is promoted into the window.
+    Returns fingerprint ids that should be enqueued after commit.
+    """
+    window = max(1, int(settings.bulk_submit_staging_window))
+    active = await _count_batch_status(db, batch_id, _STAGING_STATUSES)
+    slots = max(0, window - active)
+    if limit is not None:
+        slots = min(slots, max(0, int(limit)))
+    if slots == 0:
+        return []
+
+    result = await db.execute(
+        select(BulkSubmissionItem)
+        .where(
+            BulkSubmissionItem.batch_id == batch_id,
+            BulkSubmissionItem.status == BulkSubmissionItemStatus.QUEUED,
+        )
+        .order_by(BulkSubmissionItem.position.asc(), BulkSubmissionItem.created_at.asc())
+        .limit(slots)
+        .with_for_update(skip_locked=True)
+    )
+    fingerprint_ids: list[UUID] = []
+    for item in result.scalars().all():
+        fp_id = await _stage_item(db, item)
+        if fp_id is not None:
+            fingerprint_ids.append(fp_id)
+    return fingerprint_ids
+
+
 async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
-    """Worker entry: expand playlist, skip duplicates, fetch metadata, enqueue hashes."""
+    """Worker entry: store full playlist link list, stage the review window, enqueue hashes."""
     from app.database import async_session_factory
 
     async with async_session_factory() as db:
@@ -197,7 +291,6 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
         batch.item_count = len(classified)
         await db.flush()
 
-        fingerprint_ids: list[UUID] = []
         for row in classified:
             youtube_id = row["youtube_id"]
             item = BulkSubmissionItem(
@@ -206,7 +299,7 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
                 youtube_id=youtube_id,
                 youtube_url=row["youtube_url"],
                 position=row["position"],
-                status=BulkSubmissionItemStatus.PENDING_META,
+                status=BulkSubmissionItemStatus.QUEUED,
                 extra_data={"title": row.get("title")},
             )
             db.add(item)
@@ -226,26 +319,8 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
                 if row.get("existing_video_sbid"):
                     extra["existing_video_sbid"] = row["existing_video_sbid"]
                 item.extra_data = extra
-                continue
 
-            try:
-                meta = fetch_youtube_metadata(youtube_id)
-                item.extra_data = meta
-                item.status = BulkSubmissionItemStatus.HASHING
-                fp = MediaFingerprint(
-                    edit_id=None,
-                    youtube_id=youtube_id,
-                    phase=FingerprintPhase.PREVIEW,
-                    status=FingerprintStatus.PENDING,
-                )
-                db.add(fp)
-                await db.flush()
-                item.fingerprint_id = fp.id
-                fingerprint_ids.append(fp.id)
-            except Exception as exc:  # noqa: BLE001
-                item.status = BulkSubmissionItemStatus.FAILED
-                item.error_message = str(exc)[:500]
-
+        fingerprint_ids = await stage_next_bulk_items(db, batch.id)
         batch.status = BulkSubmissionBatchStatus.READY
         batch.updated_at = datetime.now(UTC)
         await db.commit()
@@ -261,7 +336,8 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
         "ok": True,
         "batch_id": str(batch_id),
         "items": len(classified),
-        "hashed": len(fingerprint_ids),
+        "staged": len(fingerprint_ids),
+        "staging_window": settings.bulk_submit_staging_window,
     }
 
 
@@ -311,19 +387,15 @@ async def list_owner_items(
     if status:
         query = query.where(BulkSubmissionItem.status == BulkSubmissionItemStatus(status))
     else:
-        query = query.where(
-            BulkSubmissionItem.status.in_(
-                [
-                    BulkSubmissionItemStatus.PENDING_META,
-                    BulkSubmissionItemStatus.HASHING,
-                    BulkSubmissionItemStatus.READY,
-                    BulkSubmissionItemStatus.FAILED,
-                    BulkSubmissionItemStatus.DUPLICATE,
-                ]
-            )
-        )
+        # Default review queue: active staging slots only (not the waiting link list).
+        query = query.where(BulkSubmissionItem.status.in_(list(_STAGING_STATUSES)))
     result = await db.execute(
-        query.order_by(BulkSubmissionItem.created_at.desc()).offset(offset).limit(limit)
+        query.order_by(
+            BulkSubmissionItem.position.asc(),
+            BulkSubmissionItem.created_at.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
     )
     return list(result.scalars().all())
 
@@ -359,7 +431,18 @@ def item_to_dict(item: BulkSubmissionItem) -> dict[str, Any]:
     }
 
 
-def batch_to_dict(batch: BulkSubmissionBatch) -> dict[str, Any]:
+async def batch_counts(db: AsyncSession, batch_id: UUID) -> dict[str, int]:
+    queued = await _count_batch_status(db, batch_id, (BulkSubmissionItemStatus.QUEUED,))
+    staging = await _count_batch_status(db, batch_id, _STAGING_STATUSES)
+    return {"queued_count": queued, "staging_count": staging}
+
+
+def batch_to_dict(
+    batch: BulkSubmissionBatch,
+    *,
+    queued_count: int = 0,
+    staging_count: int = 0,
+) -> dict[str, Any]:
     return {
         "id": batch.id,
         "playlist_url": batch.playlist_url,
@@ -367,18 +450,23 @@ def batch_to_dict(batch: BulkSubmissionBatch) -> dict[str, Any]:
         "playlist_title": batch.playlist_title,
         "status": batch.status.value,
         "item_count": batch.item_count,
+        "queued_count": queued_count,
+        "staging_count": staging_count,
         "error_message": batch.error_message,
         "created_at": batch.created_at,
         "updated_at": batch.updated_at,
     }
 
 
-async def skip_item(db: AsyncSession, item: BulkSubmissionItem) -> BulkSubmissionItem:
+async def skip_item(db: AsyncSession, item: BulkSubmissionItem) -> list[UUID]:
+    """Skip an item and refill the staging window. Returns fingerprint ids to enqueue."""
     if item.status == BulkSubmissionItemStatus.SUBMITTED:
         raise ValueError("Item already submitted")
+    if item.status == BulkSubmissionItemStatus.QUEUED:
+        raise ValueError("Queued playlist links cannot be skipped until staged")
     item.status = BulkSubmissionItemStatus.SKIPPED
     item.updated_at = datetime.now(UTC)
-    return item
+    return await stage_next_bulk_items(db, item.batch_id)
 
 
 async def rehash_item(db: AsyncSession, item: BulkSubmissionItem) -> BulkSubmissionItem:
@@ -386,6 +474,8 @@ async def rehash_item(db: AsyncSession, item: BulkSubmissionItem) -> BulkSubmiss
         raise ValueError("Item already submitted")
     if item.status == BulkSubmissionItemStatus.DUPLICATE:
         raise ValueError("Item is a catalog duplicate")
+    if item.status == BulkSubmissionItemStatus.QUEUED:
+        raise ValueError("Queued playlist links are hashed when they enter the review window")
 
     fp = MediaFingerprint(
         edit_id=None,
@@ -409,8 +499,12 @@ async def finalize_bulk_item(
     user: User,
     item: BulkSubmissionItem,
     submit_payload: dict[str, Any],
-) -> Edit:
-    """Create a normal CREATE_VIDEO edit from a ready staging item."""
+) -> tuple[Edit, list[UUID]]:
+    """
+    Create a normal CREATE_VIDEO edit from a ready staging item.
+
+    Returns the edit and fingerprint ids for newly staged refill items.
+    """
     from app.services import EditService
     from app.services.advertisers import resolve_commercial_advertiser
     from app.services.submission_terms import validate_and_record_terms_acceptance
@@ -528,4 +622,7 @@ async def finalize_bulk_item(
     item.status = BulkSubmissionItemStatus.SUBMITTED
     item.edit_id = edit.id
     item.updated_at = datetime.now(UTC)
-    return edit
+
+    # Free a staging slot → pull the next playlist link into review + hashing.
+    refill_fps = await stage_next_bulk_items(db, item.batch_id)
+    return edit, refill_fps
