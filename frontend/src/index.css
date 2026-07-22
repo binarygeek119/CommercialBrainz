@@ -488,6 +488,11 @@ a:hover {
   margin-bottom: 0.5rem;
 }
 
+.hero h1.logo {
+  font-size: 2.5rem;
+  display: inline-block;
+}
+
 .hero p {
   color: var(--text-muted);
   max-width: 600px;
