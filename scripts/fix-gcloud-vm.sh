@@ -17,21 +17,32 @@ else
   COMPOSE="sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 fi
 
-echo "==> Sync to origin/main (discard local tracked changes; keep .env)"
-# Local edits on the VM (e.g. previous deploy script tweaks) used to block
-# git pull and leave production on a stale commit.
-if [[ "$(id -u)" -eq 0 ]]; then
-  git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-  git fetch origin main
-  git reset --hard origin/main
-  git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
-  git rev-parse --short HEAD
-else
-  sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-  sudo git fetch origin main
-  sudo git reset --hard origin/main
-  sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
-  sudo git rev-parse --short HEAD
+# Sync first, then re-exec so the remainder of this run uses the new script
+# inode (bash keeps reading the old file after `git reset` replaces it).
+if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
+  echo "==> Sync to origin/main (discard local tracked changes; keep .env)"
+  if [[ "$(id -u)" -eq 0 ]]; then
+    git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+    git fetch origin main
+    git reset --hard origin/main
+    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
+    git rev-parse --short HEAD
+  else
+    sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+    sudo git fetch origin main
+    sudo git reset --hard origin/main
+    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
+    sudo git rev-parse --short HEAD
+  fi
+  export CB_REPO_SYNCED=1
+  echo "==> Re-executing deploy script from synced tree"
+  if [[ "$(id -u)" -eq 0 ]]; then
+    exec env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
+  else
+    exec sudo --preserve-env=IMAGE_TAG,CB_REPO_SYNCED \
+      env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" \
+      bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
+  fi
 fi
 
 echo "==> Full stack status"
@@ -71,7 +82,11 @@ if [[ -n "${GHCR_TOKEN:-}" ]]; then
 fi
 
 echo "==> Pull prebuilt images from GHCR"
-if $COMPOSE pull api worker web; then
+# Prefer explicit docker pull so failures are obvious (compose may mask them).
+API_IMAGE="ghcr.io/binarygeek119/commercialbrainz-api:${IMAGE_TAG}"
+WEB_IMAGE="ghcr.io/binarygeek119/commercialbrainz-web:${IMAGE_TAG}"
+if [[ "$(id -u)" -eq 0 ]]; then DOCKER=docker; else DOCKER="sudo docker"; fi
+if $DOCKER pull "$API_IMAGE" && $DOCKER pull "$WEB_IMAGE"; then
   echo "==> Starting stack from pulled images (no on-VM build)"
   $COMPOSE up -d postgres redis
   $COMPOSE up -d --pull missing --force-recreate --no-build api worker web
