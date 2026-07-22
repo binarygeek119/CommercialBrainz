@@ -1,8 +1,15 @@
 FROM node:20-alpine AS build
 
 # npm's nested tar in this image is vulnerable to CVE-2026-59873 (critical gzip-bomb DoS)
-# until the base image updates. Patch the copy npm uses for pack/extract.
-RUN npm install tar@7.5.21 --prefix /usr/local/lib/node_modules/npm --omit=dev --no-save --no-package-lock \
+# until the base image updates. Replace the copy npm uses for pack/extract without
+# reinstalling into npm's own prefix (that pulls broken @npmcli/docs metadata).
+RUN TAR_DIR=/usr/local/lib/node_modules/npm/node_modules/tar \
+  && cd /tmp \
+  && npm pack tar@7.5.21 \
+  && rm -rf "$TAR_DIR" \
+  && mkdir -p "$TAR_DIR" \
+  && tar -xzf tar-7.5.21.tgz -C "$TAR_DIR" --strip-components=1 \
+  && rm tar-7.5.21.tgz \
   && node -e "const v=require('/usr/local/lib/node_modules/npm/node_modules/tar/package.json').version; if (!v.startsWith('7.5.') || Number(v.split('.')[2]) < 19) { console.error('tar still vulnerable:', v); process.exit(1); }"
 
 WORKDIR /app
