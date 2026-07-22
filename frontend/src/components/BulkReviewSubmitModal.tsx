@@ -610,7 +610,12 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
       </div>
 
       {ytLoading && (
-        <div className="wait-overlay" role="status" aria-live="polite">
+        <div
+          className="wait-overlay"
+          style={{ zIndex: 2100 }}
+          role="status"
+          aria-live="polite"
+        >
           <div className="wait-overlay-card">
             <p className="wait-overlay-title">Please wait</p>
             <p className="muted">Fetching YouTube metadata…</p>
