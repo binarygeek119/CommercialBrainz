@@ -770,6 +770,44 @@ code, .mono {
   flex-shrink: 0;
 }
 
+.add-link-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 17, 23, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.add-link-dialog-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  max-width: 640px;
+  width: 100%;
+  max-height: min(90vh, 900px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.add-link-dialog-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.add-link-dialog-body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 0.25rem;
+}
+
+
 .report-overlay {
   position: fixed;
   inset: 0;

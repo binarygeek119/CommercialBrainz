@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
@@ -35,12 +35,6 @@ export default function CommercialPage() {
   }, [videos, selectedFromUrl]);
 
   const selectedVideo = videos.find((v) => v.sbid === selectedVideoSbid) ?? null;
-
-  useEffect(() => {
-    if (!selectedVideoSbid) return;
-    const el = document.getElementById(`video-${selectedVideoSbid}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [selectedVideoSbid]);
 
   const selectVideo = (videoSbid: string) => {
     setSearchParams({ video: videoSbid }, { replace: true });
@@ -91,11 +85,27 @@ export default function CommercialPage() {
 
       {heroThumb && selectedVideo && (
         <div className="card" style={{ marginTop: "1rem", padding: 0, overflow: "hidden" }}>
-          <img
-            src={heroThumb}
-            alt=""
-            style={{ width: "100%", display: "block", maxHeight: 420, objectFit: "cover" }}
-          />
+          {selectedVideo.youtube_url ? (
+            <a
+              href={selectedVideo.youtube_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Open YouTube video in a new tab"
+              style={{ display: "block" }}
+            >
+              <img
+                src={heroThumb}
+                alt=""
+                style={{ width: "100%", display: "block", maxHeight: 420, objectFit: "cover" }}
+              />
+            </a>
+          ) : (
+            <img
+              src={heroThumb}
+              alt=""
+              style={{ width: "100%", display: "block", maxHeight: 420, objectFit: "cover" }}
+            />
+          )}
         </div>
       )}
 
