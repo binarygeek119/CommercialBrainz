@@ -107,7 +107,10 @@ def test_ytdlp_error_message_adds_format_hint():
 
 
 def test_ytdlp_js_runtime_args_prefers_node():
-    with patch("app.services.ytdlp_auth.shutil.which", side_effect=lambda n: "/usr/bin/node" if n == "node" else None):
+    def which(name: str):
+        return "/usr/bin/node" if name == "node" else None
+
+    with patch("app.services.ytdlp_auth.shutil.which", side_effect=which):
         assert ytdlp_js_runtime_args() == ["--js-runtimes", "node"]
 
 
@@ -115,10 +118,14 @@ def test_ytdlp_common_args_includes_extractor_and_js(tmp_path: Path):
     cookies = tmp_path / "cookies.txt"
     cookies.write_text("# Netscape\n.youtube.com\tTRUE\t/\tFALSE\t0\tA\tb\n", encoding="utf-8")
     settings = _settings(cookies_file=str(cookies), managed=str(tmp_path / "other.txt"))
+
+    def which(name: str):
+        return "/bin/node" if name == "node" else None
+
     with (
         patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
         patch("app.services.ytdlp_auth.get_settings", return_value=settings),
-        patch("app.services.ytdlp_auth.shutil.which", side_effect=lambda n: "/bin/node" if n == "node" else None),
+        patch("app.services.ytdlp_auth.shutil.which", side_effect=which),
     ):
         args = ytdlp_common_args()
     assert args[:3] == ["--cookies", str(cookies), "--js-runtimes"]
