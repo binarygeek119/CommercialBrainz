@@ -22,8 +22,10 @@ from app.models import (
 from app.schemas import (
     AccountDeletionRequestPublic,
     AccountDeletionReview,
+    DeadLinkPublic,
     EditPublic,
     FingerprintQueueStatus,
+    LinkCheckRunResult,
     ModStats,
 )
 from app.services import EditService
@@ -34,6 +36,15 @@ from app.services.account_settings import (
 )
 from app.services.edit_response import build_edit_public
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
+from app.services.link_check import (
+    check_video_link,
+    count_flagged_dead_links,
+    dismiss_dead_link,
+    enqueue_link_check,
+    flagged_video_to_dict,
+    get_video_for_link_check,
+    list_flagged_dead_links,
+)
 
 router = APIRouter(prefix="/mod", tags=["mod"])
 
@@ -89,6 +100,7 @@ async def mod_stats(
         .select_from(AccountDeletionRequest)
         .where(AccountDeletionRequest.status == AccountDeletionStatus.PENDING)
     )
+    dead_links = await count_flagged_dead_links(db)
     return ModStats(
         open_edits=open_edits or 0,
         dmca_submitted=dmca_submitted or 0,
@@ -97,6 +109,7 @@ async def mod_stats(
         pending_fingerprints=pending_fp or 0,
         failed_fingerprints=failed_fp or 0,
         pending_deletion_requests=pending_deletions or 0,
+        dead_links=dead_links,
     )
 
 
@@ -192,3 +205,65 @@ async def mod_reject_deletion_request(
     await db.commit()
     await db.refresh(record, attribute_names=["user", "recipient"])
     return _deletion_request_public(record)
+
+
+@router.get("/dead-links", response_model=list[DeadLinkPublic])
+async def mod_list_dead_links(
+    offset: int = 0,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    _mod: User = Depends(require_mod),
+):
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+    videos = await list_flagged_dead_links(db, offset=offset, limit=limit)
+    return [DeadLinkPublic(**flagged_video_to_dict(v)) for v in videos]
+
+
+@router.post("/dead-links/check", response_model=LinkCheckRunResult)
+async def mod_trigger_dead_link_check(
+    limit: int | None = None,
+    _mod: User = Depends(require_mod),
+):
+    """Enqueue a full (or limited) public YouTube link scan on the worker."""
+    try:
+        await enqueue_link_check(limit=limit)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return LinkCheckRunResult(
+        queued=True,
+        message="YouTube link check queued on the background worker",
+    )
+
+
+@router.post("/dead-links/{video_id}/dismiss", response_model=DeadLinkPublic)
+async def mod_dismiss_dead_link(
+    video_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _mod: User = Depends(require_mod),
+):
+    video = await dismiss_dead_link(db, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    await db.commit()
+    video = await get_video_for_link_check(db, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return DeadLinkPublic(**flagged_video_to_dict(video))
+
+
+@router.post("/dead-links/{video_id}/recheck", response_model=DeadLinkPublic)
+async def mod_recheck_dead_link(
+    video_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _mod: User = Depends(require_mod),
+):
+    video = await get_video_for_link_check(db, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    await check_video_link(db, video)
+    await db.commit()
+    video = await get_video_for_link_check(db, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return DeadLinkPublic(**flagged_video_to_dict(video))
