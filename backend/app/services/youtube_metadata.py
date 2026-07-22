@@ -11,7 +11,12 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from app.services.ytdlp_auth import ytdlp_common_args, ytdlp_error_message
-from app.utils import extract_youtube_id, youtube_watch_url
+from app.utils import (
+    extract_youtube_id,
+    extract_youtube_playlist_id,
+    youtube_playlist_url,
+    youtube_watch_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +28,11 @@ _VTT_TIMESTAMP = re.compile(
 def _canonical_youtube_url(value: str) -> str:
     youtube_id = extract_youtube_id((value or "").strip())
     return youtube_watch_url(youtube_id)
+
+
+def _canonical_youtube_playlist_url(value: str) -> str:
+    playlist_id = extract_youtube_playlist_id((value or "").strip())
+    return youtube_playlist_url(playlist_id)
 
 
 def _run_ytdlp_json(url: str) -> dict[str, Any]:
@@ -47,7 +57,7 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
 
 def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
     """Dump playlist JSON (flat entries) without downloading media."""
-    safe_url = _canonical_youtube_url(url)
+    safe_url = _canonical_youtube_playlist_url(url)
     cmd = [
         "yt-dlp",
         *ytdlp_common_args(),
