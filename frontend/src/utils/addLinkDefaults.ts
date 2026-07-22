@@ -59,6 +59,9 @@ export function commercialInheritanceSummary(commercial: CommercialDetail): stri
   if (commercial.advertiser?.name) lines.push(`Brand: ${commercial.advertiser.name}`);
   const typeLabel = commercialTypeLabel(commercial.commercial_type);
   if (commercial.commercial_type) lines.push(`Type: ${typeLabel}`);
+  if (commercial.commercial_type === "bumper" && commercial.bumper_channel) {
+    lines.push(`Channel: ${commercial.bumper_channel}`);
+  }
   const period = formatCommercialPeriod(commercial.year, commercial.decade);
   if (period) lines.push(`Aired: ${period}`);
   if (commercial.products?.length) lines.push(`Products: ${commercial.products.join(", ")}`);

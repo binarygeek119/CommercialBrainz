@@ -15,6 +15,12 @@ def test_metadata_snapshot_detects_commercial_type_change():
     assert metadata_snapshot_changed(before, after)
 
 
+def test_metadata_snapshot_detects_bumper_channel_change():
+    before = {"title": "Bump", "commercial_type": "bumper", "bumper_channel": "CN"}
+    after = {"title": "Bump", "commercial_type": "bumper", "bumper_channel": "Nick"}
+    assert metadata_snapshot_changed(before, after)
+
+
 def test_metadata_snapshot_ignores_unchanged_products():
     state = {"title": "Spot", "products": ["Soda", "Chips"]}
     assert not metadata_snapshot_changed(state, dict(state))

@@ -1,15 +1,27 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-CommercialTypeValue = Literal["general_ad", "psa", "service", "store"]
+CommercialTypeValue = Literal["general_ad", "psa", "service", "store", "bumper"]
+
+
+def _normalize_bumper_fields(
+    commercial_type: CommercialTypeValue | None,
+    bumper_channel: str | None,
+) -> tuple[CommercialTypeValue | None, str | None]:
+    channel = (bumper_channel or "").strip() or None
+    if commercial_type == "bumper":
+        if not channel:
+            raise ValueError("Channel is required when type is Bumper")
+        return commercial_type, channel
+    return commercial_type, None
 
 
 # --- Auth ---
@@ -342,6 +354,7 @@ class CommercialCreate(BaseModel):
     year: int | None = Field(default=None, ge=1900, le=2100)
     decade: int | None = Field(default=None, ge=1900, le=2100)
     commercial_type: CommercialTypeValue | None = None
+    bumper_channel: str | None = Field(default=None, max_length=255)
     campaign_name: str | None = None
     description: str | None = None
     external_ids: dict = Field(default_factory=dict)
@@ -353,6 +366,15 @@ class CommercialCreate(BaseModel):
         if value is not None and value % 10 != 0:
             raise ValueError("Decade must be a multiple of 10 (e.g. 1990 for the 1990s)")
         return value
+
+    @model_validator(mode="after")
+    def validate_bumper_channel(self) -> Self:
+        commercial_type, bumper_channel = _normalize_bumper_fields(
+            self.commercial_type, self.bumper_channel
+        )
+        self.commercial_type = commercial_type
+        self.bumper_channel = bumper_channel
+        return self
 
 
 class BulkItemSubmitRequest(BaseModel):
@@ -392,6 +414,7 @@ class CommercialPublic(ORMModel):
     year: int | None
     decade: int | None
     commercial_type: str | None = None
+    bumper_channel: str | None = None
     campaign_name: str | None
     description: str | None
     external_ids: dict
@@ -409,6 +432,7 @@ class CommercialMetadataUpdate(BaseModel):
     year: int | None = Field(default=None, ge=1900, le=2100)
     decade: int | None = Field(default=None, ge=1900, le=2100)
     commercial_type: CommercialTypeValue | None = None
+    bumper_channel: str | None = Field(default=None, max_length=255)
     campaign_name: str | None = Field(default=None, max_length=512)
     description: str | None = None
     products: list[str] = Field(default_factory=list)
@@ -419,6 +443,15 @@ class CommercialMetadataUpdate(BaseModel):
         if value is not None and value % 10 != 0:
             raise ValueError("Decade must be a multiple of 10 (e.g. 1990 for the 1990s)")
         return value
+
+    @model_validator(mode="after")
+    def validate_bumper_channel(self) -> Self:
+        commercial_type, bumper_channel = _normalize_bumper_fields(
+            self.commercial_type, self.bumper_channel
+        )
+        self.commercial_type = commercial_type
+        self.bumper_channel = bumper_channel
+        return self
 
 
 class CommercialSplitSubmit(CommercialMetadataUpdate):

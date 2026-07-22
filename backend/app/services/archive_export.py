@@ -312,6 +312,7 @@ async def _load_videos(db: AsyncSession) -> list[dict]:
                 if commercial and commercial.commercial_type is not None
                 else None
             ),
+            "bumper_channel": commercial.bumper_channel if commercial else None,
             "campaign_name": commercial.campaign_name if commercial else None,
             "commercial_description": commercial.description if commercial else None,
             "products": [p.product for p in commercial.products] if commercial else [],

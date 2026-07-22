@@ -9,6 +9,7 @@ COMMERCIAL_METADATA_EDIT_KEYS = (
     "year",
     "decade",
     "commercial_type",
+    "bumper_channel",
     "campaign_name",
     "description",
     "products",
@@ -26,6 +27,7 @@ def commercial_to_state(commercial: Commercial) -> dict:
             if commercial.commercial_type is not None
             else None
         ),
+        "bumper_channel": commercial.bumper_channel,
         "campaign_name": commercial.campaign_name,
         "description": commercial.description,
         "advertiser_id": str(commercial.advertiser_id) if commercial.advertiser_id else None,
