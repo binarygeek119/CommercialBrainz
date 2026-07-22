@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type BulkSubmissionItem, type SubmissionTerms } from "../api";
+import {
+  api,
+  type BulkSubmissionItem,
+  type SubmissionTerms,
+  type YouTubeMetadataPreview,
+} from "../api";
 import AdvertiserPicker, { type AdvertiserSelection } from "./AdvertiserPicker";
 import CatalogPicker, { type CatalogSelection } from "./CatalogPicker";
 import { CATALOG_KIND_LIST } from "../catalog/kinds";
@@ -36,28 +41,27 @@ type FormState = {
   comment: string;
 };
 
-function tagsFromMeta(meta: Record<string, unknown>): string {
-  const raw = meta.tags;
-  if (Array.isArray(raw)) {
-    return raw.map(String).filter(Boolean).join(", ");
-  }
-  if (typeof raw === "string") return raw;
-  return "";
-}
+const EMPTY_FORM: FormState = {
+  commercial_title: "",
+  year: "",
+  decade: "",
+  commercial_type: "",
+  bumper_channel: "",
+  language: "",
+  transcript: "",
+  slogan: "",
+  tags: "",
+  comment: "",
+};
 
-function formFromItem(item: BulkSubmissionItem): FormState {
-  const meta = (item.metadata || {}) as Record<string, unknown>;
+function formFromYouTubeMeta(meta: YouTubeMetadataPreview): FormState {
   return {
-    commercial_title: String(meta.title || meta.youtube_title || item.title || ""),
-    year: "",
-    decade: "",
-    commercial_type: "",
-    bumper_channel: "",
-    language: String(meta.language || ""),
-    transcript: String(meta.transcript || ""),
-    slogan: String(meta.slogan || ""),
-    tags: tagsFromMeta(meta),
-    comment: String(meta.suggested_comment || ""),
+    ...EMPTY_FORM,
+    commercial_title: meta.title || "",
+    language: meta.language || "",
+    transcript: meta.transcript || "",
+    tags: meta.tags.length ? meta.tags.join(", ") : "",
+    comment: meta.suggested_comment || "",
   };
 }
 
@@ -83,8 +87,11 @@ interface Props {
 }
 
 export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Props) {
-  const meta = (item.metadata || {}) as Record<string, unknown>;
-  const [form, setForm] = useState<FormState>(() => formFromItem(item));
+  const [ytMeta, setYtMeta] = useState<YouTubeMetadataPreview | null>(null);
+  const [ytLoading, setYtLoading] = useState(true);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [ytFetchKey, setYtFetchKey] = useState(0);
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [genres, setGenres] = useState<SubmissionGenres>({ ...EMPTY_SUBMISSION_GENRES });
   const [advertiser, setAdvertiser] = useState<AdvertiserSelection>({});
   const [catalogSelections, setCatalogSelections] = useState<Record<string, CatalogSelection>>({
@@ -99,42 +106,64 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const advertiserTouched = useRef(false);
+  const fetchGen = useRef(0);
+
+  const metaReady = ytMeta != null && !ytLoading;
+  const formLocked = !metaReady || busy;
 
   const thumbnail =
-    (typeof meta.thumbnail_url === "string" && meta.thumbnail_url) ||
-    youtubeIdThumbnail(item.youtube_id);
-  const channelName = typeof meta.channel_name === "string" ? meta.channel_name : "";
-  const durationMs = typeof meta.duration_ms === "number" ? meta.duration_ms : null;
-  const resolution = typeof meta.resolution === "string" ? meta.resolution : "";
-  const aspectRatio = typeof meta.aspect_ratio === "string" ? meta.aspect_ratio : "";
-  const uploadDate = typeof meta.upload_date === "string" ? meta.upload_date : "";
-  const displayTitle =
-    (typeof meta.title === "string" && meta.title) ||
-    (typeof meta.youtube_title === "string" && meta.youtube_title) ||
-    item.title ||
-    item.youtube_id;
+    ytMeta?.thumbnail_url ||
+    youtubeIdThumbnail(ytMeta?.youtube_id || item.youtube_id);
+  const channelName = ytMeta?.channel_name || "";
+  const durationMs = ytMeta?.duration_ms ?? null;
+  const resolution = ytMeta?.resolution || "";
+  const aspectRatio = ytMeta?.aspect_ratio || "";
+  const uploadDate = ytMeta?.upload_date || "";
+  const displayTitle = ytMeta?.title || item.title || item.youtube_id;
 
   useEffect(() => {
-    setForm(formFromItem(item));
+    advertiserTouched.current = false;
+    setYtMeta(null);
+    setYtLoading(true);
+    setYtError(null);
+    setForm({ ...EMPTY_FORM });
     setGenres({ ...EMPTY_SUBMISSION_GENRES });
     setCatalogSelections({ store: {}, service: {}, event: {}, holiday: {} });
     setRegionSelection({});
+    setAdvertiser({});
     setTermsAgreed(false);
     setError(null);
-    advertiserTouched.current = false;
 
-    const channel = typeof item.metadata?.channel_name === "string" ? item.metadata.channel_name : "";
-    if (channel) {
-      setGenres((prev) =>
-        prev.target_channel.trim() ? prev : { ...prev, target_channel: channel }
-      );
-      void suggestAdvertiserFromChannel(channel).then((suggestion) => {
-        if (!advertiserTouched.current) setAdvertiser(suggestion);
+    const gen = ++fetchGen.current;
+    const url = item.youtube_url || `https://www.youtube.com/watch?v=${item.youtube_id}`;
+
+    api
+      .fetchYouTubeMetadata(url)
+      .then(async (meta) => {
+        if (fetchGen.current !== gen) return;
+        setYtMeta(meta);
+        setForm(formFromYouTubeMeta(meta));
+        if (meta.channel_name) {
+          setGenres((prev) =>
+            prev.target_channel.trim()
+              ? prev
+              : { ...prev, target_channel: meta.channel_name ?? "" }
+          );
+          const suggestion = await suggestAdvertiserFromChannel(meta.channel_name);
+          if (fetchGen.current === gen && !advertiserTouched.current) {
+            setAdvertiser(suggestion);
+          }
+        }
+      })
+      .catch((err) => {
+        if (fetchGen.current !== gen) return;
+        setYtMeta(null);
+        setYtError(err instanceof Error ? err.message : "Failed to fetch YouTube metadata");
+      })
+      .finally(() => {
+        if (fetchGen.current === gen) setYtLoading(false);
       });
-    } else {
-      setAdvertiser({});
-    }
-  }, [item]);
+  }, [item, ytFetchKey]);
 
   useEffect(() => {
     api
@@ -145,15 +174,19 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onClose();
+      if (e.key === "Escape" && !busy && !ytLoading) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
+  }, [busy, ytLoading, onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!ytMeta) {
+      setError("Wait for YouTube metadata before editing or submitting.");
+      return;
+    }
     if (!termsAgreed) {
       setError("You must agree to the Terms of Submission.");
       return;
@@ -199,13 +232,13 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
               }
             : {}),
         },
-        channel_name: channelName || undefined,
-        upload_date: uploadDate || undefined,
-        duration_ms: durationMs ?? undefined,
-        aspect_ratio: aspectRatio || undefined,
-        resolution: resolution || undefined,
-        thumbnail_url: typeof meta.thumbnail_url === "string" ? meta.thumbnail_url : undefined,
-        language: form.language || undefined,
+        channel_name: ytMeta.channel_name || undefined,
+        upload_date: ytMeta.upload_date || undefined,
+        duration_ms: ytMeta.duration_ms ?? undefined,
+        aspect_ratio: ytMeta.aspect_ratio || undefined,
+        resolution: ytMeta.resolution || undefined,
+        thumbnail_url: ytMeta.thumbnail_url || undefined,
+        language: form.language || ytMeta.language || undefined,
         ...regionSelectionToPayload(regionSelection),
         transcript: form.transcript || undefined,
         slogan: form.slogan || undefined,
@@ -217,7 +250,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
           : [],
         genres: submissionGenresPayload(genres),
         comment: form.comment || undefined,
-        metadata: typeof meta.metadata === "object" && meta.metadata ? meta.metadata : meta,
+        metadata: ytMeta.metadata || {},
         terms_agreed: true,
       });
       onSubmitted();
@@ -235,7 +268,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
       aria-modal="true"
       aria-labelledby="bulk-review-dialog-title"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) onClose();
+        if (e.target === e.currentTarget && !busy && !ytLoading) onClose();
       }}
     >
       <div className="add-link-dialog-card bulk-review-dialog-card">
@@ -243,15 +276,20 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
           <h2 id="bulk-review-dialog-title" className="add-link-dialog-title">
             Review &amp; submit
           </h2>
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={busy || ytLoading}
+          >
             Close
           </button>
         </div>
 
         <div className="add-link-dialog-body">
           <p className="muted" style={{ marginTop: 0 }}>
-            Same fields as single submit. Prefetched hash stays attached. After submit this popup
-            closes and the next playlist link enters the review window.
+            YouTube metadata is fetched before the form unlocks. Prefetched hash stays attached.
+            After submit this popup closes and the next playlist link enters the review window.
           </p>
 
           <div style={{ marginBottom: "1rem" }}>
@@ -307,11 +345,37 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
               </p>
               <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
                 Status: <span className="badge badge-submitted">{item.status}</span>
+                {ytLoading && " · Fetching YouTube metadata…"}
+                {metaReady && " · Metadata ready"}
               </p>
+              {ytMeta?.existing_video_sbid && (
+                <p className="error" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                  This video is already in the database —{" "}
+                  <Link to={`/video/${ytMeta.existing_video_sbid}`}>view existing entry</Link>.
+                </p>
+              )}
             </div>
           </div>
 
-          {terms && (
+          {ytError && (
+            <div className="card" style={{ marginBottom: "1rem" }}>
+              <p className="error" style={{ marginTop: 0 }}>
+                {ytError}
+              </p>
+              <p className="muted" style={{ marginBottom: "0.75rem" }}>
+                Metadata must load before you can edit or submit this item.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setYtFetchKey((k) => k + 1)}
+              >
+                Retry metadata fetch
+              </button>
+            </div>
+          )}
+
+          {terms && metaReady && (
             <details className="card terms-card" style={{ marginBottom: "1rem" }}>
               <summary style={{ cursor: "pointer", fontWeight: 600 }}>
                 Terms of Submission (v{terms.version})
@@ -322,216 +386,240 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
             </details>
           )}
 
-          <form onSubmit={(e) => void handleSubmit(e)}>
-            <div className="form-group">
-              <label htmlFor="bulk-review-title">Commercial Title *</label>
-              <input
-                id="bulk-review-title"
-                required
-                value={form.commercial_title}
-                onChange={(e) => setForm({ ...form, commercial_title: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Advertiser / Brand</label>
-              <AdvertiserPicker
-                value={advertiser}
-                onChange={(next) => {
-                  advertiserTouched.current = true;
-                  setAdvertiser(next);
-                }}
-              />
-              <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
-                Search an existing brand or enter a new one.
-              </p>
-            </div>
-
-            {CATALOG_KIND_LIST.map((kind) => (
-              <div className="form-group" key={kind.key}>
-                <label>{kind.label}</label>
-                <CatalogPicker
-                  kind={kind}
-                  value={catalogSelections[kind.key] ?? {}}
-                  onChange={(next) =>
-                    setCatalogSelections((prev) => ({ ...prev, [kind.key]: next }))
-                  }
-                />
-              </div>
-            ))}
-
-            <div className="form-group">
-              <label htmlFor="bulk-review-type">Type of commercial</label>
-              <select
-                id="bulk-review-type"
-                value={form.commercial_type}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    commercial_type: e.target.value,
-                    ...(e.target.value === "bumper" ? {} : { bumper_channel: "" }),
-                  })
-                }
-              >
-                <option value="">Unknown / not sure</option>
-                {COMMERCIAL_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {isBumperType(form.commercial_type) && (
+          <fieldset
+            disabled={formLocked}
+            style={{ border: "none", margin: 0, padding: 0, minInlineSize: 0 }}
+          >
+            <form onSubmit={(e) => void handleSubmit(e)}>
               <div className="form-group">
-                <label htmlFor="bulk-review-bumper">Channel *</label>
+                <label htmlFor="bulk-review-title">Commercial Title *</label>
                 <input
-                  id="bulk-review-bumper"
+                  id="bulk-review-title"
                   required
-                  value={form.bumper_channel}
-                  onChange={(e) => setForm({ ...form, bumper_channel: e.target.value })}
-                  placeholder="e.g. Cartoon Network, Nickelodeon"
+                  value={form.commercial_title}
+                  onChange={(e) => setForm({ ...form, commercial_title: e.target.value })}
                 />
               </div>
-            )}
 
-            <div className="form-group">
-              <label htmlFor="bulk-review-decade">Decade aired (rough estimate)</label>
-              <select
-                id="bulk-review-decade"
-                value={form.decade}
-                onChange={(e) => setForm({ ...form, decade: e.target.value })}
-              >
-                <option value="">Unknown / not sure</option>
-                {COMMERCIAL_DECADES.map((d) => (
-                  <option key={d} value={d}>
-                    {d}s
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="bulk-review-year">Exact year (if known)</label>
-              <input
-                id="bulk-review-year"
-                type="number"
-                min={1900}
-                max={2100}
-                value={form.year}
-                onChange={(e) => setForm({ ...form, year: e.target.value })}
-                placeholder="e.g. 1997"
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="bulk-review-language">Language</label>
-              <input
-                id="bulk-review-language"
-                value={form.language}
-                onChange={(e) => setForm({ ...form, language: e.target.value })}
-                placeholder="en"
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="region-select">Region</label>
-              <RegionSelect value={regionSelection} onChange={setRegionSelection} />
-            </div>
-            {regionHasSubRegionPicker(regionSelection.region) && (
               <div className="form-group">
-                <label htmlFor="sub-region-select">
-                  {subRegionFieldLabel(regionSelection.region)}
-                </label>
-                <SubRegionSelect value={regionSelection} onChange={setRegionSelection} />
+                <label>Advertiser / Brand</label>
+                <AdvertiserPicker
+                  value={advertiser}
+                  onChange={(next) => {
+                    advertiserTouched.current = true;
+                    setAdvertiser(next);
+                  }}
+                />
+                <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
+                  Search an existing brand or enter a new one.
+                </p>
               </div>
-            )}
 
-            <div className="form-group">
-              <label htmlFor="bulk-review-slogan">Slogan</label>
-              <input
-                id="bulk-review-slogan"
-                value={form.slogan}
-                onChange={(e) => setForm({ ...form, slogan: e.target.value })}
-              />
-            </div>
+              {CATALOG_KIND_LIST.map((kind) => (
+                <div className="form-group" key={kind.key}>
+                  <label>{kind.label}</label>
+                  <CatalogPicker
+                    kind={kind}
+                    value={catalogSelections[kind.key] ?? {}}
+                    onChange={(next) =>
+                      setCatalogSelections((prev) => ({ ...prev, [kind.key]: next }))
+                    }
+                  />
+                </div>
+              ))}
 
-            <div className="form-group">
-              <label htmlFor="bulk-review-transcript">Transcript</label>
-              <textarea
-                id="bulk-review-transcript"
-                value={form.transcript}
-                onChange={(e) => setForm({ ...form, transcript: e.target.value })}
-              />
-            </div>
+              <div className="form-group">
+                <label htmlFor="bulk-review-type">Type of commercial</label>
+                <select
+                  id="bulk-review-type"
+                  value={form.commercial_type}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      commercial_type: e.target.value,
+                      ...(e.target.value === "bumper" ? {} : { bumper_channel: "" }),
+                    })
+                  }
+                >
+                  <option value="">Unknown / not sure</option>
+                  {COMMERCIAL_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="form-group">
-              <label htmlFor="bulk-review-tags">Tags (comma-separated)</label>
-              <input
-                id="bulk-review-tags"
-                value={form.tags}
-                onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                placeholder="superbowl, automotive, humor"
-              />
-            </div>
+              {isBumperType(form.commercial_type) && (
+                <div className="form-group">
+                  <label htmlFor="bulk-review-bumper">Channel *</label>
+                  <input
+                    id="bulk-review-bumper"
+                    required
+                    value={form.bumper_channel}
+                    onChange={(e) => setForm({ ...form, bumper_channel: e.target.value })}
+                    placeholder="e.g. Cartoon Network, Nickelodeon"
+                  />
+                </div>
+              )}
 
-            <SubmissionGenresFields value={genres} onChange={setGenres} />
+              <div className="form-group">
+                <label htmlFor="bulk-review-decade">Decade aired (rough estimate)</label>
+                <select
+                  id="bulk-review-decade"
+                  value={form.decade}
+                  onChange={(e) => setForm({ ...form, decade: e.target.value })}
+                >
+                  <option value="">Unknown / not sure</option>
+                  {COMMERCIAL_DECADES.map((d) => (
+                    <option key={d} value={d}>
+                      {d}s
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="form-group">
-              <label htmlFor="bulk-review-comment">Edit comment</label>
-              <textarea
-                id="bulk-review-comment"
-                value={form.comment}
-                onChange={(e) => setForm({ ...form, comment: e.target.value })}
-                placeholder="Source, context, version label, or notes for voters…"
-              />
-            </div>
+              <div className="form-group">
+                <label htmlFor="bulk-review-year">Exact year (if known)</label>
+                <input
+                  id="bulk-review-year"
+                  type="number"
+                  min={1900}
+                  max={2100}
+                  value={form.year}
+                  onChange={(e) => setForm({ ...form, year: e.target.value })}
+                  placeholder="e.g. 1997"
+                />
+              </div>
 
-            <label
-              style={{
-                display: "flex",
-                gap: "0.5rem",
-                alignItems: "flex-start",
-                marginBottom: "1rem",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={termsAgreed}
-                onChange={(e) => setTermsAgreed(e.target.checked)}
-                style={{ marginTop: "0.25rem" }}
-              />
-              <span>
-                I have read and agree to the <strong>Terms of Submission</strong>
-                {terms ? ` (version ${terms.version})` : ""}.
-              </span>
-            </label>
+              <div className="form-group">
+                <label htmlFor="bulk-review-language">Language</label>
+                <input
+                  id="bulk-review-language"
+                  value={form.language}
+                  onChange={(e) => setForm({ ...form, language: e.target.value })}
+                  placeholder="en"
+                />
+              </div>
 
-            {error && <p className="error">{error}</p>}
+              <div className="form-group">
+                <label htmlFor="region-select">Region</label>
+                <RegionSelect value={regionSelection} onChange={setRegionSelection} />
+              </div>
+              {regionHasSubRegionPicker(regionSelection.region) && (
+                <div className="form-group">
+                  <label htmlFor="sub-region-select">
+                    {subRegionFieldLabel(regionSelection.region)}
+                  </label>
+                  <SubRegionSelect value={regionSelection} onChange={setRegionSelection} />
+                </div>
+              )}
 
-            <div className="vote-buttons" style={{ marginBottom: "0.5rem" }}>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={busy || !termsAgreed || !form.commercial_title.trim()}
+              <div className="form-group">
+                <label htmlFor="bulk-review-slogan">Slogan</label>
+                <input
+                  id="bulk-review-slogan"
+                  value={form.slogan}
+                  onChange={(e) => setForm({ ...form, slogan: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="bulk-review-transcript">Transcript</label>
+                <textarea
+                  id="bulk-review-transcript"
+                  value={form.transcript}
+                  onChange={(e) => setForm({ ...form, transcript: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="bulk-review-tags">Tags (comma-separated)</label>
+                <input
+                  id="bulk-review-tags"
+                  value={form.tags}
+                  onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                  placeholder="superbowl, automotive, humor"
+                />
+              </div>
+
+              <SubmissionGenresFields value={genres} onChange={setGenres} />
+
+              <div className="form-group">
+                <label htmlFor="bulk-review-comment">Edit comment</label>
+                <textarea
+                  id="bulk-review-comment"
+                  value={form.comment}
+                  onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                  placeholder="Source, context, version label, or notes for voters…"
+                />
+              </div>
+
+              <label
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  alignItems: "flex-start",
+                  marginBottom: "1rem",
+                }}
               >
-                {busy ? "Submitting…" : "Submit for review"}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
-                Cancel
-              </button>
-              <Link
-                to={item.youtube_url}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-secondary"
-              >
-                Open on YouTube
-              </Link>
-            </div>
-          </form>
+                <input
+                  type="checkbox"
+                  checked={termsAgreed}
+                  onChange={(e) => setTermsAgreed(e.target.checked)}
+                  style={{ marginTop: "0.25rem" }}
+                />
+                <span>
+                  I have read and agree to the <strong>Terms of Submission</strong>
+                  {terms ? ` (version ${terms.version})` : ""}.
+                </span>
+              </label>
+
+              {error && <p className="error">{error}</p>}
+
+              <div className="vote-buttons" style={{ marginBottom: "0.5rem" }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={
+                    formLocked || !termsAgreed || !form.commercial_title.trim() || !ytMeta
+                  }
+                >
+                  {busy ? "Submitting…" : "Submit for review"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={onClose}
+                  disabled={busy || ytLoading}
+                >
+                  Cancel
+                </button>
+                <Link
+                  to={item.youtube_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary"
+                >
+                  Open on YouTube
+                </Link>
+              </div>
+            </form>
+          </fieldset>
         </div>
       </div>
+
+      {ytLoading && (
+        <div className="wait-overlay" role="status" aria-live="polite">
+          <div className="wait-overlay-card">
+            <p className="wait-overlay-title">Please wait</p>
+            <p className="muted">Fetching YouTube metadata…</p>
+            <p className="muted" style={{ marginBottom: 0, fontSize: "0.85rem" }}>
+              The form unlocks after metadata loads.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
