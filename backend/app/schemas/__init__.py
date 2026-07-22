@@ -217,8 +217,42 @@ class PowerUserTermsAccept(BaseModel):
     agreed: bool = False
 
 
+class BulkPlaylistDefaults(BaseModel):
+    """Shared commercial fields applied to every video reviewed from a playlist."""
+
+    commercial_type: CommercialTypeValue | None = None
+    bumper_channel: str | None = Field(default=None, max_length=255)
+    decade: int | None = Field(default=None, ge=1900, le=2100)
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    advertiser_id: UUID | None = None
+    advertiser_name: str | None = Field(default=None, max_length=255)
+    language: str | None = Field(default=None, max_length=32)
+    region: str | None = Field(default=None, max_length=64)
+    sub_region: str | None = Field(default=None, max_length=128)
+    tags: list[str] = Field(default_factory=list)
+    slogan: str | None = Field(default=None, max_length=512)
+    campaign_name: str | None = Field(default=None, max_length=512)
+
+    @field_validator("decade")
+    @classmethod
+    def validate_decade(cls, value: int | None) -> int | None:
+        if value is not None and value % 10 != 0:
+            raise ValueError("Decade must be a multiple of 10 (e.g. 1990 for the 1990s)")
+        return value
+
+    @model_validator(mode="after")
+    def validate_bumper_channel(self) -> Self:
+        commercial_type, bumper_channel = _normalize_bumper_fields(
+            self.commercial_type, self.bumper_channel
+        )
+        self.commercial_type = commercial_type
+        self.bumper_channel = bumper_channel
+        return self
+
+
 class BulkPlaylistImportRequest(BaseModel):
     playlist_url: str = Field(min_length=8, max_length=1024)
+    defaults: BulkPlaylistDefaults | None = None
 
 
 class BulkPlaylistCheckCounts(BaseModel):
@@ -257,6 +291,7 @@ class BulkSubmissionBatchPublic(ORMModel):
     item_count: int = 0
     queued_count: int = 0
     staging_count: int = 0
+    defaults: dict = Field(default_factory=dict)
     error_message: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -271,6 +306,7 @@ class BulkSubmissionItemPublic(ORMModel):
     status: str
     title: str | None = None
     metadata: dict = Field(default_factory=dict)
+    batch_defaults: dict = Field(default_factory=dict)
     fingerprint_id: UUID | None = None
     edit_id: UUID | None = None
     error_message: str | None = None

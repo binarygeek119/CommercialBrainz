@@ -66,6 +66,21 @@ export interface PowerUserTerms {
   accepted: boolean;
 }
 
+export interface BulkPlaylistDefaults {
+  commercial_type?: string | null;
+  bumper_channel?: string | null;
+  decade?: number | null;
+  year?: number | null;
+  advertiser_id?: string | null;
+  advertiser_name?: string | null;
+  language?: string | null;
+  region?: string | null;
+  sub_region?: string | null;
+  tags?: string[];
+  slogan?: string | null;
+  campaign_name?: string | null;
+}
+
 export interface BulkSubmissionBatch {
   id: string;
   playlist_url: string;
@@ -75,6 +90,7 @@ export interface BulkSubmissionBatch {
   item_count: number;
   queued_count?: number;
   staging_count?: number;
+  defaults?: BulkPlaylistDefaults;
   error_message?: string | null;
   created_at: string;
   updated_at: string;
@@ -89,6 +105,7 @@ export interface BulkSubmissionItem {
   status: string;
   title?: string | null;
   metadata?: Record<string, unknown>;
+  batch_defaults?: BulkPlaylistDefaults;
   fingerprint_id?: string | null;
   edit_id?: string | null;
   error_message?: string | null;
@@ -1333,13 +1350,19 @@ export const api = {
       body: JSON.stringify({ playlist_url: playlistUrl }),
     }),
 
-  bulkSubmitPlaylist: (playlistUrl: string) =>
+  bulkSubmitPlaylist: (playlistUrl: string, defaults?: BulkPlaylistDefaults | null) =>
     request<BulkSubmissionBatch>("/bulk-submit/playlists", {
       method: "POST",
-      body: JSON.stringify({ playlist_url: playlistUrl }),
+      body: JSON.stringify({
+        playlist_url: playlistUrl,
+        ...(defaults ? { defaults } : {}),
+      }),
     }),
 
   bulkSubmitBatches: () => request<BulkSubmissionBatch[]>("/bulk-submit/batches"),
+
+  bulkSubmitCancelBatch: (batchId: string) =>
+    request<void>(`/bulk-submit/batches/${batchId}`, { method: "DELETE" }),
 
   bulkSubmitItems: (status?: string) =>
     request<BulkSubmissionItem[]>(

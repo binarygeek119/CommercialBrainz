@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type BulkPlaylistCheck } from "../api";
+import { api, type BulkPlaylistCheck, type BulkPlaylistDefaults } from "../api";
 import { useAuth } from "../auth";
+import AdvertiserPicker, { type AdvertiserSelection } from "../components/AdvertiserPicker";
+import {
+  RegionSelect,
+  SubRegionSelect,
+  regionHasSubRegionPicker,
+  regionSelectionToPayload,
+  subRegionFieldLabel,
+  type RegionSelection,
+} from "../components/RegionPicker";
+import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
+import { COMMERCIAL_TYPES, isBumperType } from "../utils/commercialTypes";
 
 function duplicateReasonLabel(reason: string | null | undefined): string {
   switch (reason) {
@@ -17,6 +28,45 @@ function duplicateReasonLabel(reason: string | null | undefined): string {
   }
 }
 
+function buildDefaultsPayload(
+  commercialType: string,
+  bumperChannel: string,
+  decade: string,
+  year: string,
+  advertiser: AdvertiserSelection,
+  language: string,
+  regionSelection: RegionSelection,
+  tags: string,
+  slogan: string,
+  campaignName: string
+): BulkPlaylistDefaults | null {
+  const tagsList = tags
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const regionPayload = regionSelectionToPayload(regionSelection);
+  const payload: BulkPlaylistDefaults = {
+    ...(commercialType ? { commercial_type: commercialType } : {}),
+    ...(isBumperType(commercialType) && bumperChannel.trim()
+      ? { bumper_channel: bumperChannel.trim() }
+      : {}),
+    ...(decade ? { decade: parseInt(decade, 10) } : {}),
+    ...(year ? { year: parseInt(year, 10) } : {}),
+    ...(advertiser.advertiser_id
+      ? { advertiser_id: advertiser.advertiser_id }
+      : advertiser.advertiser_name
+        ? { advertiser_name: advertiser.advertiser_name }
+        : {}),
+    ...(language.trim() ? { language: language.trim() } : {}),
+    ...(regionPayload.region ? { region: regionPayload.region } : {}),
+    ...(regionPayload.sub_region ? { sub_region: regionPayload.sub_region } : {}),
+    ...(tagsList.length ? { tags: tagsList } : {}),
+    ...(slogan.trim() ? { slogan: slogan.trim() } : {}),
+    ...(campaignName.trim() ? { campaign_name: campaignName.trim() } : {}),
+  };
+  return Object.keys(payload).length ? payload : null;
+}
+
 export default function BulkSubmitPage() {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
@@ -27,7 +77,46 @@ export default function BulkSubmitPage() {
   const [error, setError] = useState<string | null>(null);
   const [check, setCheck] = useState<BulkPlaylistCheck | null>(null);
 
+  const [commercialType, setCommercialType] = useState("");
+  const [bumperChannel, setBumperChannel] = useState("");
+  const [decade, setDecade] = useState("");
+  const [year, setYear] = useState("");
+  const [advertiser, setAdvertiser] = useState<AdvertiserSelection>({});
+  const [language, setLanguage] = useState("");
+  const [regionSelection, setRegionSelection] = useState<RegionSelection>({});
+  const [tags, setTags] = useState("");
+  const [slogan, setSlogan] = useState("");
+  const [campaignName, setCampaignName] = useState("");
+
   const needsTerms = Boolean(user?.bulk_submit_enabled) && !user?.can_bulk_submit;
+
+  const defaultsPreview = useMemo(
+    () =>
+      buildDefaultsPayload(
+        commercialType,
+        bumperChannel,
+        decade,
+        year,
+        advertiser,
+        language,
+        regionSelection,
+        tags,
+        slogan,
+        campaignName
+      ),
+    [
+      commercialType,
+      bumperChannel,
+      decade,
+      year,
+      advertiser,
+      language,
+      regionSelection,
+      tags,
+      slogan,
+      campaignName,
+    ]
+  );
 
   const { data: terms, isLoading: termsLoading } = useQuery({
     queryKey: ["bulk-submit-terms"],
@@ -65,10 +154,14 @@ export default function BulkSubmitPage() {
 
   const handleImport = async () => {
     if (!check || check.counts.ok < 1) return;
+    if (isBumperType(commercialType) && !bumperChannel.trim()) {
+      setError("Channel is required when commercial type is Bumper.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await api.bulkSubmitPlaylist(check.playlist_url);
+      await api.bulkSubmitPlaylist(check.playlist_url, defaultsPreview);
       setPlaylistUrl("");
       setCheck(null);
       navigate("/submit/bulk/queue");
@@ -139,10 +232,11 @@ export default function BulkSubmitPage() {
         </Link>
       </div>
       <p className="muted">
-        Paste a YouTube playlist URL, check for duplicate links, then import. The full playlist is
-        saved as your link list. Only {check?.staging_window ?? 10} videos are staged for review and
-        hashing at a time; when you submit (or skip) one, the next link enters the queue.
+        Paste a YouTube playlist URL, optionally set shared commercial defaults for every video,
+        check duplicates, then import. Defaults prefill the review form; YouTube metadata still
+        loads per video before editing.
       </p>
+
       <div className="card" style={{ marginTop: "1rem" }}>
         <label htmlFor="playlist-url">Playlist URL</label>
         <input
@@ -155,8 +249,133 @@ export default function BulkSubmitPage() {
           placeholder="https://www.youtube.com/playlist?list=…"
           style={{ width: "100%" }}
         />
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem" }}>
+        <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>Shared defaults (optional)</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Applied to every video from this playlist when you review/submit. Leave blank to fill
+          per video.
+        </p>
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-type">Commercial type</label>
+          <select
+            id="bulk-default-type"
+            value={commercialType}
+            onChange={(e) => {
+              setCommercialType(e.target.value);
+              if (e.target.value !== "bumper") setBumperChannel("");
+            }}
+          >
+            <option value="">Unknown / not sure</option>
+            {COMMERCIAL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {isBumperType(commercialType) && (
+          <div className="form-group">
+            <label htmlFor="bulk-default-bumper">Channel *</label>
+            <input
+              id="bulk-default-bumper"
+              value={bumperChannel}
+              onChange={(e) => setBumperChannel(e.target.value)}
+              placeholder="e.g. Cartoon Network, Nickelodeon"
+            />
+          </div>
+        )}
+
+        <div className="form-group">
+          <label>Advertiser / Brand</label>
+          <AdvertiserPicker value={advertiser} onChange={setAdvertiser} />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-decade">Decade aired</label>
+          <select
+            id="bulk-default-decade"
+            value={decade}
+            onChange={(e) => setDecade(e.target.value)}
+          >
+            <option value="">Unknown / not sure</option>
+            {COMMERCIAL_DECADES.map((d) => (
+              <option key={d} value={d}>
+                {d}s
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-year">Exact year (if known)</label>
+          <input
+            id="bulk-default-year"
+            type="number"
+            min={1900}
+            max={2100}
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            placeholder="e.g. 1997"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-language">Language</label>
+          <input
+            id="bulk-default-language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            placeholder="en"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="region-select">Region</label>
+          <RegionSelect value={regionSelection} onChange={setRegionSelection} />
+        </div>
+        {regionHasSubRegionPicker(regionSelection.region) && (
+          <div className="form-group">
+            <label htmlFor="sub-region-select">{subRegionFieldLabel(regionSelection.region)}</label>
+            <SubRegionSelect value={regionSelection} onChange={setRegionSelection} />
+          </div>
+        )}
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-campaign">Campaign name</label>
+          <input
+            id="bulk-default-campaign"
+            value={campaignName}
+            onChange={(e) => setCampaignName(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-slogan">Slogan</label>
+          <input
+            id="bulk-default-slogan"
+            value={slogan}
+            onChange={(e) => setSlogan(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="bulk-default-tags">Tags (comma-separated)</label>
+          <input
+            id="bulk-default-tags"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="superbowl, automotive, humor"
+          />
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem" }}>
         {error && <p className="error">{error}</p>}
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn btn-primary"
@@ -169,10 +388,16 @@ export default function BulkSubmitPage() {
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={importable < 1 || busy}
+              disabled={
+                importable < 1 ||
+                busy ||
+                (isBumperType(commercialType) && !bumperChannel.trim())
+              }
               onClick={() => void handleImport()}
             >
-              {busy && check ? "Starting…" : `Import ${importable} video${importable === 1 ? "" : "s"}`}
+              {busy && check
+                ? "Starting…"
+                : `Import ${importable} video${importable === 1 ? "" : "s"}`}
             </button>
           )}
         </div>
@@ -195,6 +420,15 @@ export default function BulkSubmitPage() {
               : ""}
             {` · stages ${check.staging_window ?? 10} at a time`}
           </p>
+          {defaultsPreview && (
+            <p className="muted" style={{ marginBottom: "0.75rem" }}>
+              Shared defaults will be saved with this import
+              {defaultsPreview.commercial_type
+                ? ` (type: ${defaultsPreview.commercial_type})`
+                : ""}
+              .
+            </p>
+          )}
           {importable > 0 && (
             <p className="muted" style={{ marginBottom: "0.75rem" }}>
               Import stores all {importable} link{importable === 1 ? "" : "s"}, then hashes the first{" "}
