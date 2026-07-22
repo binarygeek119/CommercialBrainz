@@ -68,6 +68,7 @@ export default function UserProfilePage() {
         <div className="profile-badges">
           <span className="badge badge-points">{profile.reputation_points.toFixed(2)} pts</span>
           {badge && <span className="badge badge-open">{badge}</span>}
+          {profile.is_power_user && <span className="badge badge-open">Power user</span>}
         </div>
       </div>
       <div className="card" style={{ marginBottom: "1.5rem" }}>

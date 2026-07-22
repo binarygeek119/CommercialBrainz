@@ -38,6 +38,91 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
         raise RuntimeError("Invalid metadata response from YouTube") from exc
 
 
+def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
+    """Dump playlist JSON (flat entries) without downloading media."""
+    cmd = [
+        "yt-dlp",
+        "--flat-playlist",
+        "--skip-download",
+        "--dump-single-json",
+        "--no-warnings",
+        url,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=120)
+    if result.returncode != 0:
+        msg = (result.stderr or result.stdout or "yt-dlp playlist failed").strip()
+        raise RuntimeError(msg[:500])
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Invalid playlist response from YouTube") from exc
+
+
+def expand_youtube_playlist(url: str, *, max_items: int) -> dict[str, Any]:
+    """
+    Expand a YouTube playlist URL into ordered video entries.
+
+    Returns dict with playlist_id, playlist_title, and entries:
+    [{youtube_id, youtube_url, title, position}, ...]
+    """
+    info = _run_ytdlp_playlist_flat(url)
+    entries_raw = info.get("entries") or []
+    if not entries_raw and info.get("id") and info.get("_type") != "playlist":
+        # Single video mistaken for playlist — treat as one entry.
+        youtube_id = info.get("id")
+        from app.utils import youtube_watch_url
+
+        return {
+            "playlist_id": None,
+            "playlist_title": info.get("title"),
+            "entries": [
+                {
+                    "youtube_id": youtube_id,
+                    "youtube_url": youtube_watch_url(youtube_id),
+                    "title": info.get("title"),
+                    "position": 0,
+                }
+            ],
+        }
+
+    from app.utils import youtube_watch_url
+
+    entries: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries_raw):
+        if not entry:
+            continue
+        youtube_id = entry.get("id") or entry.get("url")
+        if not youtube_id or not isinstance(youtube_id, str):
+            continue
+        # Flat playlist sometimes returns watch URLs; normalize to 11-char id when possible.
+        try:
+            from app.utils import extract_youtube_id
+
+            youtube_id = extract_youtube_id(youtube_id)
+        except ValueError:
+            if len(youtube_id) != 11:
+                continue
+        entries.append(
+            {
+                "youtube_id": youtube_id,
+                "youtube_url": youtube_watch_url(youtube_id),
+                "title": (entry.get("title") or "").strip() or None,
+                "position": index,
+            }
+        )
+        if len(entries) >= max_items:
+            break
+
+    if not entries:
+        raise RuntimeError("Playlist has no videos or could not be read")
+
+    return {
+        "playlist_id": info.get("id") or info.get("playlist_id"),
+        "playlist_title": info.get("title") or info.get("playlist_title"),
+        "entries": entries,
+    }
+
+
 def _aspect_ratio(width: int | None, height: int | None) -> str | None:
     if not width or not height:
         return None

@@ -305,10 +305,17 @@ export default function SubmitPage() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h1 className="page-title">
-        {addLinkCommercial ? "Add link to commercial" : "Submit Commercial Video"}
-      </h1>
-      <p className="muted" style={{ marginBottom: "1rem" }}>
+      <div className="flex-between" style={{ alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+        <h1 className="page-title" style={{ margin: 0 }}>
+          {addLinkCommercial ? "Add link to commercial" : "Submit Commercial Video"}
+        </h1>
+        {user?.can_bulk_submit && (
+          <Link to="/submit/bulk" className="btn btn-secondary">
+            Playlist import
+          </Link>
+        )}
+      </div>
+      <p className="muted" style={{ marginBottom: "1rem", marginTop: "1rem" }}>
         {addLinkCommercial ? (
           <>
             Adding a YouTube link to{" "}

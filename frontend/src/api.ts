@@ -16,6 +16,10 @@ export interface User {
   accepted_edits_count: number;
   submission_terms_version: number | null;
   submission_terms_accepted_at: string | null;
+  bulk_submit_enabled?: boolean;
+  can_bulk_submit?: boolean;
+  power_user_terms_version?: number | null;
+  power_user_terms_accepted_at?: string | null;
   created_at: string;
 }
 
@@ -52,6 +56,42 @@ export interface SubmissionTerms {
   title: string;
   intro: string;
   sections: SubmissionTermsSection[];
+}
+
+export interface PowerUserTerms {
+  version: number;
+  title: string;
+  intro: string;
+  sections: SubmissionTermsSection[];
+  accepted: boolean;
+}
+
+export interface BulkSubmissionBatch {
+  id: string;
+  playlist_url: string;
+  playlist_id?: string | null;
+  playlist_title?: string | null;
+  status: string;
+  item_count: number;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BulkSubmissionItem {
+  id: string;
+  batch_id: string;
+  youtube_id: string;
+  youtube_url: string;
+  position: number;
+  status: string;
+  title?: string | null;
+  metadata?: Record<string, unknown>;
+  fingerprint_id?: string | null;
+  edit_id?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface QuizQuestion {
@@ -211,6 +251,8 @@ export interface AdminStats {
 
 export interface AdminUser extends User {
   is_active: boolean;
+  bulk_submit_revoked_at?: string | null;
+  bulk_submit_revoke_reason?: string | null;
 }
 
 export interface AdminFingerprint {
@@ -308,6 +350,7 @@ export interface UserProfile {
   reputation_points: number;
   accepted_edits_count: number;
   submission_count: number;
+  is_power_user?: boolean;
   created_at: string;
 }
 
@@ -358,6 +401,7 @@ export interface CommercialListItem {
   created_at: string;
   advertiser_name?: string | null;
   public_video_count?: number;
+  was_bulk_imported?: boolean | null;
 }
 
 export interface CommercialDetail {
@@ -375,6 +419,7 @@ export interface CommercialDetail {
   advertiser?: { sbid: string; name: string } | null;
   agency?: { sbid: string; name: string; slug?: string } | null;
   videos?: Video[];
+  was_bulk_imported?: boolean | null;
 }
 
 export interface BrandAliasLink {
@@ -794,6 +839,15 @@ export const api = {
       body: JSON.stringify({ is_active: isActive }),
     }),
 
+  adminSetUserBulkSubmit: (userId: string, enabled: boolean, revokeReason?: string) =>
+    request<AdminUser>(`/admin/users/${userId}/bulk-submit`, {
+      method: "POST",
+      body: JSON.stringify({
+        enabled,
+        revoke_reason: revokeReason ?? null,
+      }),
+    }),
+
   adminFingerprints: (status?: string, offset = 0) =>
     request<Paginated<AdminFingerprint>>(
       `/admin/fingerprints?offset=${offset}${status ? `&status=${status}` : ""}`
@@ -868,4 +922,40 @@ export const api = {
 
   modRecheckDeadLink: (videoId: string) =>
     request<DeadLink>(`/mod/dead-links/${videoId}/recheck`, { method: "POST" }),
+
+  bulkSubmitTerms: () => request<PowerUserTerms>("/bulk-submit/terms"),
+
+  bulkSubmitAcceptTerms: (agreed: boolean) =>
+    request<PowerUserTerms>("/bulk-submit/terms/accept", {
+      method: "POST",
+      body: JSON.stringify({ agreed }),
+    }),
+
+  bulkSubmitPlaylist: (playlistUrl: string) =>
+    request<BulkSubmissionBatch>("/bulk-submit/playlists", {
+      method: "POST",
+      body: JSON.stringify({ playlist_url: playlistUrl }),
+    }),
+
+  bulkSubmitBatches: () => request<BulkSubmissionBatch[]>("/bulk-submit/batches"),
+
+  bulkSubmitItems: (status?: string) =>
+    request<BulkSubmissionItem[]>(
+      `/bulk-submit/items${status ? `?status=${encodeURIComponent(status)}` : ""}`
+    ),
+
+  bulkSubmitItem: (itemId: string) =>
+    request<BulkSubmissionItem>(`/bulk-submit/items/${itemId}`),
+
+  bulkSubmitItemSubmit: (itemId: string, data: Record<string, unknown>) =>
+    request<Edit>(`/bulk-submit/items/${itemId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  bulkSubmitItemSkip: (itemId: string) =>
+    request<BulkSubmissionItem>(`/bulk-submit/items/${itemId}/skip`, { method: "POST" }),
+
+  bulkSubmitItemRehash: (itemId: string) =>
+    request<BulkSubmissionItem>(`/bulk-submit/items/${itemId}/rehash`, { method: "POST" }),
 };

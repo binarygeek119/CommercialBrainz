@@ -104,3 +104,40 @@ def user_is_mod(user: User) -> bool:
 
 def user_is_admin(user: User) -> bool:
     return user.role == UserRole.ADMIN
+
+
+def user_bulk_submit_eligible(user: User) -> bool:
+    """Eligible for admin to enable bulk submit (500+ rep or mod/admin)."""
+    if user.role in (UserRole.MOD, UserRole.ADMIN):
+        return True
+    return float(user.reputation_points or 0) >= settings.bulk_submit_min_reputation
+
+
+def user_bulk_submit_granted(user: User) -> bool:
+    """Admin has enabled bulk submit (may still need Power User Terms)."""
+    return bool(user.bulk_submit_enabled) and user_bulk_submit_eligible(user)
+
+
+def user_has_accepted_power_user_terms(user: User, active_version: int | None) -> bool:
+    if active_version is None:
+        return False
+    return user.power_user_terms_version == active_version
+
+
+def user_can_bulk_submit(user: User, *, active_terms_version: int | None = None) -> bool:
+    """Full access: granted + eligible + accepted current Power User Terms."""
+    if not user_bulk_submit_granted(user):
+        return False
+    if active_terms_version is None:
+        # Callers that already recorded acceptance on the user row.
+        return user.power_user_terms_version is not None
+    return user_has_accepted_power_user_terms(user, active_terms_version)
+
+
+def user_can_see_bulk_import_marker(user: User | None) -> bool:
+    """Power users (granted), mods, and admins may see was-bulk-imported markers."""
+    if not user:
+        return False
+    if user_is_mod(user):
+        return True
+    return bool(user.bulk_submit_enabled) and user_bulk_submit_eligible(user)

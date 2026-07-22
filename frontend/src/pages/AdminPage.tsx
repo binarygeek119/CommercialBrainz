@@ -83,6 +83,19 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
   };
 
+  const handleBulkSubmit = async (userId: string, enabled: boolean) => {
+    let revokeReason: string | undefined;
+    if (!enabled) {
+      revokeReason = prompt("Optional revoke reason:") || undefined;
+    }
+    try {
+      await api.adminSetUserBulkSubmit(userId, enabled, revokeReason);
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update bulk submit");
+    }
+  };
+
   const handleRetryFingerprint = async (id: string) => {
     await api.adminRetryFingerprint(id);
     queryClient.invalidateQueries({ queryKey: ["admin-fingerprints"] });
@@ -254,7 +267,10 @@ export default function AdminPage() {
                   <span className="mono muted">{u.role} · {u.access_level}</span>
                 </div>
                 <p className="muted" style={{ marginTop: "0.5rem" }}>
-                  Edits accepted: {u.accepted_edits_count} · Submit: {u.can_submit ? "yes" : "no"}
+                  Edits accepted: {u.accepted_edits_count} · Submit: {u.can_submit ? "yes" : "no"} ·
+                  Reputation: {u.reputation_points.toFixed(2)}
+                  {u.bulk_submit_enabled ? " · Power user" : ""}
+                  {u.power_user_terms_accepted_at ? " · terms accepted" : ""}
                 </p>
                 <div className="vote-buttons" style={{ marginTop: "0.75rem" }}>
                   <button type="button" className="btn btn-secondary" onClick={() => handleRole(u.id, "user")}>
@@ -283,6 +299,24 @@ export default function AdminPage() {
                         Submit access
                       </button>
                     </>
+                  )}
+                  {!u.bulk_submit_enabled ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => void handleBulkSubmit(u.id, true)}
+                      title="Requires 500+ reputation or mod/admin"
+                    >
+                      Enable bulk submit
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => void handleBulkSubmit(u.id, false)}
+                    >
+                      Remove power user
+                    </button>
                   )}
                   <button
                     type="button"

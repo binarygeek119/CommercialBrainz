@@ -171,6 +171,9 @@ class EditService:
             campaign_name=state.get("campaign_name"),
             description=state.get("description"),
             external_ids=state.get("external_ids", {}),
+            was_bulk_imported=bool(
+                state.get("was_bulk_imported") or state.get("bulk_imported")
+            ),
         )
         db.add(commercial)
         await db.flush()
@@ -293,14 +296,37 @@ class EditService:
         video_id=video.sbid,
         role=credit["role"],
          name=credit["name"]))
-        for tag in state.get("tags", []):
+        from app.services.bulk_import_marker import ensure_bulk_imported_tag, normalize_user_tags
+
+        tags = state.get("tags", []) or []
+        if state.get("bulk_imported") or state.get("was_bulk_imported"):
+            tags = ensure_bulk_imported_tag(tags)
+        else:
+            tags = normalize_user_tags(tags)
+        for tag in tags:
             db.add(VideoTag(video_id=video.sbid, tag=tag.lower()))
 
+        # Prefer fingerprint already linked to this edit (bulk preview reuse).
         if await copy_preview_to_video(db, edit.id, video.sbid):
             from app.services.video_popularity import recompute_main_video
 
             await recompute_main_video(db, video.commercial_id)
             return None
+
+        # Bulk finalize may have completed fingerprint without edit_id set yet.
+        bulk_fp_id = state.get("bulk_fingerprint_id")
+        if bulk_fp_id:
+            from app.services.media_hash import _copy_to_video
+
+            fp_bulk = await db.get(MediaFingerprint, UUID(str(bulk_fp_id)))
+            if fp_bulk and fp_bulk.status == FingerprintStatus.COMPLETED:
+                fp_bulk.edit_id = edit.id
+                fp_bulk.video_id = video.sbid
+                await _copy_to_video(db, video.sbid, fp_bulk)
+                from app.services.video_popularity import recompute_main_video
+
+                await recompute_main_video(db, video.commercial_id)
+                return None
 
         video.hash_status = VideoHashStatus.PENDING
         fp = MediaFingerprint(
@@ -367,7 +393,12 @@ class EditService:
     db: AsyncSession,
     edit: Edit,
      state: dict) -> None:
-        db.add(VideoTag(video_id=edit.entity_id, tag=state["tag"].lower()))
+        from app.models import BULK_IMPORTED_TAG
+
+        tag = state["tag"].lower().strip()
+        if tag == BULK_IMPORTED_TAG:
+            return
+        db.add(VideoTag(video_id=edit.entity_id, tag=tag))
 
     @staticmethod
     async def _apply_add_credit(
