@@ -1,12 +1,13 @@
 # Auto-deploy CommercialBrainz to the GCE VM after CI succeeds on main.
 #
-# Required GitHub secrets (Settings → Secrets and variables → Actions):
-#   GCP_PROJECT_ID  — GCP project id (e.g. commercialbrainz)
-#   GCP_SA_KEY      — JSON key for a deploy service account that can
-#                     gcloud compute ssh to commercialbrainz-vm
+# Auth: Workload Identity Federation (no JSON key secret).
+# GCP setup (one-time, already applied for this project):
+#   SA: github-deploy@commercialbrainz.iam.gserviceaccount.com
+#   Pool/provider: github-actions / github
 #
-# Optional variables:
-#   VM_NAME         — instance name (default: commercialbrainz-vm)
+# Optional repository variables:
+#   GCP_PROJECT_ID  — default commercialbrainz
+#   VM_NAME         — default commercialbrainz-vm
 #
 # Manual run: Actions → Deploy → Run workflow
 name: Deploy
@@ -32,6 +33,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -40,25 +42,18 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-deploy@commercialbrainz.iam.gserviceaccount.com
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
 
       - name: Deploy
         env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'commercialbrainz' }}
           VM_NAME: ${{ vars.VM_NAME || 'commercialbrainz-vm' }}
           CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           set -euo pipefail
-          if [[ -z "${GCP_PROJECT_ID}" ]]; then
-            echo "ERROR: secret GCP_PROJECT_ID is not set"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.GCP_SA_KEY }}" ]]; then
-            echo "ERROR: secret GCP_SA_KEY is not set"
-            exit 1
-          fi
           chmod +x scripts/deploy-gcloud-vm.sh
           ./scripts/deploy-gcloud-vm.sh
