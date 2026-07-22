@@ -5,7 +5,12 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.ytdlp_auth import ytdlp_auth_args, ytdlp_error_message
+from app.services.ytdlp_auth import (
+    ytdlp_auth_args,
+    ytdlp_common_args,
+    ytdlp_error_message,
+    ytdlp_js_runtime_args,
+)
 from app.services.ytdlp_cookies import (
     clear_cookies,
     cookies_status,
@@ -14,11 +19,18 @@ from app.services.ytdlp_cookies import (
 )
 
 
-def _settings(*, cookies_file: str = "", managed: str = "", browser: str = ""):
+def _settings(
+    *,
+    cookies_file: str = "",
+    managed: str = "",
+    browser: str = "",
+    extractor_args: str = "youtube:player_client=android,web,mweb",
+):
     class S:
         ytdlp_cookies_file = cookies_file
         ytdlp_cookies_managed_path = managed
         ytdlp_cookies_from_browser = browser
+        ytdlp_extractor_args = extractor_args
 
     return S()
 
@@ -86,6 +98,35 @@ def test_ytdlp_error_message_adds_cookie_hint():
     assert "Sign in to confirm" in msg
 
 
+def test_ytdlp_error_message_adds_format_hint():
+    msg = ytdlp_error_message(
+        "ERROR: [youtube] eEb0cYq6dvI: Requested format is not available. Use --list-formats"
+    )
+    assert "JS runtime" in msg or "Node.js" in msg
+    assert "Admin → YouTube cookies" in msg
+
+
+def test_ytdlp_js_runtime_args_prefers_node():
+    with patch("app.services.ytdlp_auth.shutil.which", side_effect=lambda n: "/usr/bin/node" if n == "node" else None):
+        assert ytdlp_js_runtime_args() == ["--js-runtimes", "node"]
+
+
+def test_ytdlp_common_args_includes_extractor_and_js(tmp_path: Path):
+    cookies = tmp_path / "cookies.txt"
+    cookies.write_text("# Netscape\n.youtube.com\tTRUE\t/\tFALSE\t0\tA\tb\n", encoding="utf-8")
+    settings = _settings(cookies_file=str(cookies), managed=str(tmp_path / "other.txt"))
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
+        patch("app.services.ytdlp_auth.get_settings", return_value=settings),
+        patch("app.services.ytdlp_auth.shutil.which", side_effect=lambda n: "/bin/node" if n == "node" else None),
+    ):
+        args = ytdlp_common_args()
+    assert args[:3] == ["--cookies", str(cookies), "--js-runtimes"]
+    assert "node" in args
+    assert "--extractor-args" in args
+    assert "youtube:player_client=android,web,mweb" in args
+
+
 def test_save_and_clear_cookies(tmp_path: Path):
     managed = tmp_path / "cookies.txt"
     with patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
@@ -136,4 +177,6 @@ def test_metadata_cmd_includes_cookies(tmp_path: Path):
             _run_ytdlp_json("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
 
     assert captured
-    assert captured[0][:3] == ["yt-dlp", "--cookies", str(cookies)]
+    assert captured[0][0] == "yt-dlp"
+    assert "--cookies" in captured[0]
+    assert str(cookies) in captured[0]

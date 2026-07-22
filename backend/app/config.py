@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     ytdlp_format: str = (
         "bv*[height<=480]+ba/b[height<=480]/bv*+ba/b"
     )
+    # Prefer android/web clients; empty string uses yt-dlp defaults.
+    # Override with YTDLP_EXTRACTOR_ARGS if YouTube blocks a client on your IP.
+    ytdlp_extractor_args: str = "youtube:player_client=android,web,mweb"
     # Optional YouTube auth for yt-dlp bot / age-gate blocks.
     # Admin panel writes the managed path; env override wins when that file exists.
     ytdlp_cookies_managed_path: str = "/data/ytdlp/cookies.txt"
