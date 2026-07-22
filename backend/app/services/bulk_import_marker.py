@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.models import BULK_IMPORTED_TAG, Commercial, User
 from app.auth.security import user_can_see_bulk_import_marker
+from app.models import BULK_IMPORTED_TAG, Commercial, User
 
 
 def normalize_user_tags(tags: list[str] | None) -> list[str]:
