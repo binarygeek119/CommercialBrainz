@@ -6,7 +6,7 @@ import { useAuth, canSubmit } from "../auth";
 import CommercialMetadataForm from "../components/CommercialMetadataForm";
 import CommercialMetadataDisplay from "../components/CommercialMetadataDisplay";
 import CommercialVideoGallery from "../components/CommercialVideoGallery";
-import ReportCommercialDialog from "../components/ReportCommercialDialog";
+import ReportContentDialog from "../components/ReportContentDialog";
 import { videoThumbnailUrl } from "../utils/videoThumbnail";
 import { videoDisplayTitle } from "../utils/videoMetadata";
 
@@ -118,9 +118,10 @@ export default function CommercialPage() {
       />
 
       {showReport && (
-        <ReportCommercialDialog
-          commercialSbid={data.sbid}
-          commercialTitle={data.title}
+        <ReportContentDialog
+          targetType="commercial"
+          targetSbid={data.sbid}
+          targetTitle={data.title}
           loggedIn={Boolean(user)}
           onClose={() => setShowReport(false)}
         />

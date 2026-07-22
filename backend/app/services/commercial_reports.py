@@ -1,4 +1,4 @@
-"""User reports against commercials."""
+"""User reports against commercials and brands."""
 
 from __future__ import annotations
 
@@ -10,57 +10,68 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import (
+    Advertiser,
     Commercial,
-    CommercialReport,
-    CommercialReportReason,
-    CommercialReportStatus,
+    ContentReport,
+    ContentReportReason,
+    ContentReportStatus,
     User,
 )
 
 OPEN_STATUSES = (
-    CommercialReportStatus.PENDING,
-    CommercialReportStatus.UNDER_REVIEW,
+    ContentReportStatus.PENDING,
+    ContentReportStatus.UNDER_REVIEW,
 )
 
-REASON_OUTCOMES: dict[CommercialReportReason, str] = {
-    CommercialReportReason.BANNED: "Needs to be flagged correctly",
-    CommercialReportReason.ADULT_AD: "Needs to be flagged correctly",
-    CommercialReportReason.ADULT_PORN: "Will be removed",
-    CommercialReportReason.HATE_SPEECH: "Moderators will review",
-    CommercialReportReason.OTHER: "Moderators will review",
+REASON_OUTCOMES: dict[ContentReportReason, str] = {
+    ContentReportReason.BANNED: "Needs to be flagged correctly",
+    ContentReportReason.ADULT_AD: "Needs to be flagged correctly",
+    ContentReportReason.ADULT_PORN: "Will be removed",
+    ContentReportReason.HATE_SPEECH: "Moderators will review",
+    ContentReportReason.OTHER: "Moderators will review",
 }
 
 
-async def create_commercial_report(
+async def create_content_report(
     db: AsyncSession,
     *,
-    commercial: Commercial,
     reporter: User,
-    reason: CommercialReportReason,
+    reason: ContentReportReason,
     details: str | None = None,
-) -> CommercialReport:
-    existing = await db.scalar(
-        select(CommercialReport.id).where(
-            CommercialReport.commercial_id == commercial.sbid,
-            CommercialReport.reporter_id == reporter.id,
-            CommercialReport.status.in_(OPEN_STATUSES),
-        )
-    )
-    if existing:
-        raise ValueError("You already have an open report for this commercial")
+    commercial: Commercial | None = None,
+    advertiser: Advertiser | None = None,
+) -> ContentReport:
+    if (commercial is None) == (advertiser is None):
+        raise ValueError("Report must target exactly one of commercial or brand")
 
     cleaned = (details or "").strip() or None
-    if reason == CommercialReportReason.OTHER and not cleaned:
+    if reason == ContentReportReason.OTHER and not cleaned:
         raise ValueError("Please describe the issue for 'Other'")
     if cleaned and len(cleaned) > 2000:
         raise ValueError("Details must be 2000 characters or fewer")
 
-    report = CommercialReport(
-        commercial_id=commercial.sbid,
+    open_query = select(ContentReport.id).where(
+        ContentReport.reporter_id == reporter.id,
+        ContentReport.status.in_(OPEN_STATUSES),
+    )
+    if commercial is not None:
+        open_query = open_query.where(ContentReport.commercial_id == commercial.sbid)
+        target_label = "commercial"
+    else:
+        open_query = open_query.where(ContentReport.advertiser_id == advertiser.sbid)
+        target_label = "brand"
+
+    existing = await db.scalar(open_query)
+    if existing:
+        raise ValueError(f"You already have an open report for this {target_label}")
+
+    report = ContentReport(
+        commercial_id=commercial.sbid if commercial else None,
+        advertiser_id=advertiser.sbid if advertiser else None,
         reporter_id=reporter.id,
         reason=reason,
         details=cleaned,
-        status=CommercialReportStatus.PENDING,
+        status=ContentReportStatus.PENDING,
     )
     db.add(report)
     await db.flush()
@@ -68,21 +79,56 @@ async def create_commercial_report(
     return report
 
 
+async def create_commercial_report(
+    db: AsyncSession,
+    *,
+    commercial: Commercial,
+    reporter: User,
+    reason: ContentReportReason,
+    details: str | None = None,
+) -> ContentReport:
+    return await create_content_report(
+        db,
+        reporter=reporter,
+        reason=reason,
+        details=details,
+        commercial=commercial,
+    )
+
+
+async def create_brand_report(
+    db: AsyncSession,
+    *,
+    advertiser: Advertiser,
+    reporter: User,
+    reason: ContentReportReason,
+    details: str | None = None,
+) -> ContentReport:
+    return await create_content_report(
+        db,
+        reporter=reporter,
+        reason=reason,
+        details=details,
+        advertiser=advertiser,
+    )
+
+
 async def list_open_reports(
     db: AsyncSession,
     *,
     offset: int = 0,
     limit: int = 50,
-) -> list[CommercialReport]:
+) -> list[ContentReport]:
     result = await db.execute(
-        select(CommercialReport)
+        select(ContentReport)
         .options(
-            selectinload(CommercialReport.commercial),
-            selectinload(CommercialReport.reporter),
-            selectinload(CommercialReport.reviewed_by),
+            selectinload(ContentReport.commercial),
+            selectinload(ContentReport.advertiser),
+            selectinload(ContentReport.reporter),
+            selectinload(ContentReport.reviewed_by),
         )
-        .where(CommercialReport.status.in_(OPEN_STATUSES))
-        .order_by(CommercialReport.created_at.asc())
+        .where(ContentReport.status.in_(OPEN_STATUSES))
+        .order_by(ContentReport.created_at.asc())
         .offset(offset)
         .limit(limit)
     )
@@ -93,36 +139,37 @@ async def count_open_reports(db: AsyncSession) -> int:
     return int(
         await db.scalar(
             select(func.count())
-            .select_from(CommercialReport)
-            .where(CommercialReport.status.in_(OPEN_STATUSES))
+            .select_from(ContentReport)
+            .where(ContentReport.status.in_(OPEN_STATUSES))
         )
         or 0
     )
 
 
-async def review_commercial_report(
+async def review_content_report(
     db: AsyncSession,
     report_id: UUID,
     mod: User,
     *,
-    status: CommercialReportStatus,
+    status: ContentReportStatus,
     review_notes: str | None = None,
-) -> CommercialReport:
+) -> ContentReport:
     if status not in {
-        CommercialReportStatus.UNDER_REVIEW,
-        CommercialReportStatus.RESOLVED,
-        CommercialReportStatus.DISMISSED,
+        ContentReportStatus.UNDER_REVIEW,
+        ContentReportStatus.RESOLVED,
+        ContentReportStatus.DISMISSED,
     }:
         raise ValueError("Invalid review status")
 
     result = await db.execute(
-        select(CommercialReport)
+        select(ContentReport)
         .options(
-            selectinload(CommercialReport.commercial),
-            selectinload(CommercialReport.reporter),
-            selectinload(CommercialReport.reviewed_by),
+            selectinload(ContentReport.commercial),
+            selectinload(ContentReport.advertiser),
+            selectinload(ContentReport.reporter),
+            selectinload(ContentReport.reviewed_by),
         )
-        .where(CommercialReport.id == report_id)
+        .where(ContentReport.id == report_id)
     )
     report = result.scalar_one_or_none()
     if not report:
@@ -138,11 +185,25 @@ async def review_commercial_report(
     return report
 
 
-def report_to_dict(report: CommercialReport) -> dict:
+# Alias for earlier naming.
+review_commercial_report = review_content_report
+
+
+def report_to_dict(report: ContentReport) -> dict:
+    if report.commercial_id:
+        target_type = "commercial"
+        target_title = report.commercial.title if report.commercial else None
+    else:
+        target_type = "brand"
+        target_title = report.advertiser.name if report.advertiser else None
     return {
         "id": report.id,
+        "target_type": target_type,
         "commercial_id": report.commercial_id,
+        "advertiser_id": report.advertiser_id,
         "commercial_title": report.commercial.title if report.commercial else None,
+        "advertiser_name": report.advertiser.name if report.advertiser else None,
+        "target_title": target_title,
         "reporter_id": report.reporter_id,
         "reporter_username": report.reporter.username if report.reporter else None,
         "reason": report.reason.value,

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Edit } from "../api";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
-import { REPORT_REASONS } from "../components/ReportCommercialDialog";
+import { REPORT_REASONS } from "../components/ReportContentDialog";
 
 type Tab =
   | "overview"
@@ -53,9 +53,9 @@ export default function ModPage() {
     enabled: tab === "dead-links",
   });
 
-  const { data: commercialReports, isLoading: reportsLoading } = useQuery({
-    queryKey: ["mod-commercial-reports"],
-    queryFn: () => api.modCommercialReports(),
+  const { data: contentReports, isLoading: reportsLoading } = useQuery({
+    queryKey: ["mod-content-reports"],
+    queryFn: () => api.modContentReports(),
     enabled: tab === "reports",
   });
 
@@ -66,7 +66,7 @@ export default function ModPage() {
     queryClient.invalidateQueries({ queryKey: ["fingerprint-queue"] });
     queryClient.invalidateQueries({ queryKey: ["mod-deletion-requests"] });
     queryClient.invalidateQueries({ queryKey: ["mod-dead-links"] });
-    queryClient.invalidateQueries({ queryKey: ["mod-commercial-reports"] });
+    queryClient.invalidateQueries({ queryKey: ["mod-content-reports"] });
   };
 
   const handleDmcaReview = async (id: string, status: string) => {
@@ -139,8 +139,8 @@ export default function ModPage() {
 
   const handleReviewReport = async (reportId: string, status: string) => {
     const notes = prompt("Review notes (optional):");
-    await api.modReviewCommercialReport(reportId, status, notes || undefined);
-    queryClient.invalidateQueries({ queryKey: ["mod-commercial-reports"] });
+    await api.modReviewContentReport(reportId, status, notes || undefined);
+    queryClient.invalidateQueries({ queryKey: ["mod-content-reports"] });
     queryClient.invalidateQueries({ queryKey: ["mod-stats"] });
   };
 
@@ -182,8 +182,8 @@ export default function ModPage() {
             {id === "dead-links" && stats && stats.dead_links > 0 ? ` (${stats.dead_links})` : ""}
             {id === "reports" &&
             stats &&
-            (stats.open_commercial_reports ?? 0) > 0
-              ? ` (${stats.open_commercial_reports})`
+            (stats.open_content_reports ?? stats.open_commercial_reports ?? 0) > 0
+              ? ` (${stats.open_content_reports ?? stats.open_commercial_reports})`
               : ""}
           </button>
         ))}
@@ -225,8 +225,10 @@ export default function ModPage() {
               <span className="muted">Dead / blocked links</span>
             </div>
             <div className="card admin-stat">
-              <span className="admin-stat-value">{stats.open_commercial_reports ?? 0}</span>
-              <span className="muted">Open commercial reports</span>
+              <span className="admin-stat-value">
+                {stats.open_content_reports ?? stats.open_commercial_reports ?? 0}
+              </span>
+              <span className="muted">Open content reports</span>
             </div>
           </div>
           <div className="card" style={{ marginTop: "1rem" }}>
@@ -248,9 +250,9 @@ export default function ModPage() {
                   Dead links ({stats.dead_links})
                 </button>
               )}
-              {(stats.open_commercial_reports ?? 0) > 0 && (
+              {(stats.open_content_reports ?? stats.open_commercial_reports ?? 0) > 0 && (
                 <button type="button" className="btn btn-secondary" onClick={() => setTab("reports")}>
-                  Reports ({stats.open_commercial_reports})
+                  Reports ({stats.open_content_reports ?? stats.open_commercial_reports})
                 </button>
               )}
               <button type="button" className="btn btn-secondary" onClick={() => setTab("fp-queue")}>
@@ -511,20 +513,31 @@ export default function ModPage() {
       {tab === "reports" && (
         <div>
           <p className="muted" style={{ marginBottom: "1rem" }}>
-            User reports on commercials. Banned / adult-ad items should be flagged correctly;
-            porn (non-ad) should be removed.
+            User reports on commercials and brands. Banned / adult-ad items should be flagged
+            correctly; porn (non-ad) should be removed.
           </p>
           {reportsLoading && <p className="muted">Loading reports…</p>}
           <div className="stack">
-            {commercialReports?.map((item) => (
+            {contentReports?.map((item) => {
+              const isBrand = item.target_type === "brand" || Boolean(item.advertiser_id);
+              const href = isBrand
+                ? `/advertiser/${item.advertiser_id}`
+                : `/commercial/${item.commercial_id}`;
+              const title =
+                item.target_title ||
+                item.advertiser_name ||
+                item.commercial_title ||
+                (isBrand ? item.advertiser_id : item.commercial_id) ||
+                "Unknown";
+              return (
               <div key={item.id} className="card">
                 <div className="flex-between">
                   <strong>
-                    <Link to={`/commercial/${item.commercial_id}`}>
-                      {item.commercial_title || item.commercial_id}
-                    </Link>
+                    <Link to={href}>{title}</Link>
                   </strong>
-                  <span className="badge badge-submitted">{item.status}</span>
+                  <span className="badge badge-submitted">
+                    {isBrand ? "brand" : "commercial"} · {item.status}
+                  </span>
                 </div>
                 <p style={{ margin: "0.5rem 0" }}>
                   <strong>{reportReasonLabel(item.reason)}</strong>
@@ -568,8 +581,9 @@ export default function ModPage() {
                   </button>
                 </div>
               </div>
-            ))}
-            {commercialReports?.length === 0 && <p className="muted">No open commercial reports.</p>}
+              );
+            })}
+            {contentReports?.length === 0 && <p className="muted">No open content reports.</p>}
           </div>
         </div>
       )}

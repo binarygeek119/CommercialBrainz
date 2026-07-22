@@ -112,6 +112,7 @@ async def mod_stats(
         failed_fingerprints=failed_fp or 0,
         pending_deletion_requests=pending_deletions or 0,
         dead_links=dead_links,
+        open_content_reports=open_reports,
         open_commercial_reports=open_reports,
     )
 

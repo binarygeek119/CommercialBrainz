@@ -141,7 +141,7 @@ class AccountDeletionStatus(enum.StrEnum):
     CANCELLED = "cancelled"
 
 
-class CommercialReportReason(enum.StrEnum):
+class ContentReportReason(enum.StrEnum):
     BANNED = "banned"
     ADULT_AD = "adult_ad"
     ADULT_PORN = "adult_porn"
@@ -149,11 +149,16 @@ class CommercialReportReason(enum.StrEnum):
     OTHER = "other"
 
 
-class CommercialReportStatus(enum.StrEnum):
+class ContentReportStatus(enum.StrEnum):
     PENDING = "pending"
     UNDER_REVIEW = "under_review"
     RESOLVED = "resolved"
     DISMISSED = "dismissed"
+
+
+# Backwards-compatible aliases used during the commercial-report rollout.
+CommercialReportReason = ContentReportReason
+CommercialReportStatus = ContentReportStatus
 
 
 class User(Base):
@@ -778,26 +783,33 @@ class DMCATakedown(Base):
         foreign_keys=[reviewed_by_id])
 
 
-class CommercialReport(Base):
-    __tablename__ = "commercial_reports"
+class ContentReport(Base):
+    __tablename__ = "content_reports"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    commercial_id: Mapped[uuid.UUID] = mapped_column(
+    commercial_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("commercials.sbid", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    advertiser_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("advertisers.sbid", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     reporter_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    reason: Mapped[CommercialReportReason] = mapped_column(
-        pg_enum(CommercialReportReason, name="commercialreportreason")
+    reason: Mapped[ContentReportReason] = mapped_column(
+        pg_enum(ContentReportReason, name="contentreportreason")
     )
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[CommercialReportStatus] = mapped_column(
-        pg_enum(CommercialReportStatus, name="commercialreportstatus"),
-        default=CommercialReportStatus.PENDING,
+    status: Mapped[ContentReportStatus] = mapped_column(
+        pg_enum(ContentReportStatus, name="contentreportstatus"),
+        default=ContentReportStatus.PENDING,
         index=True,
     )
     review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -814,9 +826,14 @@ class CommercialReport(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    commercial: Mapped["Commercial"] = relationship()
+    commercial: Mapped["Commercial | None"] = relationship()
+    advertiser: Mapped["Advertiser | None"] = relationship()
     reporter: Mapped["User"] = relationship(foreign_keys=[reporter_id])
     reviewed_by: Mapped["User | None"] = relationship(foreign_keys=[reviewed_by_id])
+
+
+# Alias for earlier commercial-only naming.
+CommercialReport = ContentReport
 
 
 class MediaFingerprint(Base):
