@@ -2,8 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# nodejs: yt-dlp needs a JS runtime to solve YouTube n/PO challenges (EJS).
+# Without it, downloads often fail with "Requested format is not available".
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc ffmpeg libchromaprint-tools \
+    libpq-dev gcc ffmpeg libchromaprint-tools nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/pyproject.toml backend/

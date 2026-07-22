@@ -72,31 +72,81 @@ def _run_ytdlp_download(
     *,
     url: str,
     output_template: str,
-    fmt: str,
+    fmt: str | None,
     max_filesize_mb: int | None,
     merge_output_format: str | None,
+    extractor_args: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    from app.services.ytdlp_auth import ytdlp_auth_args
+    from app.services.ytdlp_auth import ytdlp_common_args
 
     cmd = [
         "yt-dlp",
-        *ytdlp_auth_args(),
+        *ytdlp_common_args(extractor_args=extractor_args),
         "--no-playlist",
         "--retries",
         "3",
         "--fragment-retries",
         "3",
-        "-f",
-        fmt,
         "-o",
         output_template,
-        url,
     ]
+    if fmt is not None:
+        cmd.extend(["-f", fmt])
     if max_filesize_mb is not None:
         cmd.extend(["--max-filesize", f"{max_filesize_mb}M"])
     if merge_output_format:
         cmd.extend(["--merge-output-format", merge_output_format])
+    cmd.append(url)
     return subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+
+def _format_attempts() -> list[tuple[str | None, int | None, str | None]]:
+    """Primary format ladder: prefer low-res adaptive, then progressive, then any."""
+    return [
+        (settings.ytdlp_format, settings.hash_max_file_mb, "mp4"),
+        ("bestvideo[height<=480]+bestaudio/best[height<=480]", settings.hash_max_file_mb, "mp4"),
+        # Progressive itags often survive when DASH/SABR clients return no adaptive URLs.
+        ("18/22/best[height<=480]/best", settings.hash_max_file_mb, None),
+        ("bv*+ba/b", None, "mp4"),
+        ("bestvideo+bestaudio/best", None, "mp4"),
+        ("best", None, None),
+        ("b", None, None),
+        ("worstvideo+worstaudio/worst", None, "mp4"),
+        ("worst", None, None),
+        # Last resort: let yt-dlp pick without an explicit -f.
+        (None, None, None),
+    ]
+
+
+def _extractor_attempts() -> list[str | None]:
+    """
+    Player-client variants. None means "use settings.ytdlp_extractor_args".
+    Empty string omits --extractor-args (yt-dlp defaults).
+    """
+    configured = (settings.ytdlp_extractor_args or "").strip()
+    attempts: list[str | None] = [None]
+    for candidate in (
+        "youtube:player_client=android,web,mweb",
+        "youtube:player_client=android",
+        "youtube:player_client=tv_embedded,web",
+        "youtube:player_client=mweb,web",
+        "",
+    ):
+        if candidate == configured:
+            continue
+        if candidate not in attempts:
+            attempts.append(candidate)
+    return attempts
+
+
+def _recovery_format_attempts() -> list[tuple[str | None, int | None, str | None]]:
+    """Shorter ladder used when switching player clients after format-unavailable."""
+    return [
+        ("18/22/best", None, None),
+        ("best", None, None),
+        ("b", None, None),
+        (None, None, None),
+    ]
 
 
 def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
@@ -105,46 +155,64 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
     output_template = str(dest_dir / "%(id)s.%(ext)s")
 
     # max_filesize can exclude every format on some videos; merge can fail on odd codecs.
-    attempts: list[tuple[str, int | None, str | None]] = [
-        (settings.ytdlp_format, settings.hash_max_file_mb, "mp4"),
-        ("bestvideo[height<=480]+bestaudio/best[height<=480]", settings.hash_max_file_mb, "mp4"),
-        ("bv*+ba/b", None, "mp4"),
-        ("bestvideo+bestaudio/best", None, "mp4"),
-        ("b", None, None),
-        ("worstvideo+worstaudio/worst", None, "mp4"),
-        ("worst", None, None),
-    ]
-    seen: set[str] = set()
     last_error = "yt-dlp download failed"
+    seen: set[tuple[str | None, str | None]] = set()
 
-    for fmt, max_mb, merge_fmt in attempts:
-        if fmt in seen:
-            continue
-        seen.add(fmt)
-        _clear_dest_files(dest_dir)
+    def _try_batch(
+        format_batch: list[tuple[str | None, int | None, str | None]],
+        extractor_args: str | None,
+    ) -> Path | None:
+        nonlocal last_error
+        for fmt, max_mb, merge_fmt in format_batch:
+            key = (fmt, extractor_args if extractor_args is not None else "__settings__")
+            if key in seen:
+                continue
+            seen.add(key)
+            _clear_dest_files(dest_dir)
 
-        result = _run_ytdlp_download(
-            url=url,
-            output_template=output_template,
-            fmt=fmt,
-            max_filesize_mb=max_mb,
-            merge_output_format=merge_fmt,
-        )
-        if result.returncode != 0:
-            last_error = (result.stderr or result.stdout or last_error).strip()
-            logger.warning(
-                "yt-dlp format %r failed for %s: %s",
-                fmt,
-                youtube_id,
-                last_error.splitlines()[-1] if last_error else "",
+            result = _run_ytdlp_download(
+                url=url,
+                output_template=output_template,
+                fmt=fmt,
+                max_filesize_mb=max_mb,
+                merge_output_format=merge_fmt,
+                extractor_args=extractor_args,
             )
-            continue
+            if result.returncode != 0:
+                last_error = (result.stderr or result.stdout or last_error).strip()
+                logger.warning(
+                    "yt-dlp format %r (extractor=%r) failed for %s: %s",
+                    fmt,
+                    extractor_args,
+                    youtube_id,
+                    last_error.splitlines()[-1] if last_error else "",
+                )
+                continue
 
-        files = [p for p in dest_dir.iterdir() if p.is_file()]
-        if files:
-            logger.info("yt-dlp downloaded %s using format %r", youtube_id, fmt)
-            return max(files, key=lambda p: p.stat().st_size)
-        last_error = "yt-dlp produced no output file"
+            files = [p for p in dest_dir.iterdir() if p.is_file()]
+            if files:
+                logger.info(
+                    "yt-dlp downloaded %s using format %r (extractor=%r)",
+                    youtube_id,
+                    fmt,
+                    extractor_args,
+                )
+                return max(files, key=lambda p: p.stat().st_size)
+            last_error = "yt-dlp produced no output file"
+        return None
+
+    # Pass 1: full format ladder with configured extractor args.
+    path = _try_batch(_format_attempts(), None)
+    if path is not None:
+        return path
+
+    # Pass 2: if formats were unavailable, retry other player clients with a short ladder.
+    lowered = last_error.lower()
+    if "format is not available" in lowered or "only images are available" in lowered:
+        for extractor_args in _extractor_attempts()[1:]:
+            path = _try_batch(_recovery_format_attempts(), extractor_args)
+            if path is not None:
+                return path
 
     version = _ytdlp_version()
     from app.services.ytdlp_auth import ytdlp_error_message

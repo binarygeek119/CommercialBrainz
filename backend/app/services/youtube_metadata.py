@@ -10,7 +10,7 @@ from math import gcd
 from typing import Any
 from urllib.request import Request, urlopen
 
-from app.services.ytdlp_auth import ytdlp_auth_args, ytdlp_error_message
+from app.services.ytdlp_auth import ytdlp_common_args, ytdlp_error_message
 from app.utils import extract_youtube_id, youtube_watch_url
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
     safe_url = _canonical_youtube_url(url)
     cmd = [
         "yt-dlp",
-        *ytdlp_auth_args(),
+        *ytdlp_common_args(),
         "--no-playlist",
         "--skip-download",
         "--dump-single-json",
@@ -50,7 +50,7 @@ def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
     safe_url = _canonical_youtube_url(url)
     cmd = [
         "yt-dlp",
-        *ytdlp_auth_args(),
+        *ytdlp_common_args(),
         "--flat-playlist",
         "--skip-download",
         "--dump-single-json",
