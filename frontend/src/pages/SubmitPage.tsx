@@ -309,7 +309,7 @@ export default function SubmitPage() {
         <h1 className="page-title" style={{ margin: 0 }}>
           {addLinkCommercial ? "Add link to commercial" : "Submit Commercial Video"}
         </h1>
-        {user?.can_bulk_submit && (
+        {user && (user.bulk_submit_enabled || user.can_bulk_submit) && (
           <Link to="/submit/bulk" className="btn btn-secondary">
             Playlist import
           </Link>

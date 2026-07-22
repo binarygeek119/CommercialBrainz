@@ -114,7 +114,13 @@ def user_bulk_submit_eligible(user: User) -> bool:
 
 
 def user_bulk_submit_granted(user: User) -> bool:
-    """Admin has enabled bulk submit (may still need Power User Terms)."""
+    """Bulk submit is available (may still need Power User Terms).
+
+    Mods and admins are always granted. Other users need the admin-enabled flag
+    plus eligibility (500+ reputation).
+    """
+    if user.role in (UserRole.MOD, UserRole.ADMIN):
+        return True
     return bool(user.bulk_submit_enabled) and user_bulk_submit_eligible(user)
 
 
