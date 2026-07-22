@@ -3,6 +3,14 @@ import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
 import BrowsePage from "./pages/BrowsePage";
 import BrandsPage from "./pages/BrandsPage";
+import StoresPage from "./pages/StoresPage";
+import StorePage from "./pages/StorePage";
+import ServicesPage from "./pages/ServicesPage";
+import ServicePage from "./pages/ServicePage";
+import EventsPage from "./pages/EventsPage";
+import EventPage from "./pages/EventPage";
+import HolidaysPage from "./pages/HolidaysPage";
+import HolidayPage from "./pages/HolidayPage";
 import CommercialsPage from "./pages/CommercialsPage";
 import SearchPage from "./pages/SearchPage";
 import VideoPage from "./pages/VideoPage";
@@ -44,6 +52,14 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="browse" element={<BrowsePage />} />
         <Route path="brands" element={<BrandsPage />} />
+        <Route path="stores" element={<StoresPage />} />
+        <Route path="store/:sbid" element={<StorePage />} />
+        <Route path="services" element={<ServicesPage />} />
+        <Route path="service/:sbid" element={<ServicePage />} />
+        <Route path="events" element={<EventsPage />} />
+        <Route path="event/:sbid" element={<EventPage />} />
+        <Route path="holidays" element={<HolidaysPage />} />
+        <Route path="holiday/:sbid" element={<HolidayPage />} />
         <Route path="commercials" element={<CommercialsPage />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="video/:sbid" element={<VideoPage />} />

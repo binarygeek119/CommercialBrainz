@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Edit } from "../api";
+import CatalogPicker, { type CatalogSelection } from "./CatalogPicker";
+import { CATALOG_KIND_LIST } from "../catalog/kinds";
 import {
   COMMERCIAL_DECADES,
   COMMERCIAL_TYPES,
@@ -39,7 +41,29 @@ function toFormState(commercial: CommercialDetail): FormState {
   };
 }
 
-function toPayload(form: FormState): CommercialMetadataUpdate {
+function catalogSelectionFromCommercial(
+  commercial: CommercialDetail
+): Record<string, CatalogSelection> {
+  const out: Record<string, CatalogSelection> = {};
+  for (const kind of CATALOG_KIND_LIST) {
+    const ref = (commercial as unknown as Record<string, unknown>)[kind.key] as
+      | { sbid: string; name: string }
+      | null
+      | undefined;
+    out[kind.key] = ref ? { id: ref.sbid, name: ref.name } : {};
+  }
+  return out;
+}
+
+function toPayload(
+  form: FormState,
+  catalogs: Record<string, CatalogSelection>
+): CommercialMetadataUpdate & {
+  store_id?: string | null;
+  service_id?: string | null;
+  event_id?: string | null;
+  holiday_id?: string | null;
+} {
   const year = form.year.trim() ? Number(form.year) : null;
   const decade = form.decade.trim() ? Number(form.decade) : null;
   const products = form.products
@@ -51,6 +75,13 @@ function toPayload(form: FormState): CommercialMetadataUpdate {
     ? form.bumper_channel.trim() || null
     : null;
 
+  const catalogIds = Object.fromEntries(
+    CATALOG_KIND_LIST.map((kind) => {
+      const sel = catalogs[kind.key] ?? {};
+      return [kind.idKey, sel.id ?? null];
+    })
+  );
+
   return {
     title: form.title.trim() || null,
     commercial_type,
@@ -60,12 +91,14 @@ function toPayload(form: FormState): CommercialMetadataUpdate {
     year: year != null && !Number.isNaN(year) ? year : null,
     decade: decade != null && !Number.isNaN(decade) ? decade : null,
     products,
+    ...catalogIds,
   };
 }
 
 export default function CommercialMetadataForm({ commercial, onSubmitted }: Props) {
   const initial = useMemo(() => toFormState(commercial), [commercial]);
   const [form, setForm] = useState<FormState>(initial);
+  const [catalogs, setCatalogs] = useState(() => catalogSelectionFromCommercial(commercial));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Edit | null>(null);
@@ -81,7 +114,7 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
     }
     setLoading(true);
     try {
-      const edit = await api.submitCommercialMetadata(commercial.sbid, toPayload(form));
+      const edit = await api.submitCommercialMetadata(commercial.sbid, toPayload(form, catalogs));
       setResult(edit);
       onSubmitted?.();
     } catch (err) {
@@ -95,8 +128,8 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
     <div className="card" style={{ marginTop: "1rem" }}>
       <h3>Commercial metadata</h3>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
-        Propose changes to this commercial&apos;s title, type, campaign, air date, description, or
-        products. Submissions go to the edit queue — 3 votes or 1 mod approval.
+        Propose changes to this commercial&apos;s title, type, campaign, catalog links, air date,
+        description, or products. Submissions go to the edit queue — 3 votes or 1 mod approval.
       </p>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -143,6 +176,22 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
             </p>
           </div>
         )}
+        {CATALOG_KIND_LIST.map((kind) => (
+          <div className="form-group" key={kind.key}>
+            <label>{kind.label}</label>
+            <CatalogPicker
+              kind={kind}
+              value={catalogs[kind.key] ?? {}}
+              allowCreate={false}
+              onChange={(next) =>
+                setCatalogs((prev) => ({ ...prev, [kind.key]: next }))
+              }
+            />
+            <p className="muted" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+              Link an existing approved {kind.label.toLowerCase()}, or clear to unlink.
+            </p>
+          </div>
+        ))}
         <div className="form-group">
           <label htmlFor="commercial-campaign">Campaign name</label>
           <input

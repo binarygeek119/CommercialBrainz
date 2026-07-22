@@ -139,11 +139,16 @@ async def submit_video(
                 brand_comment=data.comment,
             )
             commercial = resolved.commercial
+            from app.services.catalog import resolve_all_catalogs
+
+            commercial, catalog_edits = await resolve_all_catalogs(db, user, commercial)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         after_state["commercial"] = commercial
         if resolved.brand_edit:
             after_state["brand_edit_id"] = str(resolved.brand_edit.id)
+        if catalog_edits:
+            after_state["catalog_edit_ids"] = [str(e.id) for e in catalog_edits]
 
     if data.commercial_id:
         after_state["commercial_id"] = str(data.commercial_id)

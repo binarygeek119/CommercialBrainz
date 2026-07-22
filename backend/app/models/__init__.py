@@ -60,6 +60,22 @@ class EditType(enum.StrEnum):
     EDIT_ADVERTISER = "edit_advertiser"
     ADD_ADVERTISER_LOGO = "add_advertiser_logo"
     EDIT_ADVERTISER_LOGO = "edit_advertiser_logo"
+    CREATE_STORE = "create_store"
+    EDIT_STORE = "edit_store"
+    ADD_STORE_LOGO = "add_store_logo"
+    EDIT_STORE_LOGO = "edit_store_logo"
+    CREATE_SERVICE = "create_service"
+    EDIT_SERVICE = "edit_service"
+    ADD_SERVICE_LOGO = "add_service_logo"
+    EDIT_SERVICE_LOGO = "edit_service_logo"
+    CREATE_EVENT = "create_event"
+    EDIT_EVENT = "edit_event"
+    ADD_EVENT_LOGO = "add_event_logo"
+    EDIT_EVENT_LOGO = "edit_event_logo"
+    CREATE_HOLIDAY = "create_holiday"
+    EDIT_HOLIDAY = "edit_holiday"
+    ADD_HOLIDAY_LOGO = "add_holiday_logo"
+    EDIT_HOLIDAY_LOGO = "edit_holiday_logo"
     REMOVE_VIDEO = "remove_video"
     ADD_CREDIT = "add_credit"
     ADD_TAG = "add_tag"
@@ -69,6 +85,10 @@ class AdvertiserStatus(enum.StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+# Shared approval lifecycle for Store/Service/Event/Holiday catalogs.
+CatalogStatus = AdvertiserStatus
 
 
 class LogoPopularityChoice(enum.StrEnum):
@@ -504,6 +524,399 @@ class AdvertiserLogoVote(Base):
     voter: Mapped["User"] = relationship()
 
 
+class Store(Base):
+    __tablename__ = "stores"
+
+    sbid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(String(512))
+    main_logo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("store_logos.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    website: Mapped[str | None] = mapped_column(String(512))
+    country: Mapped[str | None] = mapped_column(String(64))
+    founded_year: Mapped[int | None] = mapped_column(Integer)
+    store_type: Mapped[str | None] = mapped_column(String(128))
+    headquarters: Mapped[str | None] = mapped_column(String(255))
+    parent_company: Mapped[str | None] = mapped_column(String(255))
+    wikipedia_url: Mapped[str | None] = mapped_column(String(512))
+    external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    status: Mapped[CatalogStatus] = mapped_column(
+        pg_enum(CatalogStatus, name="catalogstatus"),
+        default=CatalogStatus.APPROVED,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    commercials: Mapped[list["Commercial"]] = relationship(back_populates="store")
+    logos: Mapped[list["StoreLogo"]] = relationship(
+        back_populates="store",
+        foreign_keys="StoreLogo.store_id",
+        cascade="all, delete-orphan",
+    )
+    main_logo: Mapped["StoreLogo | None"] = relationship(
+        foreign_keys=[main_logo_id],
+        post_update=True,
+    )
+
+
+class StoreLogo(Base):
+    __tablename__ = "store_logos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    store_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stores.sbid", ondelete="CASCADE"), index=True
+    )
+    image_url: Mapped[str] = mapped_column(String(512))
+    label: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)
+    month: Mapped[int | None] = mapped_column(Integer)
+    event: Mapped[str | None] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id", ondelete="SET NULL"), nullable=True
+    )
+    popularity_score: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    store: Mapped["Store"] = relationship(
+        back_populates="logos", foreign_keys=[store_id]
+    )
+    submitter: Mapped["User | None"] = relationship(foreign_keys=[submitted_by])
+    popularity_votes: Mapped[list["StoreLogoVote"]] = relationship(
+        back_populates="logo", cascade="all, delete-orphan"
+    )
+
+
+class StoreLogoVote(Base):
+    __tablename__ = "store_logo_votes"
+    __table_args__ = (UniqueConstraint("logo_id", "voter_id", name="uq_store_logo_voter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    logo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("store_logos.id", ondelete="CASCADE"), index=True
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[LogoPopularityChoice] = mapped_column(
+        pg_enum(LogoPopularityChoice, name="logopopularitychoice")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    logo: Mapped["StoreLogo"] = relationship(back_populates="popularity_votes")
+    voter: Mapped["User"] = relationship()
+
+
+class Service(Base):
+    __tablename__ = "services"
+
+    sbid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(String(512))
+    main_logo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("service_logos.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    website: Mapped[str | None] = mapped_column(String(512))
+    country: Mapped[str | None] = mapped_column(String(64))
+    founded_year: Mapped[int | None] = mapped_column(Integer)
+    service_type: Mapped[str | None] = mapped_column(String(128))
+    headquarters: Mapped[str | None] = mapped_column(String(255))
+    parent_company: Mapped[str | None] = mapped_column(String(255))
+    wikipedia_url: Mapped[str | None] = mapped_column(String(512))
+    external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    status: Mapped[CatalogStatus] = mapped_column(
+        pg_enum(CatalogStatus, name="catalogstatus"),
+        default=CatalogStatus.APPROVED,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    commercials: Mapped[list["Commercial"]] = relationship(back_populates="service")
+    logos: Mapped[list["ServiceLogo"]] = relationship(
+        back_populates="service",
+        foreign_keys="ServiceLogo.service_id",
+        cascade="all, delete-orphan",
+    )
+    main_logo: Mapped["ServiceLogo | None"] = relationship(
+        foreign_keys=[main_logo_id],
+        post_update=True,
+    )
+
+
+class ServiceLogo(Base):
+    __tablename__ = "service_logos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("services.sbid", ondelete="CASCADE"), index=True
+    )
+    image_url: Mapped[str] = mapped_column(String(512))
+    label: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)
+    month: Mapped[int | None] = mapped_column(Integer)
+    event: Mapped[str | None] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id", ondelete="SET NULL"), nullable=True
+    )
+    popularity_score: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    service: Mapped["Service"] = relationship(
+        back_populates="logos", foreign_keys=[service_id]
+    )
+    submitter: Mapped["User | None"] = relationship(foreign_keys=[submitted_by])
+    popularity_votes: Mapped[list["ServiceLogoVote"]] = relationship(
+        back_populates="logo", cascade="all, delete-orphan"
+    )
+
+
+class ServiceLogoVote(Base):
+    __tablename__ = "service_logo_votes"
+    __table_args__ = (UniqueConstraint("logo_id", "voter_id", name="uq_service_logo_voter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    logo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("service_logos.id", ondelete="CASCADE"), index=True
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[LogoPopularityChoice] = mapped_column(
+        pg_enum(LogoPopularityChoice, name="logopopularitychoice")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    logo: Mapped["ServiceLogo"] = relationship(back_populates="popularity_votes")
+    voter: Mapped["User"] = relationship()
+
+
+class Event(Base):
+    __tablename__ = "events"
+
+    sbid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(String(512))
+    main_logo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("event_logos.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    website: Mapped[str | None] = mapped_column(String(512))
+    country: Mapped[str | None] = mapped_column(String(64))
+    location: Mapped[str | None] = mapped_column(String(255))
+    start_year: Mapped[int | None] = mapped_column(Integer)
+    end_year: Mapped[int | None] = mapped_column(Integer)
+    start_date: Mapped[date | None] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    wikipedia_url: Mapped[str | None] = mapped_column(String(512))
+    external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    status: Mapped[CatalogStatus] = mapped_column(
+        pg_enum(CatalogStatus, name="catalogstatus"),
+        default=CatalogStatus.APPROVED,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    commercials: Mapped[list["Commercial"]] = relationship(back_populates="event")
+    logos: Mapped[list["EventLogo"]] = relationship(
+        back_populates="event",
+        foreign_keys="EventLogo.event_id",
+        cascade="all, delete-orphan",
+    )
+    main_logo: Mapped["EventLogo | None"] = relationship(
+        foreign_keys=[main_logo_id],
+        post_update=True,
+    )
+
+
+class EventLogo(Base):
+    __tablename__ = "event_logos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("events.sbid", ondelete="CASCADE"), index=True
+    )
+    image_url: Mapped[str] = mapped_column(String(512))
+    label: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)
+    month: Mapped[int | None] = mapped_column(Integer)
+    event_label: Mapped[str | None] = mapped_column("event", String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id", ondelete="SET NULL"), nullable=True
+    )
+    popularity_score: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped["Event"] = relationship(
+        back_populates="logos", foreign_keys=[event_id]
+    )
+    submitter: Mapped["User | None"] = relationship(foreign_keys=[submitted_by])
+    popularity_votes: Mapped[list["EventLogoVote"]] = relationship(
+        back_populates="logo", cascade="all, delete-orphan"
+    )
+
+
+class EventLogoVote(Base):
+    __tablename__ = "event_logo_votes"
+    __table_args__ = (UniqueConstraint("logo_id", "voter_id", name="uq_event_logo_voter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    logo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("event_logos.id", ondelete="CASCADE"), index=True
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[LogoPopularityChoice] = mapped_column(
+        pg_enum(LogoPopularityChoice, name="logopopularitychoice")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    logo: Mapped["EventLogo"] = relationship(back_populates="popularity_votes")
+    voter: Mapped["User"] = relationship()
+
+
+class Holiday(Base):
+    __tablename__ = "holidays"
+
+    sbid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(String(512))
+    main_logo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("holiday_logos.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    website: Mapped[str | None] = mapped_column(String(512))
+    country: Mapped[str | None] = mapped_column(String(64))
+    date_text: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)
+    month: Mapped[int | None] = mapped_column(Integer)
+    day: Mapped[int | None] = mapped_column(Integer)
+    wikipedia_url: Mapped[str | None] = mapped_column(String(512))
+    external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    status: Mapped[CatalogStatus] = mapped_column(
+        pg_enum(CatalogStatus, name="catalogstatus"),
+        default=CatalogStatus.APPROVED,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    commercials: Mapped[list["Commercial"]] = relationship(back_populates="holiday")
+    logos: Mapped[list["HolidayLogo"]] = relationship(
+        back_populates="holiday",
+        foreign_keys="HolidayLogo.holiday_id",
+        cascade="all, delete-orphan",
+    )
+    main_logo: Mapped["HolidayLogo | None"] = relationship(
+        foreign_keys=[main_logo_id],
+        post_update=True,
+    )
+
+
+class HolidayLogo(Base):
+    __tablename__ = "holiday_logos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    holiday_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("holidays.sbid", ondelete="CASCADE"), index=True
+    )
+    image_url: Mapped[str] = mapped_column(String(512))
+    label: Mapped[str | None] = mapped_column(String(255))
+    year: Mapped[int | None] = mapped_column(Integer)
+    month: Mapped[int | None] = mapped_column(Integer)
+    event: Mapped[str | None] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    edit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("edits.id", ondelete="SET NULL"), nullable=True
+    )
+    popularity_score: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    holiday: Mapped["Holiday"] = relationship(
+        back_populates="logos", foreign_keys=[holiday_id]
+    )
+    submitter: Mapped["User | None"] = relationship(foreign_keys=[submitted_by])
+    popularity_votes: Mapped[list["HolidayLogoVote"]] = relationship(
+        back_populates="logo", cascade="all, delete-orphan"
+    )
+
+
+class HolidayLogoVote(Base):
+    __tablename__ = "holiday_logo_votes"
+    __table_args__ = (UniqueConstraint("logo_id", "voter_id", name="uq_holiday_logo_voter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    logo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("holiday_logos.id", ondelete="CASCADE"), index=True
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[LogoPopularityChoice] = mapped_column(
+        pg_enum(LogoPopularityChoice, name="logopopularitychoice")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    logo: Mapped["HolidayLogo"] = relationship(back_populates="popularity_votes")
+    voter: Mapped["User"] = relationship()
+
+
 class Agency(Base):
     __tablename__ = "agencies"
 
@@ -529,6 +942,18 @@ class Commercial(Base):
     advertiser_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("advertisers.sbid"), index=True
     )
+    store_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stores.sbid"), index=True
+    )
+    service_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("services.sbid"), index=True
+    )
+    event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("events.sbid"), index=True
+    )
+    holiday_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("holidays.sbid"), index=True
+    )
     agency_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agencies.sbid"), index=True
     )
@@ -549,6 +974,10 @@ class Commercial(Base):
 
     advertiser: Mapped["Advertiser | None"] = relationship(
         back_populates="commercials")
+    store: Mapped["Store | None"] = relationship(back_populates="commercials")
+    service: Mapped["Service | None"] = relationship(back_populates="commercials")
+    event: Mapped["Event | None"] = relationship(back_populates="commercials")
+    holiday: Mapped["Holiday | None"] = relationship(back_populates="commercials")
     agency: Mapped["Agency | None"] = relationship(
         back_populates="commercials")
     videos: Mapped[list["Video"]] = relationship(

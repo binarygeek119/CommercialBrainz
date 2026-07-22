@@ -491,9 +491,16 @@ async def finalize_bulk_item(
             commercial_data,
             brand_comment=submit_payload.get("comment"),
         )
-        after_state["commercial"] = resolved.commercial
+        from app.services.catalog import resolve_all_catalogs
+
+        commercial_resolved, catalog_edits = await resolve_all_catalogs(
+            db, user, resolved.commercial
+        )
+        after_state["commercial"] = commercial_resolved
         if resolved.brand_edit:
             after_state["brand_edit_id"] = str(resolved.brand_edit.id)
+        if catalog_edits:
+            after_state["catalog_edit_ids"] = [str(e.id) for e in catalog_edits]
 
     # Attach fingerprint to upcoming edit before create when possible.
     edit = await EditService.create_edit(
