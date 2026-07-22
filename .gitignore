@@ -42,3 +42,8 @@ infra/caddy/Caddyfile.runtime
 
 # Docker
 *.log
+
+# YouTube cookies for yt-dlp (never commit)
+data/ytdlp/cookies.txt
+data/ytdlp/*.txt
+!data/ytdlp/README.md
