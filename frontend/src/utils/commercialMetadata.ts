@@ -1,6 +1,7 @@
 export const COMMERCIAL_METADATA_FIELDS = [
   { key: "sbid", label: "Commercial ID" },
   { key: "title", label: "Title" },
+  { key: "commercial_type", label: "Type of commercial" },
   { key: "campaign_name", label: "Campaign name" },
   { key: "description", label: "Description" },
   { key: "year", label: "Year aired" },
@@ -24,6 +25,15 @@ export function formatCommercialFieldValue(key: string, value: unknown): string 
   }
   if (key === "decade" && typeof value === "number") {
     return `${value}s`;
+  }
+  if (key === "commercial_type" && typeof value === "string") {
+    const labels: Record<string, string> = {
+      general_ad: "General ad",
+      psa: "PSA",
+      service: "Service",
+      store: "Store",
+    };
+    return labels[value] ?? value.replace(/_/g, " ");
   }
   if (key === "created_at" && typeof value === "string") {
     return new Date(value).toLocaleString();

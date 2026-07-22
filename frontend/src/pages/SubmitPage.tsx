@@ -18,6 +18,7 @@ import SubmissionGenresFields, {
 import type { SubmissionGenres } from "../utils/submissionGenres";
 import { submissionGenresPayload } from "../utils/submissionGenres";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
+import { COMMERCIAL_TYPES } from "../utils/commercialTypes";
 import {
   addLinkDefaultsFromVideo,
   commercialInheritanceSummary,
@@ -33,6 +34,7 @@ const EMPTY_FORM = {
   version_label: "",
   year: "",
   decade: "",
+  commercial_type: "",
   language: "",
   transcript: "",
   slogan: "",
@@ -291,6 +293,9 @@ export default function SubmitPage() {
                     : {}),
                 year: form.year ? parseInt(form.year, 10) : undefined,
                 decade: form.decade ? parseInt(form.decade, 10) : undefined,
+                ...(form.commercial_type
+                  ? { commercial_type: form.commercial_type }
+                  : {}),
               },
             }
       );
@@ -516,6 +521,20 @@ export default function SubmitPage() {
           <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
             Search an existing brand or enter a new one. New brands are shared for all submitters.
           </p>
+        </div>
+        <div className="form-group">
+          <label>Type of commercial</label>
+          <select
+            value={form.commercial_type}
+            onChange={(e) => setForm({ ...form, commercial_type: e.target.value })}
+          >
+            <option value="">Unknown / not sure</option>
+            {COMMERCIAL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
           <label>Decade aired (rough estimate)</label>
