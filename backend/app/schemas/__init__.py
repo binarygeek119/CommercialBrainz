@@ -557,6 +557,7 @@ class VideoPublic(ORMModel):
     is_main: bool = False
     link_label: str | None = None
     viewer_vote: str | None = None
+    commercial_title: str | None = None
     metadata: dict
     visibility: str
     phash: str | None = None
