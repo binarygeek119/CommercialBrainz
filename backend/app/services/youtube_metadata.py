@@ -44,6 +44,7 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
         "--skip-download",
         "--dump-single-json",
         "--no-warnings",
+        "--",
         safe_url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=45)
@@ -65,6 +66,7 @@ def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
         "--skip-download",
         "--dump-single-json",
         "--no-warnings",
+        "--",
         safe_url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=300)
