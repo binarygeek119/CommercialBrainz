@@ -14,7 +14,9 @@ export default function HomePage() {
   return (
     <div>
       <div className="hero">
-        <h1>CommercialBrainz</h1>
+        <h1 className="logo">
+          Commercial<span>Brainz</span>
+        </h1>
         <p>
           The open commercial video database. One entry per YouTube video, rich metadata,
           community edits, and MusicBrainz-style voting.
