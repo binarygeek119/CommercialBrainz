@@ -5,6 +5,7 @@ from app.api.v1 import (
     advertiser_logos,
     auth,
     bulk_submit,
+    catalog,
     commercial_videos,
     dmca,
     dumps,
@@ -23,6 +24,7 @@ api_router.include_router(hashes.router)
 api_router.include_router(bulk_submit.router)
 api_router.include_router(media.router)
 api_router.include_router(advertiser_logos.router)
+api_router.include_router(catalog.router)
 api_router.include_router(commercial_videos.router)
 api_router.include_router(edits.router)
 api_router.include_router(dmca.router)

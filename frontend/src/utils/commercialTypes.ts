@@ -32,11 +32,19 @@ export interface CommercialDetail {
   bumper_channel?: string | null;
   campaign_name?: string | null;
   advertiser_id?: string | null;
+  store_id?: string | null;
+  service_id?: string | null;
+  event_id?: string | null;
+  holiday_id?: string | null;
   agency_id?: string | null;
   external_ids?: Record<string, unknown>;
   created_at?: string;
   products?: string[];
   advertiser?: { sbid: string; name: string } | null;
+  store?: { sbid: string; name: string } | null;
+  service?: { sbid: string; name: string } | null;
+  event?: { sbid: string; name: string } | null;
+  holiday?: { sbid: string; name: string } | null;
   agency?: { sbid: string; name: string; slug?: string } | null;
   videos?: Video[];
 }
@@ -50,6 +58,10 @@ export interface CommercialMetadataUpdate {
   campaign_name?: string | null;
   description?: string | null;
   products?: string[];
+  store_id?: string | null;
+  service_id?: string | null;
+  event_id?: string | null;
+  holiday_id?: string | null;
 }
 
 export { COMMERCIAL_DECADES };

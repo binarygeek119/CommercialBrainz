@@ -12,6 +12,18 @@ function renderCommercialField(commercial: CommercialDetail, key: string) {
       <Link to={`/advertiser/${commercial.advertiser.sbid}`}>{commercial.advertiser.name}</Link>
     );
   }
+  if (key === "store" && commercial.store) {
+    return <Link to={`/store/${commercial.store.sbid}`}>{commercial.store.name}</Link>;
+  }
+  if (key === "service" && commercial.service) {
+    return <Link to={`/service/${commercial.service.sbid}`}>{commercial.service.name}</Link>;
+  }
+  if (key === "event" && commercial.event) {
+    return <Link to={`/event/${commercial.event.sbid}`}>{commercial.event.name}</Link>;
+  }
+  if (key === "holiday" && commercial.holiday) {
+    return <Link to={`/holiday/${commercial.holiday.sbid}`}>{commercial.holiday.name}</Link>;
+  }
   if (key === "agency" && commercial.agency) {
     return commercial.agency.name;
   }
@@ -19,7 +31,12 @@ function renderCommercialField(commercial: CommercialDetail, key: string) {
     return <span className="mono">{commercial.sbid}</span>;
   }
   const value =
-    key === "advertiser" || key === "agency"
+    key === "advertiser" ||
+    key === "store" ||
+    key === "service" ||
+    key === "event" ||
+    key === "holiday" ||
+    key === "agency"
       ? null
       : commercial[key as keyof CommercialDetail];
   return formatCommercialFieldValue(key, value);

@@ -1,20 +1,25 @@
 import { Link } from "react-router-dom";
 import type { Edit } from "../api";
 import BrandLogoImage from "./BrandLogoImage";
+import { isCatalogLogoEdit, catalogKindFromEditType } from "../catalog/kinds";
 import { editTitle } from "../utils/editDisplay";
 import { formatLogoContext } from "../utils/brandLogos";
 
 function proposedLogoUrl(edit: Edit): string | null {
-  if (
-    (edit.edit_type === "add_advertiser_logo" ||
-      edit.edit_type === "edit_advertiser_logo" ||
-      edit.edit_type === "edit_advertiser") &&
-    typeof edit.after_state.logo_url === "string"
-  ) {
+  const catalogKind = catalogKindFromEditType(edit.edit_type);
+  const isLogoEdit =
+    edit.edit_type === "add_advertiser_logo" ||
+    edit.edit_type === "edit_advertiser_logo" ||
+    edit.edit_type === "edit_advertiser" ||
+    isCatalogLogoEdit(edit.edit_type) ||
+    (catalogKind != null && edit.edit_type === catalogKind.editEdit);
+
+  if (isLogoEdit && typeof edit.after_state.logo_url === "string") {
     return edit.after_state.logo_url;
   }
   if (
-    edit.edit_type === "edit_advertiser_logo" &&
+    (edit.edit_type === "edit_advertiser_logo" ||
+      (catalogKind != null && edit.edit_type === catalogKind.editLogoEdit)) &&
     typeof edit.after_state.image_url === "string"
   ) {
     return edit.after_state.image_url;
@@ -25,7 +30,9 @@ function proposedLogoUrl(edit: Edit): string | null {
 export default function OpenEditCard({ edit }: { edit: Edit }) {
   const logoUrl = proposedLogoUrl(edit);
   const logoContext =
-    edit.edit_type === "add_advertiser_logo" || edit.edit_type === "edit_advertiser_logo"
+    edit.edit_type === "add_advertiser_logo" ||
+    edit.edit_type === "edit_advertiser_logo" ||
+    isCatalogLogoEdit(edit.edit_type)
       ? formatLogoContext(edit.after_state)
       : null;
 

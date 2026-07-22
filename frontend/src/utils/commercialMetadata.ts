@@ -8,6 +8,14 @@ export const COMMERCIAL_METADATA_FIELDS = [
   { key: "year", label: "Year aired" },
   { key: "decade", label: "Decade aired" },
   { key: "advertiser", label: "Brand" },
+  { key: "store", label: "Store" },
+  { key: "service", label: "Service" },
+  { key: "event", label: "Event" },
+  { key: "holiday", label: "Holiday" },
+  { key: "store_id", label: "Store" },
+  { key: "service_id", label: "Service" },
+  { key: "event_id", label: "Event" },
+  { key: "holiday_id", label: "Holiday" },
   { key: "agency", label: "Agency" },
   { key: "products", label: "Products" },
   { key: "external_ids", label: "External IDs" },
@@ -63,6 +71,19 @@ export function commercialHasFieldValue(
     );
   }
   if (key === "advertiser") return !!commercial.advertiser;
+  if (key === "store") return !!commercial.store;
+  if (key === "service") return !!commercial.service;
+  if (key === "event") return !!commercial.event;
+  if (key === "holiday") return !!commercial.holiday;
+  // Edit-diff keys only — display uses nested store/service/event/holiday objects
+  if (
+    key === "store_id" ||
+    key === "service_id" ||
+    key === "event_id" ||
+    key === "holiday_id"
+  ) {
+    return false;
+  }
   if (key === "agency") return !!commercial.agency;
   return value != null && value !== "";
 }

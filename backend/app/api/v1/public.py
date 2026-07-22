@@ -147,6 +147,10 @@ async def get_commercial(
         select(Commercial)
         .options(
             selectinload(Commercial.advertiser),
+            selectinload(Commercial.store),
+            selectinload(Commercial.service),
+            selectinload(Commercial.event),
+            selectinload(Commercial.holiday),
             selectinload(Commercial.agency),
             selectinload(Commercial.videos),
             selectinload(Commercial.products),
@@ -163,11 +167,21 @@ async def get_commercial(
     commercial_public["was_bulk_imported"] = commercial_was_bulk_imported_for_viewer(
         commercial, user
     )
+    from app.services.catalog import ALL_CATALOG_KINDS, entity_public_dict
+
+    catalog_embeds = {}
+    for kind in ALL_CATALOG_KINDS:
+        related = getattr(commercial, kind.key, None)
+        catalog_embeds[kind.key] = entity_public_dict(kind, related) if related else None
     return CommercialDetail(
         **commercial_public,
         advertiser=AdvertiserPublic(**advertiser_public_dict(commercial.advertiser))
         if commercial.advertiser
         else None,
+        store=catalog_embeds["store"],
+        service=catalog_embeds["service"],
+        event=catalog_embeds["event"],
+        holiday=catalog_embeds["holiday"],
         agency=AgencyPublic.model_validate(commercial.agency) if commercial.agency else None,
         videos=videos,
         products=[p.name for p in commercial.products],

@@ -459,6 +459,11 @@ export interface CommercialListItem {
   was_bulk_imported?: boolean | null;
 }
 
+export interface CatalogRef {
+  sbid: string;
+  name: string;
+}
+
 export interface CommercialDetail {
   sbid: string;
   title: string;
@@ -469,15 +474,92 @@ export interface CommercialDetail {
   bumper_channel?: string | null;
   campaign_name?: string | null;
   advertiser_id?: string | null;
+  store_id?: string | null;
+  service_id?: string | null;
+  event_id?: string | null;
+  holiday_id?: string | null;
   agency_id?: string | null;
   external_ids?: Record<string, unknown>;
   created_at?: string;
   products?: string[];
-  advertiser?: { sbid: string; name: string } | null;
+  advertiser?: CatalogRef | null;
+  store?: CatalogRef | null;
+  service?: CatalogRef | null;
+  event?: CatalogRef | null;
+  holiday?: CatalogRef | null;
   agency?: { sbid: string; name: string; slug?: string } | null;
   videos?: Video[];
   was_bulk_imported?: boolean | null;
 }
+
+export interface CatalogEntity {
+  sbid: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url?: string | null;
+  main_logo_id?: string | null;
+  website?: string | null;
+  country?: string | null;
+  wikipedia_url?: string | null;
+  metadata?: {
+    aliases?: string[];
+    tagline?: string | null;
+    social?: Record<string, string>;
+    notes?: string | null;
+  };
+  external_ids?: Record<string, unknown>;
+  status?: string;
+  created_at: string;
+  founded_year?: number | null;
+  store_type?: string | null;
+  service_type?: string | null;
+  headquarters?: string | null;
+  parent_company?: string | null;
+  location?: string | null;
+  start_year?: number | null;
+  end_year?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  date_text?: string | null;
+  year?: number | null;
+  month?: number | null;
+  day?: number | null;
+  commercials?: { sbid: string; title: string }[];
+  alias_links?: BrandAliasLink[];
+}
+
+export type CatalogMetadataUpdate = Record<string, unknown>;
+
+export interface CatalogLogo {
+  id: string;
+  image_url: string;
+  label: string | null;
+  year: number | null;
+  month: number | null;
+  event: string | null;
+  notes: string | null;
+  popularity_score: number;
+  is_main: boolean;
+  context_label: string;
+  created_at: string;
+  viewer_vote: "up" | "down" | null;
+  store_id?: string | null;
+  service_id?: string | null;
+  event_id?: string | null;
+  holiday_id?: string | null;
+}
+
+export interface CatalogLogoSubmit {
+  label?: string;
+  year?: number;
+  month?: number;
+  event?: string;
+  notes?: string;
+  comment?: string;
+}
+
+export type CatalogLogoMetadataUpdate = Omit<CatalogLogoSubmit, "comment">;
 
 export interface BrandAliasLink {
   name: string;
@@ -776,6 +858,136 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  searchCatalog: (kind: "store" | "service" | "event" | "holiday", query: string) =>
+    api.search(query, kind),
+
+  listCatalog: (
+    kind: "store" | "service" | "event" | "holiday",
+    q = "",
+    offset = 0,
+    limit = 50
+  ) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    return request<Paginated<CatalogEntity>>(
+      `/${plural}?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
+    );
+  },
+
+  getCatalog: (kind: "store" | "service" | "event" | "holiday", sbid: string) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    return request<CatalogEntity>(`/${plural}/${sbid}`);
+  },
+
+  submitCatalogMetadata: (
+    kind: "store" | "service" | "event" | "holiday",
+    sbid: string,
+    data: CatalogMetadataUpdate
+  ) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    return request<Edit>(`/${plural}/${sbid}/submit-metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  submitCatalogLogo: (
+    kind: "store" | "service" | "event" | "holiday",
+    sbid: string,
+    file: File,
+    meta: CatalogLogoSubmit = {}
+  ) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    const body = new FormData();
+    body.append("file", file);
+    if (meta.label) body.append("label", meta.label);
+    if (meta.year != null) body.append("year", String(meta.year));
+    if (meta.month != null) body.append("month", String(meta.month));
+    if (meta.event) body.append("event", meta.event);
+    if (meta.notes) body.append("notes", meta.notes);
+    if (meta.comment?.trim()) body.append("comment", meta.comment.trim());
+    return request<Edit>(`/${plural}/${sbid}/submit-logo`, { method: "POST", body });
+  },
+
+  getCatalogLogos: (kind: "store" | "service" | "event" | "holiday", sbid: string) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    return request<CatalogLogo[]>(`/${plural}/${sbid}/logos`);
+  },
+
+  voteCatalogLogoPopularity: (
+    kind: "store" | "service" | "event" | "holiday",
+    sbid: string,
+    logoId: string,
+    choice: "up" | "down" | null
+  ) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    return request<CatalogLogo>(`/${plural}/${sbid}/logos/${logoId}/popularity-vote`, {
+      method: "POST",
+      body: JSON.stringify({ choice }),
+    });
+  },
+
+  submitCatalogLogoMetadata: (
+    kind: "store" | "service" | "event" | "holiday",
+    sbid: string,
+    logoId: string,
+    data: CatalogLogoMetadataUpdate
+  ) => {
+    const plural =
+      kind === "store"
+        ? "stores"
+        : kind === "service"
+          ? "services"
+          : kind === "event"
+            ? "events"
+            : "holidays";
+    return request<Edit>(`/${plural}/${sbid}/logos/${logoId}/submit-metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   submitCommercialMetadata: (
     sbid: string,
     data: {
@@ -787,6 +999,10 @@ export const api = {
       campaign_name?: string | null;
       description?: string | null;
       products?: string[];
+      store_id?: string | null;
+      service_id?: string | null;
+      event_id?: string | null;
+      holiday_id?: string | null;
     }
   ) =>
     request<Edit>(`/commercials/${sbid}/submit-metadata`, {

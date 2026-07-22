@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from app.models import Edit
 
+_CATALOG_LABELS = {
+    "store": "Store",
+    "service": "Service",
+    "event": "Event",
+    "holiday": "Holiday",
+}
+
 
 def edit_summary_title(edit: Edit) -> str:
     state = edit.after_state or {}
@@ -23,6 +30,18 @@ def edit_summary_title(edit: Edit) -> str:
         return str(state.get("title") or "Commercial metadata")
     if edit_type == "edit_video" and state.get("thumbnail_url"):
         return "Custom thumbnail"
+
+    for key, label in _CATALOG_LABELS.items():
+        if edit_type == f"create_{key}":
+            return str(state.get("name") or f"New {label.lower()}")
+        if edit_type == f"add_{key}_logo":
+            return str(state.get("label") or f"{label} logo version")
+        if edit_type == f"edit_{key}_logo":
+            return str(state.get("label") or "Logo metadata")
+        if edit_type == f"edit_{key}" and state.get("logo_url"):
+            return f"{label} logo"
+        if edit_type == f"edit_{key}":
+            return str(state.get("name") or f"{label} metadata")
 
     commercial = state.get("commercial")
     if isinstance(commercial, dict) and commercial.get("title"):

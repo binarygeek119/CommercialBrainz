@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Self
 from uuid import UUID
 
@@ -349,6 +349,14 @@ class CommercialCreate(BaseModel):
     title: str = Field(min_length=1, max_length=512)
     advertiser_id: UUID | None = None
     advertiser_name: str | None = None
+    store_id: UUID | None = None
+    store_name: str | None = None
+    service_id: UUID | None = None
+    service_name: str | None = None
+    event_id: UUID | None = None
+    event_name: str | None = None
+    holiday_id: UUID | None = None
+    holiday_name: str | None = None
     agency_id: UUID | None = None
     agency_name: str | None = None
     year: int | None = Field(default=None, ge=1900, le=2100)
@@ -410,6 +418,10 @@ class CommercialPublic(ORMModel):
     sbid: UUID
     title: str
     advertiser_id: UUID | None
+    store_id: UUID | None = None
+    service_id: UUID | None = None
+    event_id: UUID | None = None
+    holiday_id: UUID | None = None
     agency_id: UUID | None
     year: int | None
     decade: int | None
@@ -436,6 +448,10 @@ class CommercialMetadataUpdate(BaseModel):
     campaign_name: str | None = Field(default=None, max_length=512)
     description: str | None = None
     products: list[str] = Field(default_factory=list)
+    store_id: UUID | None = None
+    service_id: UUID | None = None
+    event_id: UUID | None = None
+    holiday_id: UUID | None = None
 
     @field_validator("decade")
     @classmethod
@@ -561,6 +577,10 @@ class VideoDetail(VideoPublic):
 
 class CommercialDetail(CommercialPublic):
     advertiser: AdvertiserPublic | None = None
+    store: dict | None = None
+    service: dict | None = None
+    event: dict | None = None
+    holiday: dict | None = None
     agency: AgencyPublic | None = None
     videos: list[VideoPublic] = Field(default_factory=list)
     products: list[str] = Field(default_factory=list)
@@ -987,3 +1007,96 @@ class AdminFingerprintPublic(BaseModel):
             created_at=row.created_at,
             completed_at=row.completed_at,
         )
+
+
+# --- Catalog entities (Store / Service / Event / Holiday) ---
+
+
+class CatalogEntityPublic(ORMModel):
+    sbid: UUID
+    name: str
+    slug: str
+    description: str | None = None
+    logo_url: str | None = None
+    main_logo_id: UUID | None = None
+    website: str | None = None
+    country: str | None = None
+    wikipedia_url: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    external_ids: dict = Field(default_factory=dict)
+    status: str
+    created_at: datetime
+    # Store / Service
+    founded_year: int | None = None
+    store_type: str | None = None
+    service_type: str | None = None
+    headquarters: str | None = None
+    parent_company: str | None = None
+    # Event
+    location: str | None = None
+    start_year: int | None = None
+    end_year: int | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    # Holiday
+    date_text: str | None = None
+    year: int | None = None
+    month: int | None = None
+    day: int | None = None
+
+
+class CatalogEntityDetail(CatalogEntityPublic):
+    commercials: list[CommercialPublic] = Field(default_factory=list)
+    alias_links: list[BrandAliasLink] = Field(default_factory=list)
+
+
+class CatalogMetadataUpdate(BaseModel):
+    description: str | None = None
+    website: str | None = Field(default=None, max_length=512)
+    country: str | None = Field(default=None, max_length=64)
+    founded_year: int | None = Field(default=None, ge=1800, le=2100)
+    store_type: str | None = Field(default=None, max_length=128)
+    service_type: str | None = Field(default=None, max_length=128)
+    headquarters: str | None = Field(default=None, max_length=255)
+    parent_company: str | None = Field(default=None, max_length=255)
+    wikipedia_url: str | None = Field(default=None, max_length=512)
+    location: str | None = Field(default=None, max_length=255)
+    start_year: int | None = Field(default=None, ge=1800, le=2200)
+    end_year: int | None = Field(default=None, ge=1800, le=2200)
+    start_date: date | None = None
+    end_date: date | None = None
+    date_text: str | None = Field(default=None, max_length=255)
+    year: int | None = Field(default=None, ge=1800, le=2200)
+    month: int | None = Field(default=None, ge=1, le=12)
+    day: int | None = Field(default=None, ge=1, le=31)
+    aliases: list[str] = Field(default_factory=list)
+    tagline: str | None = Field(default=None, max_length=512)
+    social: dict[str, str] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+class CatalogLogoPublic(BaseModel):
+    id: UUID
+    image_url: str
+    label: str | None = None
+    year: int | None = None
+    month: int | None = None
+    event: str | None = None
+    notes: str | None = None
+    popularity_score: int = 0
+    is_main: bool = False
+    context_label: str
+    created_at: datetime
+    viewer_vote: str | None = None
+    store_id: UUID | None = None
+    service_id: UUID | None = None
+    event_id: UUID | None = None
+    holiday_id: UUID | None = None
+
+
+class CatalogLogoMetadataUpdate(BaseModel):
+    label: str | None = Field(default=None, max_length=255)
+    year: int | None = Field(default=None, ge=1800, le=2100)
+    month: int | None = Field(default=None, ge=1, le=12)
+    event: str | None = Field(default=None, max_length=255)
+    notes: str | None = Field(default=None, max_length=4000)

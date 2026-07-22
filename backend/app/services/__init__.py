@@ -82,6 +82,14 @@ class EditService:
 
             await prepare_create_advertiser_edit(db, edit)
 
+        from app.services.catalog import CATALOG_KINDS
+        for kind in CATALOG_KINDS.values():
+            if edit_type == kind.create_edit:
+                from app.services.catalog import prepare_create_catalog_edit
+
+                await prepare_create_catalog_edit(db, kind, edit)
+                break
+
         if is_auto:
             edit.status = EditStatus.AUTOMATICALLY_APPLIED
             edit.closed_at = datetime.now(UTC)
@@ -135,6 +143,30 @@ class EditService:
             await EditService._apply_add_advertiser_logo(db, edit, state)
         elif et == EditType.EDIT_ADVERTISER_LOGO:
             await EditService._apply_edit_advertiser_logo(db, edit, state)
+        else:
+            from app.services.catalog import CATALOG_KINDS
+
+            handled = False
+            for kind in CATALOG_KINDS.values():
+                if et == kind.create_edit:
+                    await EditService._apply_create_catalog(db, edit, state, kind)
+                    handled = True
+                    break
+                if et == kind.edit_edit:
+                    await EditService._apply_edit_catalog(db, edit, state, kind)
+                    handled = True
+                    break
+                if et == kind.add_logo_edit:
+                    await EditService._apply_add_catalog_logo(db, edit, state, kind)
+                    handled = True
+                    break
+                if et == kind.edit_logo_edit:
+                    await EditService._apply_edit_catalog_logo(db, edit, state, kind)
+                    handled = True
+                    break
+            if not handled:
+                edit.status = EditStatus.FAILED
+                return pending_hash
 
         if edit.status == EditStatus.OPEN:
             edit.status = EditStatus.APPLIED
@@ -165,6 +197,10 @@ class EditService:
         commercial = Commercial(
             title=state["title"],
             advertiser_id=UUID(advertiser_id) if advertiser_id else None,
+            store_id=UUID(state["store_id"]) if state.get("store_id") else None,
+            service_id=UUID(state["service_id"]) if state.get("service_id") else None,
+            event_id=UUID(state["event_id"]) if state.get("event_id") else None,
+            holiday_id=UUID(state["holiday_id"]) if state.get("holiday_id") else None,
             agency_id=UUID(agency_id) if agency_id else None,
             year=state.get("year"),
             decade=state.get("decade"),
@@ -210,6 +246,10 @@ class EditService:
     "campaign_name",
     "description",
     "advertiser_id",
+    "store_id",
+    "service_id",
+    "event_id",
+    "holiday_id",
      "agency_id"):
             if field in state:
                 val = state[field]
@@ -569,6 +609,141 @@ class EditService:
 
         await db.flush()
 
+
+    @staticmethod
+    async def _apply_create_catalog(db: AsyncSession, edit: Edit, state: dict, kind) -> None:
+        from app.models import CatalogStatus
+        from app.services.catalog import apply_entity_state
+
+        entity_id = edit.entity_id
+        if not entity_id:
+            raw = state.get(kind.id_key)
+            entity_id = UUID(raw) if isinstance(raw, str) else raw
+        if not entity_id:
+            edit.status = EditStatus.FAILED
+            return
+        entity = await db.get(kind.model, entity_id)
+        if not entity:
+            edit.status = EditStatus.FAILED
+            return
+        entity.status = CatalogStatus.APPROVED
+        apply_entity_state(kind, entity, state)
+        if state.get("external_ids"):
+            entity.external_ids = state.get("external_ids", {})
+        edit.entity_id = entity.sbid
+
+    @staticmethod
+    async def _apply_edit_catalog(db: AsyncSession, edit: Edit, state: dict, kind) -> None:
+        from app.services.catalog import apply_entity_state
+        from app.services.catalog_logos import create_logo_from_edit, recompute_main_logo
+        from app.services.logo_storage import finalize_staged_logo
+
+        entity_id = edit.entity_id
+        if not entity_id:
+            raw = state.get(kind.id_key)
+            entity_id = UUID(raw) if isinstance(raw, str) else raw
+        if not entity_id:
+            edit.status = EditStatus.FAILED
+            return
+        entity = await db.get(kind.model, entity_id)
+        if not entity:
+            edit.status = EditStatus.FAILED
+            return
+
+        state = dict(state)
+        staging = state.pop("logo_staging_file", None)
+        if staging:
+            logo = await create_logo_from_edit(
+                db,
+                kind,
+                entity_id=entity.sbid,
+                image_url=state.get("logo_url") or "",
+                editor_id=edit.editor_id,
+                edit_id=edit.id,
+                label=state.get("label"),
+                year=state.get("year"),
+                month=state.get("month"),
+                event=state.get("event"),
+                notes=state.get("notes"),
+            )
+            try:
+                logo.image_url = finalize_staged_logo(staging, entity.sbid, logo.id)
+            except (ValueError, FileNotFoundError) as exc:
+                edit.status = EditStatus.FAILED
+                logger.error("Logo finalize failed for edit %s: %s", edit.id, exc)
+                return
+            await recompute_main_logo(db, kind, entity.sbid)
+            state.pop("logo_url", None)
+
+        apply_entity_state(kind, entity, state)
+
+    @staticmethod
+    async def _apply_add_catalog_logo(db: AsyncSession, edit: Edit, state: dict, kind) -> None:
+        from app.services.catalog_logos import create_logo_from_edit, recompute_main_logo
+        from app.services.logo_storage import finalize_staged_logo
+
+        entity_id = edit.entity_id
+        if not entity_id:
+            raw = state.get(kind.id_key)
+            entity_id = UUID(raw) if isinstance(raw, str) else raw
+        if not entity_id:
+            edit.status = EditStatus.FAILED
+            return
+        entity = await db.get(kind.model, entity_id)
+        if not entity:
+            edit.status = EditStatus.FAILED
+            return
+
+        state = dict(state)
+        staging = state.pop("logo_staging_file", None)
+        if not staging:
+            edit.status = EditStatus.FAILED
+            return
+
+        logo = await create_logo_from_edit(
+            db,
+            kind,
+            entity_id=entity.sbid,
+            image_url=state.get("logo_url") or "",
+            editor_id=edit.editor_id,
+            edit_id=edit.id,
+            label=state.get("label"),
+            year=state.get("year"),
+            month=state.get("month"),
+            event=state.get("event"),
+            notes=state.get("notes"),
+        )
+        try:
+            logo.image_url = finalize_staged_logo(staging, entity.sbid, logo.id)
+        except (ValueError, FileNotFoundError) as exc:
+            edit.status = EditStatus.FAILED
+            logger.error("Logo finalize failed for edit %s: %s", edit.id, exc)
+            await db.delete(logo)
+            return
+        await recompute_main_logo(db, kind, entity.sbid)
+
+    @staticmethod
+    async def _apply_edit_catalog_logo(db: AsyncSession, edit: Edit, state: dict, kind) -> None:
+        from app.services.catalog_logos import set_logo_event
+
+        logo_id = edit.entity_id
+        if not logo_id:
+            raw = state.get("logo_id")
+            logo_id = UUID(raw) if isinstance(raw, str) else raw
+        if not logo_id:
+            edit.status = EditStatus.FAILED
+            return
+        logo = await db.get(kind.logo_model, logo_id)
+        if not logo:
+            edit.status = EditStatus.FAILED
+            return
+        for field in ("label", "year", "month", "notes"):
+            if field in state:
+                setattr(logo, field, state[field])
+        if "event" in state:
+            set_logo_event(logo, state["event"])
+        await db.flush()
+
     @staticmethod
     async def _reject_create_advertiser(db: AsyncSession, edit: Edit) -> None:
         if not edit.entity_id:
@@ -603,15 +778,42 @@ class EditService:
                 from app.services.logo_storage import discard_staged_logo
 
                 discard_staged_logo(staging)
+        else:
+            from app.models import CatalogStatus
+            from app.services.catalog import CATALOG_KINDS
+
+            for kind in CATALOG_KINDS.values():
+                if edit.edit_type == kind.create_edit and edit.entity_id:
+                    entity = await db.get(kind.model, edit.entity_id)
+                    if entity and entity.status == CatalogStatus.PENDING:
+                        entity.status = CatalogStatus.REJECTED
+                if edit.edit_type in (kind.edit_edit, kind.add_logo_edit):
+                    staging = (edit.after_state or {}).get("logo_staging_file")
+                    if staging:
+                        from app.services.logo_storage import discard_staged_logo
+
+                        discard_staged_logo(staging)
 
     @staticmethod
     def _vote_threshold(edit: Edit) -> int:
-        if edit.edit_type in (
+        from app.services.catalog import CATALOG_KINDS
+
+        brand_like = {
             EditType.CREATE_ADVERTISER,
             EditType.EDIT_ADVERTISER,
             EditType.ADD_ADVERTISER_LOGO,
             EditType.EDIT_ADVERTISER_LOGO,
-        ):
+        }
+        for kind in CATALOG_KINDS.values():
+            brand_like.update(
+                {
+                    kind.create_edit,
+                    kind.edit_edit,
+                    kind.add_logo_edit,
+                    kind.edit_logo_edit,
+                }
+            )
+        if edit.edit_type in brand_like:
             return settings.brand_early_close_votes
         return settings.edit_early_close_votes
 
@@ -972,6 +1174,31 @@ class SearchService:
             for a in rows.scalars().all():
                 results.append(
                     {"type": "advertiser", "sbid": a.sbid, "title": a.name, "subtitle": None})
+
+        from app.models import CatalogStatus
+        from app.services.catalog import ALL_CATALOG_KINDS
+
+        for kind in ALL_CATALOG_KINDS:
+            if entity_type in (kind.key, "all"):
+                model = kind.model
+                stmt = (
+                    select(model)
+                    .where(
+                        func.lower(model.name).like(q),
+                        model.status == CatalogStatus.APPROVED,
+                    )
+                    .limit(limit)
+                )
+                rows = await db.execute(stmt)
+                for row in rows.scalars().all():
+                    results.append(
+                        {
+                            "type": kind.key,
+                            "sbid": row.sbid,
+                            "title": row.name,
+                            "subtitle": None,
+                        }
+                    )
 
         return results[:limit]
 

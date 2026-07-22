@@ -13,6 +13,10 @@ COMMERCIAL_METADATA_EDIT_KEYS = (
     "campaign_name",
     "description",
     "products",
+    "store_id",
+    "service_id",
+    "event_id",
+    "holiday_id",
 )
 
 
@@ -31,6 +35,10 @@ def commercial_to_state(commercial: Commercial) -> dict:
         "campaign_name": commercial.campaign_name,
         "description": commercial.description,
         "advertiser_id": str(commercial.advertiser_id) if commercial.advertiser_id else None,
+        "store_id": str(commercial.store_id) if commercial.store_id else None,
+        "service_id": str(commercial.service_id) if commercial.service_id else None,
+        "event_id": str(commercial.event_id) if commercial.event_id else None,
+        "holiday_id": str(commercial.holiday_id) if commercial.holiday_id else None,
         "agency_id": str(commercial.agency_id) if commercial.agency_id else None,
         "products": [p.name for p in commercial.products],
     }

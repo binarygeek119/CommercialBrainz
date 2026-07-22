@@ -6,9 +6,13 @@ import { api } from "../api";
 import BrandMetadataDiff, { hasMetadataChanges } from "../components/BrandMetadataDiff";
 import BrandLogoMetadataDiff, { hasLogoMetadataChanges } from "../components/BrandLogoMetadataDiff";
 import BrandLogoImage from "../components/BrandLogoImage";
+import CatalogMetadataDiff, {
+  hasCatalogMetadataChanges,
+} from "../components/CatalogMetadataDiff";
 import CommercialMetadataDiff, {
   hasCommercialMetadataChanges,
 } from "../components/CommercialMetadataDiff";
+import { catalogKindFromEditType, isCatalogLogoEdit } from "../catalog/kinds";
 import { formatLogoContext } from "../utils/brandLogos";
 
 export default function EditDetailPage() {
@@ -114,10 +118,47 @@ export default function EditDetailPage() {
         </>
       )}
 
+      {(() => {
+        const catalogKind = catalogKindFromEditType(edit.edit_type);
+        if (!catalogKind || edit.edit_type !== catalogKind.createEdit) return null;
+        return (
+          <>
+            <div className="card">
+              <h3>{catalogKind.label} proposal</h3>
+              <p>
+                <strong>{(edit.after_state.name as string) || `Unnamed ${catalogKind.label.toLowerCase()}`}</strong>
+              </p>
+              <p className="muted" style={{ marginTop: "0.5rem" }}>
+                Approved {catalogKind.plural.toLowerCase()} appear in search when a moderator or
+                admin votes yes on this edit.
+              </p>
+            </div>
+            {hasCatalogMetadataChanges(catalogKind, {}, edit.after_state) && (
+              <CatalogMetadataDiff kind={catalogKind} after={edit.after_state} />
+            )}
+          </>
+        );
+      })()}
+
       {edit.edit_type === "edit_advertiser" &&
         hasMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
           <BrandMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
         )}
+
+      {(() => {
+        const catalogKind = catalogKindFromEditType(edit.edit_type);
+        if (!catalogKind || edit.edit_type !== catalogKind.editEdit) return null;
+        if (!hasCatalogMetadataChanges(catalogKind, edit.before_state ?? {}, edit.after_state)) {
+          return null;
+        }
+        return (
+          <CatalogMetadataDiff
+            kind={catalogKind}
+            before={edit.before_state ?? {}}
+            after={edit.after_state}
+          />
+        );
+      })()}
 
       {edit.edit_type === "edit_commercial" &&
         hasCommercialMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
@@ -178,18 +219,30 @@ export default function EditDetailPage() {
 
       {(edit.edit_type === "add_advertiser_logo" ||
         edit.edit_type === "edit_advertiser_logo" ||
+        isCatalogLogoEdit(edit.edit_type) ||
         (edit.edit_type === "edit_advertiser" &&
-          typeof edit.after_state.logo_url === "string")) && (
+          typeof edit.after_state.logo_url === "string") ||
+        (() => {
+          const ck = catalogKindFromEditType(edit.edit_type);
+          return (
+            !!ck &&
+            edit.edit_type === ck.editEdit &&
+            typeof edit.after_state.logo_url === "string"
+          );
+        })()) && (
         <div className="card">
           <h3>
-            {edit.edit_type === "add_advertiser_logo"
+            {edit.edit_type === "add_advertiser_logo" ||
+            catalogKindFromEditType(edit.edit_type)?.addLogoEdit === edit.edit_type
               ? "Proposed logo version"
-              : edit.edit_type === "edit_advertiser_logo"
+              : edit.edit_type === "edit_advertiser_logo" ||
+                  catalogKindFromEditType(edit.edit_type)?.editLogoEdit === edit.edit_type
                 ? "Logo metadata update"
-                : "Proposed brand logo"}
+                : "Proposed logo"}
           </h3>
           {(edit.edit_type === "add_advertiser_logo" ||
-            edit.edit_type === "edit_advertiser_logo") && (
+            edit.edit_type === "edit_advertiser_logo" ||
+            isCatalogLogoEdit(edit.edit_type)) && (
             <p style={{ marginBottom: "0.75rem" }}>
               <strong>{formatLogoContext(edit.after_state)}</strong>
             </p>
@@ -213,7 +266,8 @@ export default function EditDetailPage() {
               size="preview"
             />
           )}
-          {edit.edit_type === "edit_advertiser" &&
+          {(edit.edit_type === "edit_advertiser" ||
+            catalogKindFromEditType(edit.edit_type)?.editEdit === edit.edit_type) &&
             typeof edit.before_state?.logo_url === "string" && (
             <>
               <p className="muted" style={{ marginTop: "0.75rem" }}>
@@ -226,16 +280,18 @@ export default function EditDetailPage() {
               />
             </>
           )}
-          {edit.edit_type === "add_advertiser_logo" && (
+          {(edit.edit_type === "add_advertiser_logo" ||
+            catalogKindFromEditType(edit.edit_type)?.addLogoEdit === edit.edit_type) && (
             <p className="muted" style={{ marginTop: "0.75rem" }}>
-              If approved, this joins the brand&apos;s logo gallery. Users then vote on popularity
-              to decide which version is the main logo site-wide.
+              If approved, this joins the logo gallery. Users then vote on popularity to decide
+              which version is the main logo site-wide.
             </p>
           )}
         </div>
       )}
 
-      {edit.edit_type === "edit_advertiser_logo" &&
+      {(edit.edit_type === "edit_advertiser_logo" ||
+        catalogKindFromEditType(edit.edit_type)?.editLogoEdit === edit.edit_type) &&
         hasLogoMetadataChanges(edit.before_state ?? {}, edit.after_state) && (
           <BrandLogoMetadataDiff before={edit.before_state ?? {}} after={edit.after_state} />
         )}

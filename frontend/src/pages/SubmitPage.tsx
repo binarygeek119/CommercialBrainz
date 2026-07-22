@@ -4,6 +4,8 @@ import { useAuth, canSubmit } from "../auth";
 import { api, type CommercialDetail, type SubmissionTerms, type YouTubeMetadataPreview } from "../api";
 import SubmissionTermsView from "../components/SubmissionTermsView";
 import AdvertiserPicker, { type AdvertiserSelection } from "../components/AdvertiserPicker";
+import CatalogPicker, { type CatalogSelection } from "../components/CatalogPicker";
+import { CATALOG_KIND_LIST } from "../catalog/kinds";
 import {
   RegionSelect,
   SubRegionSelect,
@@ -99,6 +101,14 @@ export default function SubmitPage() {
   const [genres, setGenres] = useState<SubmissionGenres>({ ...EMPTY_SUBMISSION_GENRES });
 
   const [advertiser, setAdvertiser] = useState<AdvertiserSelection>({});
+  const [catalogSelections, setCatalogSelections] = useState<
+    Record<string, CatalogSelection>
+  >({
+    store: {},
+    service: {},
+    event: {},
+    holiday: {},
+  });
   const [regionSelection, setRegionSelection] = useState<RegionSelection>({});
   const [ytMeta, setYtMeta] = useState<YouTubeMetadataPreview | null>(null);
   const [ytLoading, setYtLoading] = useState(false);
@@ -300,6 +310,15 @@ export default function SubmitPage() {
                   : advertiser.advertiser_name
                     ? { advertiser_name: advertiser.advertiser_name }
                     : {}),
+                ...(() => {
+                  const entries: [string, string][] = [];
+                  for (const kind of CATALOG_KIND_LIST) {
+                    const sel = catalogSelections[kind.key] ?? {};
+                    if (sel.id) entries.push([kind.idKey, sel.id]);
+                    else if (sel.name) entries.push([kind.nameKey, sel.name]);
+                  }
+                  return Object.fromEntries(entries);
+                })(),
                 year: form.year ? parseInt(form.year, 10) : undefined,
                 decade: form.decade ? parseInt(form.decade, 10) : undefined,
                 ...(form.commercial_type
@@ -536,6 +555,21 @@ export default function SubmitPage() {
             Search an existing brand or enter a new one. New brands are shared for all submitters.
           </p>
         </div>
+        {CATALOG_KIND_LIST.map((kind) => (
+          <div className="form-group" key={kind.key}>
+            <label>{kind.label}</label>
+            <CatalogPicker
+              kind={kind}
+              value={catalogSelections[kind.key] ?? {}}
+              onChange={(next) =>
+                setCatalogSelections((prev) => ({ ...prev, [kind.key]: next }))
+              }
+            />
+            <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
+              Optional. Link an existing {kind.label.toLowerCase()} or propose a new one.
+            </p>
+          </div>
+        ))}
         <div className="form-group">
           <label>Type of commercial</label>
           <select

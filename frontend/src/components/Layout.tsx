@@ -16,6 +16,10 @@ export default function Layout() {
             <NavLink to="/browse">Browse</NavLink>
             <NavLink to="/commercials">Commercials</NavLink>
             <NavLink to="/brands">Brands</NavLink>
+            <NavLink to="/stores">Stores</NavLink>
+            <NavLink to="/services">Services</NavLink>
+            <NavLink to="/events">Events</NavLink>
+            <NavLink to="/holidays">Holidays</NavLink>
             <NavLink to="/search">Search</NavLink>
             <NavLink to="/voting">Vote</NavLink>
             <NavLink to="/submit">Submit</NavLink>
