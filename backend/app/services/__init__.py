@@ -164,6 +164,9 @@ class EditService:
                     await EditService._apply_edit_catalog_logo(db, edit, state, kind)
                     handled = True
                     break
+            if not handled:
+                edit.status = EditStatus.FAILED
+                return pending_hash
 
         if edit.status == EditStatus.OPEN:
             edit.status = EditStatus.APPLIED
