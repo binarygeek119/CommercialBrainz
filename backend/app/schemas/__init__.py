@@ -113,6 +113,7 @@ class UserPublic(ORMModel):
     is_auto_editor: bool
     accepted_edits_count: int
     submission_terms_version: int | None = None
+    submission_terms_accepted_at: datetime | None = None
     created_at: datetime
 
 

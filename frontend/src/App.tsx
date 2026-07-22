@@ -29,11 +29,13 @@ import AccountPage from "./pages/AccountPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import RegisterPage from "./pages/RegisterPage";
 import DevSiteDisclaimer from "./components/DevSiteDisclaimer";
+import SubmissionTermsGate from "./components/SubmissionTermsGate";
 
 export default function App() {
   return (
     <>
       <DevSiteDisclaimer />
+      <SubmissionTermsGate />
       <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />

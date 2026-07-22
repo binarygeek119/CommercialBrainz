@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, type SubmissionTerms } from "../api";
 import { useAuth, canSubmit, isVoteOnly } from "../auth";
 import SubmissionTermsView from "../components/SubmissionTermsView";
+import { needsSubmissionTermsAgreement } from "../utils/submissionTerms";
 
 const SPLIT_VOTE_THRESHOLD = 20;
 const SPLIT_OPEN_MONTHS = 3;
@@ -21,11 +22,7 @@ export default function TermsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const termsOutdated =
-    terms != null &&
-    user != null &&
-    canSubmit(user) &&
-    (user.submission_terms_version == null || user.submission_terms_version < terms.version);
+  const termsOutdated = needsSubmissionTermsAgreement(user, terms?.version);
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -67,15 +64,27 @@ export default function TermsPage() {
       {!loading && !error && terms && (
         <p className="muted" style={{ marginBottom: "1.25rem", fontSize: "0.9rem" }}>
           Current version: <strong>v{terms.version}</strong>
-          {user && canSubmit(user) && user.submission_terms_version != null && (
+          {user && user.submission_terms_version != null && (
             <>
               {" "}
               · Your accepted version:{" "}
               <strong>v{user.submission_terms_version}</strong>
+              {user.submission_terms_accepted_at && (
+                <>
+                  {" "}
+                  on{" "}
+                  <strong>
+                    {new Date(user.submission_terms_accepted_at).toLocaleDateString()}
+                  </strong>
+                </>
+              )}
               {termsOutdated && (
-                <span className="error"> — please review and re-agree on your next submission</span>
+                <span className="error"> — please review and agree again in the popup</span>
               )}
             </>
+          )}
+          {user && user.submission_terms_version == null && (
+            <span className="error"> · You have not agreed yet</span>
           )}
         </p>
       )}
@@ -106,13 +115,12 @@ export default function TermsPage() {
         {user && canSubmit(user) && (
           <p style={{ marginBottom: 0 }}>
             You can submit commercials and links from the{" "}
-            <Link to="/submit">submit page</Link>. Each submission requires agreeing to the current
-            terms version.
+            <Link to="/submit">submit page</Link>. Agreement is recorded once in your account
+            (and again if the terms version changes).
             {termsOutdated && (
               <>
                 {" "}
-                Your saved acceptance is outdated — open <Link to="/submit">Submit</Link> to review
-                and agree again.
+                Your saved acceptance is outdated — use the Terms popup to agree again.
               </>
             )}
           </p>
