@@ -205,12 +205,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          OWNER="${{ github.repository_owner }}"
           for pkg in commercialbrainz-api commercialbrainz-web; do
-            gh api \
-              --method PUT \
+            # Linked packages live under /users/{owner}/packages/...
+            if gh api --method PUT \
               -H "Accept: application/vnd.github+json" \
-              "/user/packages/container/${pkg}/visibility" \
-              -f visibility=public \
-              && echo "public: $pkg" \
-              || echo "WARN: could not set $pkg public (set manually in GitHub Packages if VM pulls fail)"
+              "/users/${OWNER}/packages/container/${pkg}/visibility" \
+              -f visibility=public; then
+              echo "public: $pkg"
+            else
+              echo "WARN: could not set $pkg public via API (check GitHub Packages UI if VM pulls 401)"
+            fi
           done
