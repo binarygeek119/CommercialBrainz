@@ -105,9 +105,16 @@ bash "$APP_DIR/infra/gcloud/generate-caddyfile.sh" \
   "${DUCKDNS_DOMAIN:+$DUCKDNS_DOMAIN.duckdns.org}" \
   "${ACME_EMAIL:-}"
 
-echo "==> Building and starting containers (this may take 10–20 min on e2-micro)..."
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml build
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml up -d
+echo "==> Starting containers (pull prebuilt GHCR images; build only if pull fails)..."
+export IMAGE_TAG="${IMAGE_TAG:-latest}"
+COMPOSE="docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
+if $COMPOSE pull api worker web; then
+  $COMPOSE up -d --pull missing --no-build
+else
+  echo "WARN: GHCR pull failed — building on VM (slow on e2-micro)"
+  $COMPOSE build
+  $COMPOSE up -d
+fi
 
 echo "==> Waiting for services (Caddy + API)..."
 for i in $(seq 1 90); do

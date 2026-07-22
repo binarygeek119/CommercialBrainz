@@ -154,11 +154,63 @@ jobs:
     name: Docker build
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_OWNER: binarygeek119
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build API image
-        run: docker build -f infra/Dockerfile.api -t commercialbrainz-api:ci .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build web image
-        run: docker build -f infra/Dockerfile.web -t commercialbrainz-web:ci .
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.api
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/binarygeek119/commercialbrainz-api:${{ github.sha }}
+            ghcr.io/binarygeek119/commercialbrainz-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.web
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/binarygeek119/commercialbrainz-web:${{ github.sha }}
+            ghcr.io/binarygeek119/commercialbrainz-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Make GHCR packages public (anonymous VM pulls)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for pkg in commercialbrainz-api commercialbrainz-web; do
+            gh api \
+              --method PUT \
+              -H "Accept: application/vnd.github+json" \
+              "/user/packages/container/${pkg}/visibility" \
+              -f visibility=public \
+              && echo "public: $pkg" \
+              || echo "WARN: could not set $pkg public (set manually in GitHub Packages if VM pulls fail)"
+          done

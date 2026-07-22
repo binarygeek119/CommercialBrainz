@@ -44,10 +44,43 @@ ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
 bash infra/gcloud/generate-caddyfile.sh infra/caddy/Caddyfile.runtime "${DOMAIN}" "${ACME_EMAIL}"
 
 echo ""
-echo "==> Rebuild and start full stack"
-$COMPOSE build api worker web
-$COMPOSE up -d postgres redis
-$COMPOSE up -d --force-recreate api worker web
+# Prefer images prebuilt+pushed by GitHub Actions (GHCR). Fall back to on-VM
+# build only if pull fails (e.g. first boot before packages exist / private).
+# IMAGE_TAG from the caller wins; otherwise .env / latest.
+_DEPLOY_IMAGE_TAG="${IMAGE_TAG:-}"
+if [[ -f .env ]]; then
+  _env_val() { grep -E "^${1}=" .env 2>/dev/null | head -1 | cut -d= -f2- || true; }
+  : "${GHCR_TOKEN:=$(_env_val GHCR_TOKEN)}"
+  : "${GHCR_USER:=$(_env_val GHCR_USER)}"
+  : "${_DEPLOY_IMAGE_TAG:=$(_env_val IMAGE_TAG)}"
+fi
+export IMAGE_TAG="${_DEPLOY_IMAGE_TAG:-latest}"
+echo "==> App images IMAGE_TAG=${IMAGE_TAG}"
+
+if [[ -n "${GHCR_TOKEN:-}" ]]; then
+  echo "==> docker login ghcr.io"
+  # Root and non-root compose paths both need credentials in the docker config
+  # used by the daemon client (`sudo docker` when not root).
+  if [[ "$(id -u)" -eq 0 ]]; then
+    echo "${GHCR_TOKEN}" | docker login ghcr.io \
+      -u "${GHCR_USER:-binarygeek119}" --password-stdin
+  else
+    echo "${GHCR_TOKEN}" | sudo docker login ghcr.io \
+      -u "${GHCR_USER:-binarygeek119}" --password-stdin
+  fi
+fi
+
+echo "==> Pull prebuilt images from GHCR"
+if $COMPOSE pull api worker web; then
+  echo "==> Starting stack from pulled images (no on-VM build)"
+  $COMPOSE up -d postgres redis
+  $COMPOSE up -d --pull missing --force-recreate --no-build api worker web
+else
+  echo "WARN: GHCR pull failed — falling back to on-VM compose build"
+  $COMPOSE build api worker web
+  $COMPOSE up -d postgres redis
+  $COMPOSE up -d --force-recreate api worker web
+fi
 
 echo ""
 echo "==> Waiting for API (migrations + uvicorn)..."
