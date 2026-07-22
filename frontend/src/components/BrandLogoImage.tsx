@@ -6,21 +6,40 @@ interface Props {
   size?: BrandLogoSize;
 }
 
-/** Allow only http(s), site-relative, or blob URLs for logo images. */
+/**
+ * Build a logo URL from validated components so untrusted schemes cannot reach
+ * the img element (and so static analysis sees a reconstructed string).
+ */
 function safeLogoSrc(src: string): string | null {
   const value = src.trim();
   if (!value) return null;
-  if (value.startsWith("/") && !value.startsWith("//")) return value;
-  if (value.startsWith("blob:")) return value;
+
+  // Site-relative media paths only (no protocol-relative "//…").
+  if (value.startsWith("/") && !value.startsWith("//")) {
+    const pathOnly = value.split(/[?#]/, 1)[0] ?? "";
+    if (!/^\/[\w./-]+$/.test(pathOnly)) return null;
+    return pathOnly;
+  }
+
+  // Local object URLs from file preview inputs.
+  if (value.startsWith("blob:")) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== "blob:") return null;
+      return `blob:${parsed.pathname}`;
+    } catch {
+      return null;
+    }
+  }
+
   try {
     const parsed = new URL(value);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      return parsed.toString();
-    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    const protocol = parsed.protocol === "https:" ? "https:" : "http:";
+    return `${protocol}//${parsed.host}${parsed.pathname}${parsed.search}`;
   } catch {
     return null;
   }
-  return null;
 }
 
 export default function BrandLogoImage({ src, alt, size = "md" }: Props) {
@@ -29,7 +48,7 @@ export default function BrandLogoImage({ src, alt, size = "md" }: Props) {
 
   return (
     <div className={`brand-logo-frame brand-logo-frame--${size}`}>
-      <img src={safeSrc} alt={alt} className="brand-logo-img" />
+      <img src={safeSrc} alt={String(alt)} className="brand-logo-img" />
     </div>
   );
 }
