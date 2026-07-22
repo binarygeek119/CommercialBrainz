@@ -269,6 +269,74 @@ a:hover {
   overflow: hidden;
 }
 
+.browse-home {
+  max-width: 100%;
+}
+
+.browse-row {
+  margin-bottom: 2rem;
+}
+
+.browse-row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.browse-row-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+.browse-row-scroller {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.15rem 0.75rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.browse-row-scroller::-webkit-scrollbar {
+  height: 8px;
+}
+
+.browse-row-scroller::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.browse-row-item {
+  flex: 0 0 240px;
+  width: 240px;
+  scroll-snap-align: start;
+}
+
+.browse-row-item-edit {
+  flex-basis: 320px;
+  width: 320px;
+}
+
+.browse-row-item-edit .card {
+  height: 100%;
+}
+
+@media (max-width: 640px) {
+  .browse-row-item {
+    flex-basis: 200px;
+    width: 200px;
+  }
+
+  .browse-row-item-edit {
+    flex-basis: 280px;
+    width: 280px;
+  }
+}
+
 .metadata-list {
   margin: 0;
 }

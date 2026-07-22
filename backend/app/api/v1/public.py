@@ -11,10 +11,10 @@ from app.models import (
     Advertiser,
     AdvertiserStatus,
     Commercial,
+    CommercialType,
     Edit,
     User,
     Video,
-    VideoTag,
     VideoVisibility,
 )
 from app.schemas import (
@@ -22,6 +22,7 @@ from app.schemas import (
     AdvertiserPublic,
     AgencyPublic,
     BrandAliasLink,
+    BrowseHomeResponse,
     CommercialDetail,
     CommercialListItem,
     CommercialPublic,
@@ -34,6 +35,7 @@ from app.schemas import (
 )
 from app.services import SearchService
 from app.services.advertiser_metadata import advertiser_public_dict, resolve_alias_links
+from app.services.browse import build_browse_home, list_browse_videos
 from app.services.bulk_import_marker import (
     commercial_was_bulk_imported_for_viewer,
     filter_tags_for_viewer,
@@ -338,46 +340,48 @@ async def search(
     return [SearchResult(**r) for r in results]
 
 
+@router.get("/browse/sections", response_model=BrowseHomeResponse)
+async def browse_sections(
+    request: Request,
+    per_section: int = Query(default=16, ge=4, le=40),
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    """Netflix-style browse shelves (needs votes, new, types, channel commercials)."""
+    await check_rate_limit(request, user is not None)
+    return BrowseHomeResponse(**await build_browse_home(db, per_section=per_section))
+
+
 @router.get("/browse/videos", response_model=PaginatedResponse)
 async def browse_videos(
     request: Request,
     advertiser: UUID | None = None,
     tag: str | None = None,
+    commercial_type: str | None = Query(
+        default=None,
+        pattern="^(general_ad|psa|service|store|bumper)$",
+    ),
+    channel_commercials: bool = False,
+    sort: str = Query(default="created_at", pattern="^(created_at|updated_at)$"),
+    updated_only: bool = False,
+    main_only: bool = False,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=25, le=100),
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
     await check_rate_limit(request, user is not None)
-    stmt = (
-        select(Video)
-        .join(Commercial, Video.commercial_id == Commercial.sbid)
-        .where(Video.visibility == VideoVisibility.PUBLIC)
-    )
-    count_stmt = (
-        select(func.count())
-        .select_from(Video)
-        .join(Commercial, Video.commercial_id == Commercial.sbid)
-        .where(Video.visibility == VideoVisibility.PUBLIC)
-    )
-
-    if advertiser:
-        stmt = stmt.where(Commercial.advertiser_id == advertiser)
-        count_stmt = count_stmt.where(Commercial.advertiser_id == advertiser)
-    if tag:
-        stmt = stmt.join(VideoTag, VideoTag.video_id == Video.sbid).where(
-            VideoTag.tag == tag.lower()
-        )
-        count_stmt = count_stmt.join(VideoTag, VideoTag.video_id == Video.sbid).where(
-            VideoTag.tag == tag.lower()
-        )
-
-    total = (await db.execute(count_stmt)).scalar() or 0
-    result = await db.execute(stmt.order_by(Video.created_at.desc()).offset(offset).limit(limit))
-    videos = result.scalars().all()
-    return PaginatedResponse(
-        items=[_video_public(v).model_dump() for v in videos],
-        total=total,
+    type_enum = CommercialType(commercial_type) if commercial_type else None
+    items, total = await list_browse_videos(
+        db,
+        advertiser=advertiser,
+        tag=tag,
+        commercial_type=type_enum,
+        channel_commercials=channel_commercials,
+        sort=sort,  # type: ignore[arg-type]
+        updated_only=updated_only,
+        main_only=main_only,
         offset=offset,
         limit=limit,
     )
+    return PaginatedResponse(items=items, total=total, offset=offset, limit=limit)

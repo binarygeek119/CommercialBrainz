@@ -144,6 +144,9 @@ export interface Video {
   popularity_score?: number;
   is_main?: boolean;
   viewer_vote?: "up" | "down" | null;
+  commercial_title?: string | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+  bumper_channel?: string | null;
   visibility: string;
   phash?: string | null;
   file_sha256?: string | null;
@@ -152,10 +155,24 @@ export interface Video {
   hashed_at?: string | null;
   metadata?: Record<string, unknown>;
   created_at: string;
+  updated_at?: string;
   commercial?: { sbid: string; title: string };
   advertiser?: { sbid: string; name: string };
   tags?: string[];
   credits?: { role: string; name: string }[];
+}
+
+export interface BrowseSection {
+  id: string;
+  title: string;
+  kind: "videos" | "edits";
+  total: number;
+  items: Video[] | Edit[];
+  see_all_path?: string | null;
+}
+
+export interface BrowseHome {
+  sections: BrowseSection[];
 }
 
 export interface FingerprintPreview {
@@ -774,8 +791,35 @@ export const api = {
       `/commercials?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`
     ),
 
-  browseVideos: (offset = 0, limit = 25) =>
-    request<Paginated<Video>>(`/browse/videos?offset=${offset}&limit=${limit}`),
+  browseSections: (perSection = 16) =>
+    request<BrowseHome>(`/browse/sections?per_section=${perSection}`),
+
+  browseVideos: (
+    offset = 0,
+    limit = 25,
+    opts: {
+      commercial_type?: string;
+      channel_commercials?: boolean;
+      sort?: "created_at" | "updated_at";
+      updated_only?: boolean;
+      main_only?: boolean;
+      advertiser?: string;
+      tag?: string;
+    } = {}
+  ) => {
+    const qs = new URLSearchParams({
+      offset: String(offset),
+      limit: String(limit),
+    });
+    if (opts.commercial_type) qs.set("commercial_type", opts.commercial_type);
+    if (opts.channel_commercials) qs.set("channel_commercials", "true");
+    if (opts.sort) qs.set("sort", opts.sort);
+    if (opts.updated_only) qs.set("updated_only", "true");
+    if (opts.main_only) qs.set("main_only", "true");
+    if (opts.advertiser) qs.set("advertiser", opts.advertiser);
+    if (opts.tag) qs.set("tag", opts.tag);
+    return request<Paginated<Video>>(`/browse/videos?${qs.toString()}`);
+  },
 
   getVideo: (sbid: string) => request<Video>(`/videos/${sbid}`),
 

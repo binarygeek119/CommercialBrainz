@@ -556,6 +556,9 @@ class VideoPublic(ORMModel):
     is_main: bool = False
     link_label: str | None = None
     viewer_vote: str | None = None
+    commercial_title: str | None = None
+    commercial_type: str | None = None
+    bumper_channel: str | None = None
     metadata: dict
     visibility: str
     phash: str | None = None
@@ -565,6 +568,19 @@ class VideoPublic(ORMModel):
     hashed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class BrowseSection(BaseModel):
+    id: str
+    title: str
+    kind: Literal["videos", "edits"]
+    total: int = 0
+    items: list = Field(default_factory=list)
+    see_all_path: str | None = None
+
+
+class BrowseHomeResponse(BaseModel):
+    sections: list[BrowseSection] = Field(default_factory=list)
 
 
 class VideoDetail(VideoPublic):
