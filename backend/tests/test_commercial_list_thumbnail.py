@@ -88,3 +88,35 @@ def test_skips_non_public_videos():
         ],
     )
     assert commercial_list_thumbnail_url(commercial) is None
+
+
+def test_commercial_list_item_includes_thumbnail():
+    """Regression: list serializer must populate thumbnail_url (dropped once in a merge)."""
+    from app.api.v1.public import _commercial_list_item
+
+    youtube_id = "5uaYHYs4ubw"
+    commercial = SimpleNamespace(
+        sbid=uuid4(),
+        title="Test Commercial",
+        advertiser_id=uuid4(),
+        store_id=None,
+        service_id=None,
+        event_id=None,
+        holiday_id=None,
+        agency_id=None,
+        year=None,
+        decade=1980,
+        commercial_type=None,
+        bumper_channel=None,
+        campaign_name=None,
+        description=None,
+        external_ids={},
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
+        main_video_id=None,
+        advertiser=SimpleNamespace(name="Acme"),
+        videos=[_video(youtube_id=youtube_id, thumbnail_url=None)],
+    )
+    item = _commercial_list_item(commercial, viewer=None)
+    assert item.thumbnail_url == youtube_thumbnail_url(youtube_id)
+    assert item.public_video_count == 1
+    assert item.advertiser_name == "Acme"

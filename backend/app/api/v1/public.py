@@ -42,7 +42,11 @@ from app.services.bulk_import_marker import (
 )
 from app.services.rate_limit import check_rate_limit, compute_etag
 from app.services.user_profile import edit_summary_title
-from app.services.video_response import list_commercial_videos_public, video_to_public
+from app.services.video_response import (
+    commercial_list_thumbnail_url,
+    list_commercial_videos_public,
+    video_to_public,
+)
 
 router = APIRouter(tags=["public"])
 
@@ -103,6 +107,7 @@ def _commercial_list_item(commercial: Commercial, viewer: User | None = None) ->
         **base,
         advertiser_name=commercial.advertiser.name if commercial.advertiser else None,
         public_video_count=len(public_videos),
+        thumbnail_url=commercial_list_thumbnail_url(commercial),
     )
 
 
