@@ -69,6 +69,7 @@ export interface PowerUserTerms {
 export interface BulkPlaylistDefaults {
   commercial_type?: string | null;
   bumper_channel?: string | null;
+  target_channel?: string | null;
   decade?: number | null;
   year?: number | null;
   advertiser_id?: string | null;
