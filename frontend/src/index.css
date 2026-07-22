@@ -355,7 +355,8 @@ a:hover {
 }
 
 .brand-logo-frame {
-  background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+  /* Let transparent PNGs/WebPs/SVGs show the page surface — no checkerboard. */
+  background: transparent;
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -369,7 +370,6 @@ a:hover {
   width: 56px;
   height: 56px;
   padding: 0.35rem;
-  background-size: 10px 10px;
 }
 
 .brand-logo-frame--xs,
@@ -390,7 +390,6 @@ a:hover {
   height: 160px;
   min-height: 120px;
   padding: 0.75rem;
-  background-size: 12px 12px;
 }
 
 .brand-logo-frame--preview {
