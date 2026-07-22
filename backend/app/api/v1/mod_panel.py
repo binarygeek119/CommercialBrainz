@@ -34,6 +34,7 @@ from app.services.account_settings import (
     list_pending_deletion_requests,
     reject_deletion_request,
 )
+from app.services.commercial_reports import count_open_reports
 from app.services.edit_response import build_edit_public
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services.link_check import (
@@ -101,6 +102,7 @@ async def mod_stats(
         .where(AccountDeletionRequest.status == AccountDeletionStatus.PENDING)
     )
     dead_links = await count_flagged_dead_links(db)
+    open_reports = await count_open_reports(db)
     return ModStats(
         open_edits=open_edits or 0,
         dmca_submitted=dmca_submitted or 0,
@@ -110,6 +112,8 @@ async def mod_stats(
         failed_fingerprints=failed_fp or 0,
         pending_deletion_requests=pending_deletions or 0,
         dead_links=dead_links,
+        open_content_reports=open_reports,
+        open_commercial_reports=open_reports,
     )
 
 

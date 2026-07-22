@@ -809,6 +809,46 @@ class ModStats(BaseModel):
     failed_fingerprints: int
     pending_deletion_requests: int = 0
     dead_links: int = 0
+    open_content_reports: int = 0
+    # Alias kept for earlier commercial-report clients.
+    open_commercial_reports: int = 0
+
+
+class ContentReportSubmit(BaseModel):
+    reason: str = Field(min_length=1, max_length=64)
+    details: str | None = Field(default=None, max_length=2000)
+
+
+class ContentReportReview(BaseModel):
+    status: str = Field(min_length=1, max_length=32)
+    review_notes: str | None = Field(default=None, max_length=2000)
+
+
+class ContentReportPublic(ORMModel):
+    id: UUID
+    target_type: str
+    commercial_id: UUID | None = None
+    advertiser_id: UUID | None = None
+    commercial_title: str | None = None
+    advertiser_name: str | None = None
+    target_title: str | None = None
+    reporter_id: UUID
+    reporter_username: str | None = None
+    reason: str
+    details: str | None = None
+    status: str
+    review_notes: str | None = None
+    reviewed_by_id: UUID | None = None
+    reviewed_by_username: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    outcome_hint: str | None = None
+
+
+CommercialReportSubmit = ContentReportSubmit
+CommercialReportReview = ContentReportReview
+CommercialReportPublic = ContentReportPublic
 
 
 class DeadLinkPublic(ORMModel):

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -8,11 +9,13 @@ import BrandLogoGallery from "../components/BrandLogoGallery";
 import BrandLogoImage from "../components/BrandLogoImage";
 import BrandMetadataDisplay from "../components/BrandMetadataDisplay";
 import BrandMetadataForm from "../components/BrandMetadataForm";
+import ReportContentDialog from "../components/ReportContentDialog";
 
 export default function AdvertiserPage() {
   const { sbid } = useParams<{ sbid: string }>();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [showReport, setShowReport] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["advertiser", sbid],
     queryFn: () => api.getAdvertiser(sbid!),
@@ -27,18 +30,26 @@ export default function AdvertiserPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: "1.25rem", alignItems: "flex-start", flexWrap: "wrap" }}>
-        {data.logo_url && (
-          <BrandLogoImage src={data.logo_url} alt={`${data.name} logo`} size="md" />
-        )}
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <h1 className="page-title" style={{ marginTop: 0 }}>
-            {data.name}
-          </h1>
-          {data.metadata?.tagline && (
-            <p style={{ fontStyle: "italic", marginTop: "-0.25rem" }}>{data.metadata.tagline}</p>
+      <div
+        className="flex-between"
+        style={{ alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}
+      >
+        <div style={{ display: "flex", gap: "1.25rem", alignItems: "flex-start", flexWrap: "wrap", flex: 1, minWidth: 200 }}>
+          {data.logo_url && (
+            <BrandLogoImage src={data.logo_url} alt={`${data.name} logo`} size="md" />
           )}
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <h1 className="page-title" style={{ marginTop: 0 }}>
+              {data.name}
+            </h1>
+            {data.metadata?.tagline && (
+              <p style={{ fontStyle: "italic", marginTop: "-0.25rem" }}>{data.metadata.tagline}</p>
+            )}
+          </div>
         </div>
+        <button type="button" className="btn btn-secondary" onClick={() => setShowReport(true)}>
+          Report
+        </button>
       </div>
 
       <BrandMetadataDisplay brand={data} />
@@ -71,6 +82,16 @@ export default function AdvertiserPage() {
           </Link>
         ))}
       </div>
+
+      {showReport && (
+        <ReportContentDialog
+          targetType="brand"
+          targetSbid={data.sbid}
+          targetTitle={data.name}
+          loggedIn={Boolean(user)}
+          onClose={() => setShowReport(false)}
+        />
+      )}
     </div>
   );
 }

@@ -26,9 +26,17 @@ import { videoDisplayTitle } from "../utils/videoMetadata";
 interface Props {
   commercial: CommercialDetail;
   onSubmitted?: () => void;
+  /** When true, omit the outer card chrome (used inside a popup). */
+  embedded?: boolean;
+  onCancel?: () => void;
 }
 
-export default function AddCommercialLinkForm({ commercial, onSubmitted }: Props) {
+export default function AddCommercialLinkForm({
+  commercial,
+  onSubmitted,
+  embedded = false,
+  onCancel,
+}: Props) {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -124,7 +132,7 @@ export default function AddCommercialLinkForm({ commercial, onSubmitted }: Props
 
   if (!user || !canSubmit(user)) {
     return (
-      <p className="muted">
+      <p className="muted" style={{ margin: embedded ? 0 : undefined }}>
         <Link to="/login">Log in</Link> with submit access to add another YouTube link to this
         commercial.
       </p>
@@ -178,10 +186,10 @@ export default function AddCommercialLinkForm({ commercial, onSubmitted }: Props
     }
   };
 
-  return (
-    <div className="card" style={{ marginTop: "1rem" }}>
-      <h3 style={{ marginTop: 0 }}>Add another YouTube link</h3>
-      <p className="muted" style={{ marginBottom: "1rem" }}>
+  const body = (
+    <>
+      {!embedded && <h3 style={{ marginTop: 0 }}>Add another YouTube link</h3>}
+      <p className="muted" style={{ marginBottom: "1rem", marginTop: embedded ? 0 : undefined }}>
         Same commercial, different upload — alternate cuts, :30/:60 versions, regional copies, or
         backup mirrors. The commercial stays the same; describe what&apos;s different about this link.
       </p>
@@ -342,13 +350,20 @@ export default function AddCommercialLinkForm({ commercial, onSubmitted }: Props
           </div>
         )}
 
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={loading || !!ytMeta?.existing_video_sbid || !versionLabel.trim()}
-        >
-          {loading ? "Submitting…" : "Submit link for review"}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading || !!ytMeta?.existing_video_sbid || !versionLabel.trim()}
+          >
+            {loading ? "Submitting…" : "Submit link for review"}
+          </button>
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" disabled={loading} onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
 
       {error && <p className="error">{error}</p>}
@@ -358,9 +373,23 @@ export default function AddCommercialLinkForm({ commercial, onSubmitted }: Props
         <Link to={`/submit?commercial=${encodeURIComponent(commercial.sbid)}`}>
           Open full submit page
         </Link>
-        {" · "}
-        <Link to={commercialUrl(commercial.sbid)}>Back to commercial</Link>
+        {!embedded && (
+          <>
+            {" · "}
+            <Link to={commercialUrl(commercial.sbid)}>Back to commercial</Link>
+          </>
+        )}
       </p>
+    </>
+  );
+
+  if (embedded) {
+    return <div>{body}</div>;
+  }
+
+  return (
+    <div className="card" style={{ marginTop: "1rem" }}>
+      {body}
     </div>
   );
 }

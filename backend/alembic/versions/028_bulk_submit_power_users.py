@@ -1,7 +1,7 @@
 """Bulk submit / power users: flags, staging tables, terms, commercial provenance.
 
-Revision ID: 027
-Revises: 026
+Revision ID: 028
+Revises: 027
 """
 
 # ruff: noqa: E501
@@ -13,8 +13,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "027"
-down_revision = "026"
+revision = "028"
+down_revision = "027"
 branch_labels = None
 depends_on = None
 

@@ -161,6 +161,26 @@ class BulkSubmissionItemStatus(enum.StrEnum):
 BULK_IMPORTED_TAG = "was-bulk-imported"
 
 
+class ContentReportReason(enum.StrEnum):
+    BANNED = "banned"
+    ADULT_AD = "adult_ad"
+    ADULT_PORN = "adult_porn"
+    HATE_SPEECH = "hate_speech"
+    OTHER = "other"
+
+
+class ContentReportStatus(enum.StrEnum):
+    PENDING = "pending"
+    UNDER_REVIEW = "under_review"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+
+# Backwards-compatible aliases used during the commercial-report rollout.
+CommercialReportReason = ContentReportReason
+CommercialReportStatus = ContentReportStatus
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -790,6 +810,59 @@ class DMCATakedown(Base):
     video: Mapped["Video"] = relationship(back_populates="dmca_takedowns")
     reviewed_by: Mapped["User | None"] = relationship(
         foreign_keys=[reviewed_by_id])
+
+
+class ContentReport(Base):
+    __tablename__ = "content_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    commercial_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("commercials.sbid", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    advertiser_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("advertisers.sbid", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    reporter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    reason: Mapped[ContentReportReason] = mapped_column(
+        pg_enum(ContentReportReason, name="contentreportreason")
+    )
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[ContentReportStatus] = mapped_column(
+        pg_enum(ContentReportStatus, name="contentreportstatus"),
+        default=ContentReportStatus.PENDING,
+        index=True,
+    )
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    commercial: Mapped["Commercial | None"] = relationship()
+    advertiser: Mapped["Advertiser | None"] = relationship()
+    reporter: Mapped["User"] = relationship(foreign_keys=[reporter_id])
+    reviewed_by: Mapped["User | None"] = relationship(foreign_keys=[reviewed_by_id])
+
+
+# Alias for earlier commercial-only naming.
+CommercialReport = ContentReport
 
 
 class MediaFingerprint(Base):

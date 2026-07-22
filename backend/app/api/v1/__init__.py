@@ -13,6 +13,7 @@ from app.api.v1 import (
     media,
     mod_panel,
     public,
+    reports,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -25,6 +26,7 @@ api_router.include_router(advertiser_logos.router)
 api_router.include_router(commercial_videos.router)
 api_router.include_router(edits.router)
 api_router.include_router(dmca.router)
+api_router.include_router(reports.router)
 api_router.include_router(admin.router)
 api_router.include_router(mod_panel.router)
 api_router.include_router(dumps.router)
