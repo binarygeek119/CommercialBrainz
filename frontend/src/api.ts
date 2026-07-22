@@ -94,6 +94,32 @@ export interface BulkSubmissionItem {
   updated_at: string;
 }
 
+export interface BulkPlaylistCheckCounts {
+  total: number;
+  ok: number;
+  catalog: number;
+  queue: number;
+  playlist_duplicate: number;
+}
+
+export interface BulkPlaylistCheckEntry {
+  youtube_id: string;
+  youtube_url: string;
+  title?: string | null;
+  position: number;
+  status: string;
+  reason?: string | null;
+  existing_video_sbid?: string | null;
+}
+
+export interface BulkPlaylistCheck {
+  playlist_id?: string | null;
+  playlist_title?: string | null;
+  playlist_url: string;
+  counts: BulkPlaylistCheckCounts;
+  entries: BulkPlaylistCheckEntry[];
+}
+
 export interface QuizQuestion {
   id: string;
   prompt: string;
@@ -929,6 +955,12 @@ export const api = {
     request<PowerUserTerms>("/bulk-submit/terms/accept", {
       method: "POST",
       body: JSON.stringify({ agreed }),
+    }),
+
+  bulkSubmitCheckPlaylist: (playlistUrl: string) =>
+    request<BulkPlaylistCheck>("/bulk-submit/playlists/check", {
+      method: "POST",
+      body: JSON.stringify({ playlist_url: playlistUrl }),
     }),
 
   bulkSubmitPlaylist: (playlistUrl: string) =>

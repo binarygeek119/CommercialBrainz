@@ -10,6 +10,9 @@ from app.database import get_db
 from app.models import User
 from app.schemas import (
     BulkItemSubmitRequest,
+    BulkPlaylistCheckEntry,
+    BulkPlaylistCheckPublic,
+    BulkPlaylistCheckCounts,
     BulkPlaylistImportRequest,
     BulkSubmissionBatchPublic,
     BulkSubmissionItemPublic,
@@ -26,6 +29,7 @@ from app.services.bulk_submit import (
     item_to_dict,
     list_owner_batches,
     list_owner_items,
+    preview_playlist_duplicates,
     rehash_item,
     skip_item,
 )
@@ -67,6 +71,26 @@ async def accept_power_user_terms(
     payload = power_user_terms_to_dict(doc)
     payload["accepted"] = True
     return PowerUserTermsPublic(**payload)
+
+
+@router.post("/playlists/check", response_model=BulkPlaylistCheckPublic)
+async def check_playlist_duplicates(
+    body: BulkPlaylistImportRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_bulk_submitter),
+):
+    """Expand a playlist and report duplicate links before starting an import."""
+    try:
+        result = await preview_playlist_duplicates(db, user, body.playlist_url)
+    except Exception as exc:  # noqa: BLE001 — yt-dlp / parse errors become 400
+        raise HTTPException(status_code=400, detail=str(exc)[:500]) from exc
+    return BulkPlaylistCheckPublic(
+        playlist_id=result.get("playlist_id"),
+        playlist_title=result.get("playlist_title"),
+        playlist_url=result["playlist_url"],
+        counts=BulkPlaylistCheckCounts(**result["counts"]),
+        entries=[BulkPlaylistCheckEntry(**entry) for entry in result["entries"]],
+    )
 
 
 @router.post("/playlists", response_model=BulkSubmissionBatchPublic, status_code=201)

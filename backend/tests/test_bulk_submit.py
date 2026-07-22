@@ -1,6 +1,10 @@
 """Tests for power-user eligibility and bulk-import marker helpers."""
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
 
 from app.auth.security import (
     user_bulk_submit_eligible,
@@ -14,6 +18,7 @@ from app.services.bulk_import_marker import (
     filter_tags_for_viewer,
     normalize_user_tags,
 )
+from app.services.bulk_submit import classify_playlist_entries
 from app.services.youtube_metadata import expand_youtube_playlist
 
 
@@ -96,3 +101,32 @@ def test_expand_playlist_parses_entries(monkeypatch):
     assert result["playlist_id"] == "PLtest"
     assert len(result["entries"]) == 2
     assert result["entries"][0]["youtube_id"] == "abcdefghijk"
+
+
+@pytest.mark.asyncio
+async def test_classify_playlist_entries_flags_duplicates(monkeypatch):
+    catalog_sbid = uuid4()
+    owner_id = uuid4()
+    entries = [
+        {"youtube_id": "aaaaaaaaaaa", "title": "New", "position": 0},
+        {"youtube_id": "bbbbbbbbbbb", "title": "Catalog", "position": 1},
+        {"youtube_id": "ccccccccccc", "title": "Queued", "position": 2},
+        {"youtube_id": "aaaaaaaaaaa", "title": "New again", "position": 3},
+    ]
+
+    async def fake_catalog(_db, youtube_ids):
+        return {"bbbbbbbbbbb": catalog_sbid}
+
+    async def fake_queue(_db, _owner_id, youtube_ids):
+        return {"ccccccccccc"}
+
+    monkeypatch.setattr("app.services.bulk_submit._catalog_video_ids", fake_catalog)
+    monkeypatch.setattr("app.services.bulk_submit._open_queue_youtube_ids", fake_queue)
+
+    classified = await classify_playlist_entries(AsyncMock(), owner_id, entries)
+    by_pos = {row["position"]: row for row in classified}
+    assert by_pos[0]["status"] == "ok"
+    assert by_pos[1]["reason"] == "catalog"
+    assert by_pos[1]["existing_video_sbid"] == str(catalog_sbid)
+    assert by_pos[2]["reason"] == "queue"
+    assert by_pos[3]["reason"] == "playlist_duplicate"

@@ -46,6 +46,112 @@ async def enqueue_bulk_playlist_import(batch_id: UUID) -> None:
         await pool.aclose()
 
 
+_OPEN_QUEUE_STATUSES = (
+    BulkSubmissionItemStatus.PENDING_META,
+    BulkSubmissionItemStatus.HASHING,
+    BulkSubmissionItemStatus.READY,
+    BulkSubmissionItemStatus.FAILED,
+)
+
+
+async def _catalog_video_ids(db: AsyncSession, youtube_ids: list[str]) -> dict[str, UUID]:
+    if not youtube_ids:
+        return {}
+    result = await db.execute(
+        select(Video.youtube_id, Video.sbid).where(Video.youtube_id.in_(youtube_ids))
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+async def _open_queue_youtube_ids(db: AsyncSession, owner_id: UUID, youtube_ids: list[str]) -> set[str]:
+    if not youtube_ids:
+        return set()
+    result = await db.execute(
+        select(BulkSubmissionItem.youtube_id).where(
+            BulkSubmissionItem.owner_id == owner_id,
+            BulkSubmissionItem.youtube_id.in_(youtube_ids),
+            BulkSubmissionItem.status.in_(_OPEN_QUEUE_STATUSES),
+        )
+    )
+    return {row[0] for row in result.all()}
+
+
+async def classify_playlist_entries(
+    db: AsyncSession,
+    owner_id: UUID,
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Classify playlist entries before import/hashing.
+
+    Reasons: ok | catalog | queue | playlist_duplicate
+    """
+    youtube_ids = [e["youtube_id"] for e in entries if e.get("youtube_id")]
+    catalog = await _catalog_video_ids(db, youtube_ids)
+    queued = await _open_queue_youtube_ids(db, owner_id, youtube_ids)
+
+    seen_in_playlist: set[str] = set()
+    classified: list[dict[str, Any]] = []
+    for entry in entries:
+        youtube_id = entry["youtube_id"]
+        row = {
+            "youtube_id": youtube_id,
+            "youtube_url": entry.get("youtube_url") or youtube_watch_url(youtube_id),
+            "title": entry.get("title"),
+            "position": int(entry.get("position") or 0),
+            "status": "ok",
+            "reason": None,
+            "existing_video_sbid": None,
+        }
+        if youtube_id in seen_in_playlist:
+            row["status"] = "duplicate"
+            row["reason"] = "playlist_duplicate"
+        elif youtube_id in catalog:
+            row["status"] = "duplicate"
+            row["reason"] = "catalog"
+            row["existing_video_sbid"] = str(catalog[youtube_id])
+        elif youtube_id in queued:
+            row["status"] = "duplicate"
+            row["reason"] = "queue"
+        else:
+            seen_in_playlist.add(youtube_id)
+        classified.append(row)
+    return classified
+
+
+async def preview_playlist_duplicates(
+    db: AsyncSession,
+    owner: User,
+    playlist_url: str,
+) -> dict[str, Any]:
+    """Expand playlist and classify duplicates without creating a batch."""
+    expanded = expand_youtube_playlist(
+        playlist_url.strip(),
+        max_items=settings.bulk_submit_max_playlist_items,
+    )
+    entries = expanded.get("entries") or []
+    classified = await classify_playlist_entries(db, owner.id, entries)
+    counts = {
+        "total": len(classified),
+        "ok": 0,
+        "catalog": 0,
+        "queue": 0,
+        "playlist_duplicate": 0,
+    }
+    for row in classified:
+        if row["status"] == "ok":
+            counts["ok"] += 1
+        elif row["reason"] in counts:
+            counts[row["reason"]] += 1
+    return {
+        "playlist_id": expanded.get("playlist_id"),
+        "playlist_title": expanded.get("playlist_title"),
+        "playlist_url": playlist_url.strip(),
+        "counts": counts,
+        "entries": classified,
+    }
+
+
 async def create_bulk_batch(
     db: AsyncSession,
     owner: User,
@@ -62,7 +168,7 @@ async def create_bulk_batch(
 
 
 async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
-    """Worker entry: expand playlist, fetch metadata, enqueue preview hashes."""
+    """Worker entry: expand playlist, skip duplicates, fetch metadata, enqueue hashes."""
     from app.database import async_session_factory
 
     async with async_session_factory() as db:
@@ -85,34 +191,39 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
         batch.playlist_id = expanded.get("playlist_id")
         batch.playlist_title = expanded.get("playlist_title")
         entries = expanded.get("entries") or []
-        batch.item_count = len(entries)
+        classified = await classify_playlist_entries(db, batch.owner_id, entries)
+        batch.item_count = len(classified)
         await db.flush()
 
         fingerprint_ids: list[UUID] = []
-        for entry in entries:
-            youtube_id = entry["youtube_id"]
+        for row in classified:
+            youtube_id = row["youtube_id"]
             item = BulkSubmissionItem(
                 batch_id=batch.id,
                 owner_id=batch.owner_id,
                 youtube_id=youtube_id,
-                youtube_url=entry.get("youtube_url") or youtube_watch_url(youtube_id),
-                position=int(entry.get("position") or 0),
+                youtube_url=row["youtube_url"],
+                position=row["position"],
                 status=BulkSubmissionItemStatus.PENDING_META,
-                extra_data={"title": entry.get("title")},
+                extra_data={"title": row.get("title")},
             )
             db.add(item)
             await db.flush()
 
-            existing = await db.scalar(
-                select(Video.sbid).where(Video.youtube_id == youtube_id).limit(1)
-            )
-            if existing:
+            if row["status"] == "duplicate":
                 item.status = BulkSubmissionItemStatus.DUPLICATE
-                item.error_message = "Already in catalog"
-                item.extra_data = {
-                    **(item.extra_data or {}),
-                    "existing_video_sbid": str(existing),
+                reason = row.get("reason") or "duplicate"
+                messages = {
+                    "catalog": "Already in catalog",
+                    "queue": "Already in your review queue",
+                    "playlist_duplicate": "Duplicate entry in this playlist",
                 }
+                item.error_message = messages.get(reason, "Duplicate link")
+                extra = dict(item.extra_data or {})
+                extra["duplicate_reason"] = reason
+                if row.get("existing_video_sbid"):
+                    extra["existing_video_sbid"] = row["existing_video_sbid"]
+                item.extra_data = extra
                 continue
 
             try:
@@ -140,12 +251,16 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
     for fp_id in fingerprint_ids:
         await enqueue_hash_job(fp_id)
 
-    # Mark hashing items ready when fingerprint already completed (fast path) via refresh job.
     async with async_session_factory() as db:
         await refresh_item_hash_statuses(db, batch_id)
         await db.commit()
 
-    return {"ok": True, "batch_id": str(batch_id), "items": len(entries)}
+    return {
+        "ok": True,
+        "batch_id": str(batch_id),
+        "items": len(classified),
+        "hashed": len(fingerprint_ids),
+    }
 
 
 async def refresh_item_hash_statuses(db: AsyncSession, batch_id: UUID | None = None) -> int:

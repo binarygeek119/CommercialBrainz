@@ -205,6 +205,32 @@ class BulkPlaylistImportRequest(BaseModel):
     playlist_url: str = Field(min_length=8, max_length=1024)
 
 
+class BulkPlaylistCheckCounts(BaseModel):
+    total: int = 0
+    ok: int = 0
+    catalog: int = 0
+    queue: int = 0
+    playlist_duplicate: int = 0
+
+
+class BulkPlaylistCheckEntry(BaseModel):
+    youtube_id: str
+    youtube_url: str
+    title: str | None = None
+    position: int = 0
+    status: str
+    reason: str | None = None
+    existing_video_sbid: str | None = None
+
+
+class BulkPlaylistCheckPublic(BaseModel):
+    playlist_id: str | None = None
+    playlist_title: str | None = None
+    playlist_url: str
+    counts: BulkPlaylistCheckCounts
+    entries: list[BulkPlaylistCheckEntry] = Field(default_factory=list)
+
+
 class BulkSubmissionBatchPublic(ORMModel):
     id: UUID
     playlist_url: str
