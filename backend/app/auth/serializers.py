@@ -16,7 +16,9 @@ async def user_to_public(db: AsyncSession, user: User) -> UserPublic:
     terms_version = await active_power_user_terms_version(db)
     # Hide bulk flags from clients that are not granted (still return false).
     show_bulk = user_bulk_submit_granted(user)
-    can_bulk = user_can_bulk_submit(user, active_terms_version=terms_version) if show_bulk else False
+    can_bulk = False
+    if show_bulk:
+        can_bulk = user_can_bulk_submit(user, active_terms_version=terms_version)
     return UserPublic(
         id=user.id,
         username=user.username,
