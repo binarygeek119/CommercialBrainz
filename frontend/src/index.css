@@ -959,6 +959,11 @@ code, .mono {
   padding-right: 0.25rem;
 }
 
+.bulk-review-dialog-card {
+  max-width: min(760px, 100%);
+  max-height: min(92vh, 980px);
+}
+
 
 .report-overlay {
   position: fixed;
