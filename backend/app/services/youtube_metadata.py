@@ -19,14 +19,20 @@ _VTT_TIMESTAMP = re.compile(
 )
 
 
+def _canonical_youtube_url(value: str) -> str:
+    youtube_id = extract_youtube_id((value or "").strip())
+    return youtube_watch_url(youtube_id)
+
+
 def _run_ytdlp_json(url: str) -> dict[str, Any]:
+    safe_url = _canonical_youtube_url(url)
     cmd = [
         "yt-dlp",
         "--no-playlist",
         "--skip-download",
         "--dump-single-json",
         "--no-warnings",
-        url,
+        safe_url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=45)
     if result.returncode != 0:
@@ -40,13 +46,14 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
 
 def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
     """Dump playlist JSON (flat entries) without downloading media."""
+    safe_url = _canonical_youtube_url(url)
     cmd = [
         "yt-dlp",
         "--flat-playlist",
         "--skip-download",
         "--dump-single-json",
         "--no-warnings",
-        url,
+        safe_url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=120)
     if result.returncode != 0:
