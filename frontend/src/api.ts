@@ -1361,6 +1361,9 @@ export const api = {
 
   bulkSubmitBatches: () => request<BulkSubmissionBatch[]>("/bulk-submit/batches"),
 
+  bulkSubmitCancelBatch: (batchId: string) =>
+    request<void>(`/bulk-submit/batches/${batchId}`, { method: "DELETE" }),
+
   bulkSubmitItems: (status?: string) =>
     request<BulkSubmissionItem[]>(
       `/bulk-submit/items${status ? `?status=${encodeURIComponent(status)}` : ""}`

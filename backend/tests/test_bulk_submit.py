@@ -238,3 +238,61 @@ def test_normalize_bulk_defaults_strips_empty():
         "tags": ["promo"],
         "year": 1990,
     }
+
+
+@pytest.mark.asyncio
+async def test_cancel_bulk_batch_deletes_preview_fingerprints(monkeypatch):
+    from app.services import bulk_submit as bs
+
+    batch_id = uuid4()
+    owner_id = uuid4()
+    preview_fp_id = uuid4()
+    attached_fp_id = uuid4()
+    preview_fp = SimpleNamespace(id=preview_fp_id, edit_id=None)
+    attached_fp = SimpleNamespace(id=attached_fp_id, edit_id=uuid4())
+    batch = SimpleNamespace(
+        id=batch_id,
+        owner_id=owner_id,
+        items=[
+            SimpleNamespace(fingerprint_id=preview_fp_id),
+            SimpleNamespace(fingerprint_id=attached_fp_id),
+            SimpleNamespace(fingerprint_id=None),
+        ],
+    )
+    deleted: list[object] = []
+
+    async def fake_get_owner_batch(_db, _owner_id, _batch_id):
+        return batch
+
+    async def fake_get(_model, obj_id):
+        if obj_id == preview_fp_id:
+            return preview_fp
+        if obj_id == attached_fp_id:
+            return attached_fp
+        return None
+
+    db = AsyncMock()
+    db.get = fake_get
+    db.delete = AsyncMock(side_effect=lambda obj: deleted.append(obj))
+    db.flush = AsyncMock()
+    monkeypatch.setattr(bs, "get_owner_batch", fake_get_owner_batch)
+
+    result = await bs.cancel_bulk_batch(db, owner_id, batch_id)
+
+    assert result is batch
+    assert batch in deleted
+    assert preview_fp in deleted
+    assert attached_fp not in deleted
+
+
+@pytest.mark.asyncio
+async def test_cancel_bulk_batch_missing_returns_none(monkeypatch):
+    from app.services import bulk_submit as bs
+
+    async def fake_get_owner_batch(_db, _owner_id, _batch_id):
+        return None
+
+    db = AsyncMock()
+    monkeypatch.setattr(bs, "get_owner_batch", fake_get_owner_batch)
+    assert await bs.cancel_bulk_batch(db, uuid4(), uuid4()) is None
+    db.delete.assert_not_called()

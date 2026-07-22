@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_bulk_submit_granted, require_bulk_submitter
@@ -23,6 +23,7 @@ from app.schemas import (
 from app.services.bulk_submit import (
     batch_counts,
     batch_to_dict,
+    cancel_bulk_batch,
     create_bulk_batch,
     enqueue_bulk_playlist_import,
     finalize_bulk_item,
@@ -126,6 +127,19 @@ async def list_batches(
         counts = await batch_counts(db, batch.id)
         out.append(BulkSubmissionBatchPublic(**batch_to_dict(batch, **counts)))
     return out
+
+
+@router.delete("/batches/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_batch(
+    batch_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_bulk_submitter),
+):
+    """Cancel a bulk playlist import and remove its queue/staging items."""
+    batch = await cancel_bulk_batch(db, user.id, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Not found")
+    await db.commit()
 
 
 @router.get("/items", response_model=list[BulkSubmissionItemPublic])

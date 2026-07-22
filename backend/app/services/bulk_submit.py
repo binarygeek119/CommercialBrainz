@@ -400,6 +400,44 @@ async def list_owner_batches(db: AsyncSession, owner_id: UUID) -> list[BulkSubmi
     return list(result.scalars().all())
 
 
+async def get_owner_batch(
+    db: AsyncSession, owner_id: UUID, batch_id: UUID
+) -> BulkSubmissionBatch | None:
+    result = await db.execute(
+        select(BulkSubmissionBatch)
+        .options(selectinload(BulkSubmissionBatch.items))
+        .where(BulkSubmissionBatch.id == batch_id, BulkSubmissionBatch.owner_id == owner_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def cancel_bulk_batch(
+    db: AsyncSession, owner_id: UUID, batch_id: UUID
+) -> BulkSubmissionBatch | None:
+    """
+    Cancel a bulk playlist import: remove the batch and its staging/queue items.
+
+    Already-submitted catalog edits and videos are left intact. Preview fingerprints
+    that were never attached to an edit are cleaned up.
+    """
+    batch = await get_owner_batch(db, owner_id, batch_id)
+    if not batch:
+        return None
+
+    fingerprint_ids = [
+        item.fingerprint_id for item in batch.items if item.fingerprint_id is not None
+    ]
+    await db.delete(batch)
+    await db.flush()
+
+    for fp_id in fingerprint_ids:
+        fp = await db.get(MediaFingerprint, fp_id)
+        if fp is not None and fp.edit_id is None:
+            await db.delete(fp)
+
+    return batch
+
+
 async def list_owner_items(
     db: AsyncSession,
     owner_id: UUID,

@@ -8,6 +8,7 @@ import { youtubeIdThumbnail } from "../utils/videoThumbnail";
 export default function BulkSubmitQueuePage() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<BulkSubmissionItem | null>(null);
+  const [cancellingBatchId, setCancellingBatchId] = useState<string | null>(null);
 
   const { data: items, isLoading, isFetching } = useQuery({
     queryKey: ["bulk-submit-items"],
@@ -44,6 +45,25 @@ export default function BulkSubmitQueuePage() {
     await refreshQueue();
   };
 
+  const handleCancelBatch = async (batchId: string, title: string | null | undefined) => {
+    const label = title?.trim() || "this playlist";
+    if (
+      !window.confirm(
+        `Cancel bulk import for “${label}”? Remaining queued and review items will be removed. Already submitted commercials stay in the catalog.`
+      )
+    ) {
+      return;
+    }
+    setCancellingBatchId(batchId);
+    try {
+      await api.bulkSubmitCancelBatch(batchId);
+      if (selected?.batch_id === batchId) setSelected(null);
+      await refreshQueue();
+    } finally {
+      setCancellingBatchId(null);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between" style={{ marginBottom: "1rem" }}>
@@ -63,17 +83,36 @@ export default function BulkSubmitQueuePage() {
         <div className="card" style={{ marginTop: "1rem" }}>
           <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Saved playlists</h2>
           <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-                {batches.map((batch) => (
-              <li key={batch.id} style={{ marginBottom: "0.35rem" }}>
-                <strong>{batch.playlist_title || "Playlist"}</strong>
-                <span className="muted">
-                  {" "}
-                  · {batch.staging_count ?? 0} in review · {batch.queued_count ?? 0} waiting ·{" "}
-                  {batch.item_count} total
-                  {batch.defaults?.commercial_type
-                    ? ` · default type ${batch.defaults.commercial_type}`
-                    : ""}
-                </span>
+            {batches.map((batch) => (
+              <li
+                key={batch.id}
+                style={{
+                  marginBottom: "0.65rem",
+                  display: "flex",
+                  gap: "0.75rem",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: "1 1 14rem", minWidth: 0 }}>
+                  <strong>{batch.playlist_title || "Playlist"}</strong>
+                  <span className="muted">
+                    {" "}
+                    · {batch.staging_count ?? 0} in review · {batch.queued_count ?? 0} waiting ·{" "}
+                    {batch.item_count} total
+                    {batch.defaults?.commercial_type
+                      ? ` · default type ${batch.defaults.commercial_type}`
+                      : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={cancellingBatchId === batch.id}
+                  onClick={() => void handleCancelBatch(batch.id, batch.playlist_title)}
+                >
+                  {cancellingBatchId === batch.id ? "Cancelling…" : "Cancel bulk import"}
+                </button>
               </li>
             ))}
           </ul>
