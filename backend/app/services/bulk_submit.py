@@ -63,7 +63,9 @@ async def _catalog_video_ids(db: AsyncSession, youtube_ids: list[str]) -> dict[s
     return {row[0]: row[1] for row in result.all()}
 
 
-async def _open_queue_youtube_ids(db: AsyncSession, owner_id: UUID, youtube_ids: list[str]) -> set[str]:
+async def _open_queue_youtube_ids(
+    db: AsyncSession, owner_id: UUID, youtube_ids: list[str]
+) -> set[str]:
     if not youtube_ids:
         return set()
     result = await db.execute(
