@@ -58,9 +58,9 @@ from app.services.registration_invites import (
     validate_invite_code,
 )
 from app.services.submission_terms import (
-    ensure_submission_terms_seeded,
     fallback_terms_dict,
     get_active_submission_terms,
+    record_terms_acceptance,
     terms_document_to_dict,
 )
 from app.submission_quiz import grade_quiz, quiz_for_client
@@ -211,18 +211,10 @@ async def submission_terms(db: AsyncSession = Depends(get_db)):
 @router.post("/submission-terms/accept", response_model=UserPublic)
 async def accept_submission_terms(
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_write_access),
+    user: User = Depends(get_current_user),
 ):
-    if not user_can_submit(user):
-        raise HTTPException(
-    status_code=403,
-     detail="Submission access required")
-
-    doc = await get_active_submission_terms(db)
-    if not doc:
-        doc = await ensure_submission_terms_seeded(db)
-
-    user.submission_terms_version = doc.version
+    """One-time (or re-agree after terms update) acceptance popup."""
+    await record_terms_acceptance(db, user)
     await db.commit()
     await db.refresh(user)
     return await user_to_public(db, user)
@@ -261,12 +253,8 @@ async def submission_upgrade(
             detail=f"Quiz not passed ({score}/{total}). Review the terms and try again.",
         )
 
-    doc = await get_active_submission_terms(db)
-    if not doc:
-        doc = await ensure_submission_terms_seeded(db)
-
+    await record_terms_acceptance(db, user)
     user.access_level = UserAccess.SUBMIT_AND_VOTE
-    user.submission_terms_version = doc.version
     await db.commit()
     await db.refresh(user)
     return QuizGradeResult(

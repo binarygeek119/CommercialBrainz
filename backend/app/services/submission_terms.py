@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,15 +55,21 @@ async def ensure_submission_terms_seeded(db: AsyncSession) -> SubmissionTermsDoc
     return doc
 
 
+async def record_terms_acceptance(db: AsyncSession, user: User) -> SubmissionTermsDocument:
+    """Persist that ``user`` agreed to the currently active Terms of Submission."""
+    doc = await get_active_submission_terms(db)
+    if not doc:
+        doc = await ensure_submission_terms_seeded(db)
+
+    user.submission_terms_version = doc.version
+    user.submission_terms_accepted_at = datetime.now(UTC)
+    return doc
+
+
 async def validate_and_record_terms_acceptance(
     db: AsyncSession, user: User, terms_agreed: bool
 ) -> SubmissionTermsDocument:
     if not terms_agreed:
         raise ValueError("You must agree to the Terms of Submission")
 
-    doc = await get_active_submission_terms(db)
-    if not doc:
-        doc = await ensure_submission_terms_seeded(db)
-
-    user.submission_terms_version = doc.version
-    return doc
+    return await record_terms_acceptance(db, user)

@@ -148,6 +148,8 @@ class User(Base):
     )
     submission_terms_version: Mapped[int | None] = mapped_column(
         Integer, nullable=True)
+    submission_terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
     is_auto_editor: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)

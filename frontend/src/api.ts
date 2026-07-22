@@ -15,6 +15,7 @@ export interface User {
   is_auto_editor: boolean;
   accepted_edits_count: number;
   submission_terms_version: number | null;
+  submission_terms_accepted_at: string | null;
   created_at: string;
 }
 

@@ -695,6 +695,82 @@ code, .mono {
   width: 100%;
 }
 
+.terms-gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 17, 23, 0.92);
+  backdrop-filter: blur(4px);
+}
+
+.terms-gate-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+  max-width: 640px;
+  width: 100%;
+  max-height: min(90vh, 820px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.terms-gate-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent, #6cb6ff);
+  background: rgba(108, 182, 255, 0.12);
+  border: 1px solid rgba(108, 182, 255, 0.35);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.terms-gate-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 0 0 0.65rem;
+}
+
+.terms-gate-card > p {
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.terms-gate-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  background: color-mix(in srgb, var(--bg, #0f1117) 65%, var(--surface));
+}
+
+.terms-gate-scroll .terms-view h2 {
+  font-size: 1.1rem;
+  margin-top: 0;
+}
+
+.terms-gate-scroll .terms-view h3 {
+  font-size: 0.98rem;
+}
+
+.terms-gate-btn {
+  width: 100%;
+  flex-shrink: 0;
+}
+
 .version-box {
   position: fixed;
   right: 0.75rem;

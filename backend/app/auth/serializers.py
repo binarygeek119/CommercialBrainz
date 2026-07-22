@@ -23,6 +23,7 @@ async def user_to_public(db: AsyncSession, user: User) -> UserPublic:
         is_auto_editor=user.is_auto_editor,
         accepted_edits_count=user.accepted_edits_count,
         submission_terms_version=user.submission_terms_version,
+        submission_terms_accepted_at=user.submission_terms_accepted_at,
         created_at=user.created_at,
     )
 
@@ -46,5 +47,6 @@ def user_to_public_basic(user: User) -> UserPublic:
         is_auto_editor=user.is_auto_editor,
         accepted_edits_count=user.accepted_edits_count,
         submission_terms_version=user.submission_terms_version,
+        submission_terms_accepted_at=user.submission_terms_accepted_at,
         created_at=user.created_at,
     )
