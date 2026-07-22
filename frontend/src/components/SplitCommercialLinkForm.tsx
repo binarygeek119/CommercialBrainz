@@ -4,6 +4,7 @@ import { api, type CommercialDetail, type SubmissionTerms, type Video } from "..
 import { useAuth, canSubmit } from "../auth";
 import SubmissionTermsView from "./SubmissionTermsView";
 import { COMMERCIAL_DECADES } from "../utils/commercialPeriod";
+import { COMMERCIAL_TYPES, type CommercialTypeValue } from "../utils/commercialTypes";
 import { commercialInheritanceSummary } from "../utils/addLinkDefaults";
 import { videoDisplayTitle } from "../utils/videoMetadata";
 
@@ -15,6 +16,7 @@ interface Props {
 
 type FormState = {
   title: string;
+  commercial_type: string;
   campaign_name: string;
   description: string;
   year: string;
@@ -32,6 +34,7 @@ function suggestedSplitTitle(commercial: CommercialDetail, video: Video): string
 function toFormState(commercial: CommercialDetail, video: Video): FormState {
   return {
     title: suggestedSplitTitle(commercial, video),
+    commercial_type: commercial.commercial_type ?? "",
     campaign_name: commercial.campaign_name ?? "",
     description: commercial.description ?? "",
     year: commercial.year != null ? String(commercial.year) : "",
@@ -92,6 +95,7 @@ export default function SplitCommercialLinkForm({ commercial, video, onSubmitted
 
       const edit = await api.submitCommercialSplit(commercial.sbid, video.sbid, {
         title: form.title.trim(),
+        commercial_type: (form.commercial_type.trim() || null) as CommercialTypeValue | null,
         campaign_name: form.campaign_name.trim() || null,
         description: form.description.trim() || null,
         year: year != null && !Number.isNaN(year) ? year : null,
@@ -148,6 +152,21 @@ export default function SplitCommercialLinkForm({ commercial, video, onSubmitted
           onChange={(e) => setForm({ ...form, title: e.target.value })}
           required
         />
+      </div>
+      <div className="form-group">
+        <label htmlFor={`split-type-${video.sbid}`}>Type of commercial</label>
+        <select
+          id={`split-type-${video.sbid}`}
+          value={form.commercial_type}
+          onChange={(e) => setForm({ ...form, commercial_type: e.target.value })}
+        >
+          <option value="">Unknown / not sure</option>
+          {COMMERCIAL_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="form-group">
         <label htmlFor={`split-campaign-${video.sbid}`}>Campaign name</label>

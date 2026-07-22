@@ -181,6 +181,13 @@ CommercialReportReason = ContentReportReason
 CommercialReportStatus = ContentReportStatus
 
 
+class CommercialType(enum.StrEnum):
+    GENERAL_AD = "general_ad"
+    PSA = "psa"
+    SERVICE = "service"
+    STORE = "store"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -526,6 +533,9 @@ class Commercial(Base):
     )
     year: Mapped[int | None] = mapped_column(Integer)
     decade: Mapped[int | None] = mapped_column(Integer)
+    commercial_type: Mapped[CommercialType | None] = mapped_column(
+        pg_enum(CommercialType, name="commercialtype"), nullable=True
+    )
     campaign_name: Mapped[str | None] = mapped_column(String(512))
     description: Mapped[str | None] = mapped_column(Text)
     external_ids: Mapped[dict] = mapped_column(JSONB, default=dict)

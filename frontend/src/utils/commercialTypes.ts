@@ -2,12 +2,28 @@ import { COMMERCIAL_DECADES } from "./commercialPeriod";
 
 import type { Video } from "../api";
 
+export type CommercialTypeValue = "general_ad" | "psa" | "service" | "store";
+
+export const COMMERCIAL_TYPES: { value: CommercialTypeValue; label: string }[] = [
+  { value: "general_ad", label: "General ad" },
+  { value: "psa", label: "PSA" },
+  { value: "service", label: "Service" },
+  { value: "store", label: "Store" },
+];
+
+export function commercialTypeLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  const found = COMMERCIAL_TYPES.find((t) => t.value === value);
+  return found?.label ?? value.replace(/_/g, " ");
+}
+
 export interface CommercialDetail {
   sbid: string;
   title: string;
   description?: string | null;
   year?: number | null;
   decade?: number | null;
+  commercial_type?: CommercialTypeValue | null;
   campaign_name?: string | null;
   advertiser_id?: string | null;
   agency_id?: string | null;
@@ -23,6 +39,7 @@ export interface CommercialMetadataUpdate {
   title?: string | null;
   year?: number | null;
   decade?: number | null;
+  commercial_type?: CommercialTypeValue | null;
   campaign_name?: string | null;
   description?: string | null;
   products?: string[];

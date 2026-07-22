@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { api, type Edit } from "../api";
 import {
   COMMERCIAL_DECADES,
+  COMMERCIAL_TYPES,
   type CommercialDetail,
   type CommercialMetadataUpdate,
+  type CommercialTypeValue,
 } from "../utils/commercialTypes";
 
 interface Props {
@@ -14,6 +16,7 @@ interface Props {
 
 type FormState = {
   title: string;
+  commercial_type: string;
   campaign_name: string;
   description: string;
   year: string;
@@ -24,6 +27,7 @@ type FormState = {
 function toFormState(commercial: CommercialDetail): FormState {
   return {
     title: commercial.title ?? "",
+    commercial_type: commercial.commercial_type ?? "",
     campaign_name: commercial.campaign_name ?? "",
     description: commercial.description ?? "",
     year: commercial.year != null ? String(commercial.year) : "",
@@ -39,9 +43,11 @@ function toPayload(form: FormState): CommercialMetadataUpdate {
     .split(/[,;\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
+  const commercial_type = (form.commercial_type.trim() || null) as CommercialTypeValue | null;
 
   return {
     title: form.title.trim() || null,
+    commercial_type,
     campaign_name: form.campaign_name.trim() || null,
     description: form.description.trim() || null,
     year: year != null && !Number.isNaN(year) ? year : null,
@@ -78,7 +84,7 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
     <div className="card" style={{ marginTop: "1rem" }}>
       <h3>Commercial metadata</h3>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
-        Propose changes to this commercial&apos;s title, campaign, air date, description, or
+        Propose changes to this commercial&apos;s title, type, campaign, air date, description, or
         products. Submissions go to the edit queue — 3 votes or 1 mod approval.
       </p>
       <form onSubmit={handleSubmit}>
@@ -90,6 +96,21 @@ export default function CommercialMetadataForm({ commercial, onSubmitted }: Prop
             value={form.title}
             onChange={(e) => update({ title: e.target.value })}
           />
+        </div>
+        <div className="form-group">
+          <label htmlFor="commercial-type">Type of commercial</label>
+          <select
+            id="commercial-type"
+            value={form.commercial_type}
+            onChange={(e) => update({ commercial_type: e.target.value })}
+          >
+            <option value="">Unknown / not set</option>
+            {COMMERCIAL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
           <label htmlFor="commercial-campaign">Campaign name</label>

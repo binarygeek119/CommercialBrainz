@@ -307,6 +307,11 @@ async def _load_videos(db: AsyncSession) -> list[dict]:
             "cta_text": video.cta_text,
             "year": commercial.year if commercial else None,
             "decade": commercial.decade if commercial else None,
+            "commercial_type": (
+                commercial.commercial_type.value
+                if commercial and commercial.commercial_type is not None
+                else None
+            ),
             "campaign_name": commercial.campaign_name if commercial else None,
             "commercial_description": commercial.description if commercial else None,
             "products": [p.product for p in commercial.products] if commercial else [],

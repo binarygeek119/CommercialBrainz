@@ -449,6 +449,7 @@ export interface CommercialListItem {
   agency_id: string | null;
   year: number | null;
   decade: number | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | null;
   campaign_name: string | null;
   description: string | null;
   created_at: string;
@@ -463,6 +464,7 @@ export interface CommercialDetail {
   description?: string | null;
   year?: number | null;
   decade?: number | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | null;
   campaign_name?: string | null;
   advertiser_id?: string | null;
   agency_id?: string | null;
@@ -778,6 +780,7 @@ export const api = {
       title?: string | null;
       year?: number | null;
       decade?: number | null;
+      commercial_type?: "general_ad" | "psa" | "service" | "store" | null;
       campaign_name?: string | null;
       description?: string | null;
       products?: string[];
@@ -795,6 +798,7 @@ export const api = {
       title: string;
       year?: number | null;
       decade?: number | null;
+      commercial_type?: "general_ad" | "psa" | "service" | "store" | null;
       campaign_name?: string | null;
       description?: string | null;
       products?: string[];

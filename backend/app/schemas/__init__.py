@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -6,6 +7,9 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+CommercialTypeValue = Literal["general_ad", "psa", "service", "store"]
 
 
 # --- Auth ---
@@ -337,6 +341,7 @@ class CommercialCreate(BaseModel):
     agency_name: str | None = None
     year: int | None = Field(default=None, ge=1900, le=2100)
     decade: int | None = Field(default=None, ge=1900, le=2100)
+    commercial_type: CommercialTypeValue | None = None
     campaign_name: str | None = None
     description: str | None = None
     external_ids: dict = Field(default_factory=dict)
@@ -386,6 +391,7 @@ class CommercialPublic(ORMModel):
     agency_id: UUID | None
     year: int | None
     decade: int | None
+    commercial_type: str | None = None
     campaign_name: str | None
     description: str | None
     external_ids: dict
@@ -402,6 +408,7 @@ class CommercialMetadataUpdate(BaseModel):
     title: str | None = Field(default=None, max_length=512)
     year: int | None = Field(default=None, ge=1900, le=2100)
     decade: int | None = Field(default=None, ge=1900, le=2100)
+    commercial_type: CommercialTypeValue | None = None
     campaign_name: str | None = Field(default=None, max_length=512)
     description: str | None = None
     products: list[str] = Field(default_factory=list)
