@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -105,6 +105,80 @@ def video_hash_match_dict(
         "hamming_distance": hamming_distance,
         "visibility": video.visibility.value,
     }
+
+
+def video_hashes_dict(video: Video) -> dict:
+    """Serialize all stored hash fields for a video."""
+    return {
+        "sbid": video.sbid,
+        "youtube_id": video.youtube_id,
+        "commercial_id": video.commercial_id,
+        "phash": format_phash_hex(video.phash),
+        "file_sha256": video.file_sha256,
+        "audio_fingerprint": video.audio_fingerprint,
+        "hash_status": video.hash_status.value if video.hash_status else None,
+        "hashed_at": video.hashed_at,
+        "visibility": video.visibility.value,
+    }
+
+
+async def get_video_hashes_by_sbid(
+    db: AsyncSession,
+    sbid: UUID,
+    *,
+    public_only: bool = True,
+) -> Video | None:
+    result = await db.execute(
+        select(Video).where(Video.sbid == sbid, *_visibility_filter(public_only=public_only))
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_video_hashes_by_youtube_id(
+    db: AsyncSession,
+    youtube_id: str,
+    *,
+    public_only: bool = True,
+) -> Video | None:
+    value = (youtube_id or "").strip()
+    if not value:
+        raise ValueError("youtube_id must not be empty")
+    result = await db.execute(
+        select(Video).where(
+            Video.youtube_id == value,
+            *_visibility_filter(public_only=public_only),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_video_hashes(
+    db: AsyncSession,
+    *,
+    offset: int = 0,
+    limit: int = 50,
+    hashed_only: bool = False,
+    public_only: bool = True,
+) -> tuple[list[Video], int]:
+    filters = list(_visibility_filter(public_only=public_only))
+    if hashed_only:
+        filters.append(
+            or_(
+                Video.phash.is_not(None),
+                Video.file_sha256.is_not(None),
+                Video.audio_fingerprint.is_not(None),
+            )
+        )
+    count_stmt = select(func.count()).select_from(Video)
+    stmt = select(Video)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+        stmt = stmt.where(*filters)
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(Video.created_at.asc()).offset(offset).limit(limit)
+    )
+    return list(result.scalars().all()), total
 
 
 def _visibility_filter(*, public_only: bool):

@@ -227,9 +227,12 @@ Base URL: `/api/v1`
 | `GET /commercials/{sbid}` | Commercial with linked videos |
 | `GET /advertisers/{sbid}` | Advertiser with commercials |
 | `GET /search?query=&type=video` | Full-text search |
-| `GET /hashes/types` | Media hash types available for lookup |
-| `GET /hashes/lookup?phash=` | Lookup by perceptual hash (Hamming) |
-| `GET /hashes/lookup?file_sha256=` | Lookup by file SHA-256 (exact) |
+| `GET /hashes/types` | Media hash types available for grab/lookup |
+| `GET /hashes` | Paginated catalog of video hashes |
+| `GET /hashes/videos/{sbid}` | Grab hashes for a video by CBID |
+| `GET /hashes/youtube/{youtube_id}` | Grab hashes for a video by YouTube ID |
+| `GET /hashes/lookup?phash=` | Lookup videos by perceptual hash (Hamming) |
+| `GET /hashes/lookup?file_sha256=` | Lookup videos by file SHA-256 (exact) |
 | `POST /hashes/lookup` | Same lookups; use for long Chromaprint values |
 | `GET /browse/videos?advertiser=&tag=` | Filtered browse |
 | `GET /edits/{id}` | Public edit history |

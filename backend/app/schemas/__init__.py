@@ -563,6 +563,21 @@ class HashTypesPublic(BaseModel):
     notes: dict[str, str] = Field(default_factory=dict)
 
 
+class VideoHashesPublic(BaseModel):
+    """All stored media hashes for a catalog video."""
+
+    sbid: UUID
+    youtube_id: str
+    commercial_id: UUID
+    phash: str | None = None
+    file_sha256: str | None = None
+    audio_fingerprint: str | None = None
+    hash_status: str | None = None
+    hashed_at: datetime | None = None
+    visibility: str
+
+
+
 class EditPublic(ORMModel):
     id: UUID
     edit_type: str

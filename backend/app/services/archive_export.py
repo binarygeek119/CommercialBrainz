@@ -315,6 +315,7 @@ async def _load_videos(db: AsyncSession) -> list[dict]:
             "metadata": video.extra_data or {},
             "phash": format_phash_hex(video.phash),
             "file_sha256": video.file_sha256,
+            "audio_fingerprint": video.audio_fingerprint,
             "created_at": video.created_at.isoformat(),
             "updated_at": video.updated_at.isoformat(),
         }

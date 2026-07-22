@@ -127,6 +127,18 @@ export interface HashLookupParams {
   threshold?: number;
 }
 
+export interface VideoHashes {
+  sbid: string;
+  youtube_id: string;
+  commercial_id: string;
+  phash?: string | null;
+  file_sha256?: string | null;
+  audio_fingerprint?: string | null;
+  hash_status?: string | null;
+  hashed_at?: string | null;
+  visibility: string;
+}
+
 export interface ModStats {
   open_edits: number;
   dmca_submitted: number;
@@ -706,6 +718,16 @@ export const api = {
   getEditDuplicates: (id: string) => request<DuplicateMatch[]>(`/edits/${id}/duplicates`),
 
   hashTypes: () => request<HashTypesInfo>("/hashes/types"),
+
+  listHashes: (offset = 0, limit = 50, hashedOnly = false) =>
+    request<Paginated<VideoHashes>>(
+      `/hashes?offset=${offset}&limit=${limit}${hashedOnly ? "&hashed_only=true" : ""}`
+    ),
+
+  getVideoHashes: (sbid: string) => request<VideoHashes>(`/hashes/videos/${sbid}`),
+
+  getHashesByYoutubeId: (youtubeId: string) =>
+    request<VideoHashes>(`/hashes/youtube/${encodeURIComponent(youtubeId)}`),
 
   lookupHash: (params: HashLookupParams) => {
     const qs = new URLSearchParams();
