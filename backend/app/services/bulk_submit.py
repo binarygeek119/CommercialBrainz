@@ -162,15 +162,41 @@ async def preview_playlist_duplicates(
     }
 
 
+def normalize_bulk_defaults(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Drop empty values so review UI only applies intentional playlist defaults."""
+    if not raw:
+        return {}
+    cleaned: dict[str, Any] = {}
+    for key, value in raw.items():
+        if value is None:
+            continue
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                continue
+            cleaned[key] = text
+            continue
+        if isinstance(value, list):
+            items = [str(v).strip() for v in value if str(v).strip()]
+            if items:
+                cleaned[key] = items
+            continue
+        cleaned[key] = value
+    return cleaned
+
+
 async def create_bulk_batch(
     db: AsyncSession,
     owner: User,
     playlist_url: str,
+    *,
+    defaults: dict[str, Any] | None = None,
 ) -> BulkSubmissionBatch:
     batch = BulkSubmissionBatch(
         owner_id=owner.id,
         playlist_url=playlist_url.strip(),
         status=BulkSubmissionBatchStatus.IMPORTING,
+        defaults=normalize_bulk_defaults(defaults),
     )
     db.add(batch)
     await db.flush()
@@ -383,7 +409,9 @@ async def list_owner_items(
     limit: int = 50,
 ) -> list[BulkSubmissionItem]:
     await refresh_item_hash_statuses(db)
-    query = select(BulkSubmissionItem).where(BulkSubmissionItem.owner_id == owner_id)
+    query = select(BulkSubmissionItem).options(
+        selectinload(BulkSubmissionItem.batch)
+    ).where(BulkSubmissionItem.owner_id == owner_id)
     if status:
         query = query.where(BulkSubmissionItem.status == BulkSubmissionItemStatus(status))
     else:
@@ -414,6 +442,9 @@ async def get_owner_item(
 
 def item_to_dict(item: BulkSubmissionItem) -> dict[str, Any]:
     meta = item.extra_data or {}
+    batch_defaults: dict[str, Any] = {}
+    if getattr(item, "batch", None) is not None:
+        batch_defaults = dict(item.batch.defaults or {})
     return {
         "id": item.id,
         "batch_id": item.batch_id,
@@ -423,6 +454,7 @@ def item_to_dict(item: BulkSubmissionItem) -> dict[str, Any]:
         "status": item.status.value,
         "title": meta.get("title") or meta.get("youtube_title"),
         "metadata": meta,
+        "batch_defaults": batch_defaults,
         "fingerprint_id": item.fingerprint_id,
         "edit_id": item.edit_id,
         "error_message": item.error_message,
@@ -452,6 +484,7 @@ def batch_to_dict(
         "item_count": batch.item_count,
         "queued_count": queued_count,
         "staging_count": staging_count,
+        "defaults": dict(batch.defaults or {}),
         "error_message": batch.error_message,
         "created_at": batch.created_at,
         "updated_at": batch.updated_at,

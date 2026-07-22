@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   api,
+  type BulkPlaylistDefaults,
   type BulkSubmissionItem,
   type SubmissionTerms,
   type YouTubeMetadataPreview,
@@ -54,15 +55,46 @@ const EMPTY_FORM: FormState = {
   comment: "",
 };
 
-function formFromYouTubeMeta(meta: YouTubeMetadataPreview): FormState {
+function formFromYouTubeMeta(
+  meta: YouTubeMetadataPreview,
+  defaults?: BulkPlaylistDefaults | null
+): FormState {
+  const defaultTags = defaults?.tags?.length ? defaults.tags.join(", ") : "";
   return {
     ...EMPTY_FORM,
     commercial_title: meta.title || "",
-    language: meta.language || "",
+    language: meta.language || defaults?.language || "",
     transcript: meta.transcript || "",
-    tags: meta.tags.length ? meta.tags.join(", ") : "",
+    tags: meta.tags.length ? meta.tags.join(", ") : defaultTags,
     comment: meta.suggested_comment || "",
+    commercial_type: defaults?.commercial_type || "",
+    bumper_channel: defaults?.bumper_channel || "",
+    decade: defaults?.decade != null ? String(defaults.decade) : "",
+    year: defaults?.year != null ? String(defaults.year) : "",
+    slogan: defaults?.slogan || "",
   };
+}
+
+function regionFromDefaults(defaults?: BulkPlaylistDefaults | null): RegionSelection {
+  if (!defaults?.region) return {};
+  return {
+    region: defaults.region,
+    ...(defaults.sub_region ? { sub_region: defaults.sub_region } : {}),
+  };
+}
+
+function advertiserFromDefaults(defaults?: BulkPlaylistDefaults | null): AdvertiserSelection {
+  if (!defaults) return {};
+  if (defaults.advertiser_id) {
+    return {
+      advertiser_id: defaults.advertiser_id,
+      advertiser_name: defaults.advertiser_name || undefined,
+    };
+  }
+  if (defaults.advertiser_name) {
+    return { advertiser_name: defaults.advertiser_name };
+  }
+  return {};
 }
 
 async function suggestAdvertiserFromChannel(channel: string): Promise<AdvertiserSelection> {
@@ -107,6 +139,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
   const [error, setError] = useState<string | null>(null);
   const advertiserTouched = useRef(false);
   const fetchGen = useRef(0);
+  const defaults = item.batch_defaults || {};
 
   const metaReady = ytMeta != null && !ytLoading;
   const formLocked = !metaReady || busy;
@@ -142,8 +175,14 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
       .then(async (meta) => {
         if (fetchGen.current !== gen) return;
         setYtMeta(meta);
-        setForm(formFromYouTubeMeta(meta));
-        if (meta.channel_name) {
+        setForm(formFromYouTubeMeta(meta, item.batch_defaults));
+        setRegionSelection(regionFromDefaults(item.batch_defaults));
+
+        const defaultAdvertiser = advertiserFromDefaults(item.batch_defaults);
+        if (defaultAdvertiser.advertiser_id || defaultAdvertiser.advertiser_name) {
+          setAdvertiser(defaultAdvertiser);
+          advertiserTouched.current = true;
+        } else if (meta.channel_name) {
           setGenres((prev) =>
             prev.target_channel.trim()
               ? prev
@@ -153,6 +192,14 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
           if (fetchGen.current === gen && !advertiserTouched.current) {
             setAdvertiser(suggestion);
           }
+        }
+
+        if (meta.channel_name) {
+          setGenres((prev) =>
+            prev.target_channel.trim()
+              ? prev
+              : { ...prev, target_channel: meta.channel_name ?? "" }
+          );
         }
       })
       .catch((err) => {
@@ -231,6 +278,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
                   : {}),
               }
             : {}),
+          ...(defaults.campaign_name ? { campaign_name: defaults.campaign_name } : {}),
         },
         channel_name: ytMeta.channel_name || undefined,
         upload_date: ytMeta.upload_date || undefined,
@@ -288,8 +336,9 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
 
         <div className="add-link-dialog-body">
           <p className="muted" style={{ marginTop: 0 }}>
-            YouTube metadata is fetched before the form unlocks. Prefetched hash stays attached.
-            After submit this popup closes and the next playlist link enters the review window.
+            YouTube metadata is fetched before the form unlocks. Shared playlist defaults (type,
+            brand, decade, etc.) are applied afterward and can still be edited. Prefetched hash stays
+            attached.
           </p>
 
           <div style={{ marginBottom: "1rem" }}>
@@ -347,6 +396,9 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
                 Status: <span className="badge badge-submitted">{item.status}</span>
                 {ytLoading && " · Fetching YouTube metadata…"}
                 {metaReady && " · Metadata ready"}
+                {metaReady &&
+                  (defaults.commercial_type || defaults.advertiser_name || defaults.decade) &&
+                  " · Playlist defaults applied"}
               </p>
               {ytMeta?.existing_video_sbid && (
                 <p className="error" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>

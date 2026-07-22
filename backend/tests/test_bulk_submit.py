@@ -217,3 +217,24 @@ def test_open_queue_statuses_include_queued():
 def test_staging_window_default():
     assert get_settings().bulk_submit_staging_window == 10
     assert get_settings().bulk_submit_max_playlist_items >= 2000
+
+
+def test_normalize_bulk_defaults_strips_empty():
+    from app.services.bulk_submit import normalize_bulk_defaults
+
+    cleaned = normalize_bulk_defaults(
+        {
+            "commercial_type": "psa",
+            "bumper_channel": "  ",
+            "advertiser_name": "Acme",
+            "tags": [" ", "promo", ""],
+            "year": 1990,
+            "decade": None,
+        }
+    )
+    assert cleaned == {
+        "commercial_type": "psa",
+        "advertiser_name": "Acme",
+        "tags": ["promo"],
+        "year": 1990,
+    }

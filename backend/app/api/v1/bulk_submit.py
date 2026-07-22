@@ -102,7 +102,14 @@ async def start_playlist_import(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_bulk_submitter),
 ):
-    batch = await create_bulk_batch(db, user, body.playlist_url)
+    batch = await create_bulk_batch(
+        db,
+        user,
+        body.playlist_url,
+        defaults=(
+            body.defaults.model_dump(exclude_none=True) if body.defaults is not None else None
+        ),
+    )
     await db.commit()
     background_tasks.add_task(enqueue_bulk_playlist_import, batch.id)
     return BulkSubmissionBatchPublic(**batch_to_dict(batch))

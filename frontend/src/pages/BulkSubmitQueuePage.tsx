@@ -63,13 +63,16 @@ export default function BulkSubmitQueuePage() {
         <div className="card" style={{ marginTop: "1rem" }}>
           <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Saved playlists</h2>
           <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-            {batches.map((batch) => (
+                {batches.map((batch) => (
               <li key={batch.id} style={{ marginBottom: "0.35rem" }}>
                 <strong>{batch.playlist_title || "Playlist"}</strong>
                 <span className="muted">
                   {" "}
                   · {batch.staging_count ?? 0} in review · {batch.queued_count ?? 0} waiting ·{" "}
                   {batch.item_count} total
+                  {batch.defaults?.commercial_type
+                    ? ` · default type ${batch.defaults.commercial_type}`
+                    : ""}
                 </span>
               </li>
             ))}
