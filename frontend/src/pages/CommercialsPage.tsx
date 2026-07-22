@@ -136,6 +136,8 @@ function CommercialGrid({ commercials }: { commercials: CommercialListItem[] }) 
             : null,
         ].filter(Boolean);
 
+        const thumb = commercial.thumbnail_url;
+
         return (
           <Link
             key={commercial.sbid}
@@ -143,6 +145,19 @@ function CommercialGrid({ commercials }: { commercials: CommercialListItem[] }) 
             className="card"
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
           >
+            {thumb && (
+              <img
+                src={thumb}
+                alt=""
+                style={{
+                  width: "100%",
+                  aspectRatio: "16 / 9",
+                  objectFit: "cover",
+                  borderRadius: 4,
+                  marginBottom: "0.75rem",
+                }}
+              />
+            )}
             <h3 style={{ margin: 0, fontSize: "1rem" }}>{commercial.title}</h3>
             {commercial.campaign_name && commercial.campaign_name !== commercial.title && (
               <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>

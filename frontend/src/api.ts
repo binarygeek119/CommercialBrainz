@@ -147,6 +147,7 @@ export interface Video {
   commercial_title?: string | null;
   commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
   bumper_channel?: string | null;
+
   visibility: string;
   phash?: string | null;
   file_sha256?: string | null;
@@ -414,6 +415,17 @@ export interface ArchiveExportStatus {
   error?: string | null;
 }
 
+export interface YtdlpCookiesStatus {
+  present: boolean;
+  path: string;
+  size_bytes: number;
+  updated_at?: string | null;
+  active: boolean;
+  active_path?: string | null;
+  env_override: boolean;
+  browser_fallback: boolean;
+}
+
 export interface Edit {
   id: string;
   edit_type: string;
@@ -491,6 +503,7 @@ export interface CommercialListItem {
   created_at: string;
   advertiser_name?: string | null;
   public_video_count?: number;
+  thumbnail_url?: string | null;
   was_bulk_imported?: boolean | null;
 }
 
@@ -1252,6 +1265,17 @@ export const api = {
 
   adminRevokeInvite: (inviteId: string) =>
     request<RegistrationInvite>(`/admin/invites/${inviteId}/revoke`, { method: "POST" }),
+
+  adminYtdlpCookiesStatus: () => request<YtdlpCookiesStatus>("/admin/ytdlp-cookies"),
+
+  adminSetYtdlpCookies: (cookies: string) =>
+    request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", {
+      method: "PUT",
+      body: JSON.stringify({ cookies }),
+    }),
+
+  adminClearYtdlpCookies: () =>
+    request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", { method: "DELETE" }),
 
   modStats: () => request<ModStats>("/mod/stats"),
 

@@ -76,8 +76,11 @@ def _run_ytdlp_download(
     max_filesize_mb: int | None,
     merge_output_format: str | None,
 ) -> subprocess.CompletedProcess[str]:
+    from app.services.ytdlp_auth import ytdlp_auth_args
+
     cmd = [
         "yt-dlp",
+        *ytdlp_auth_args(),
         "--no-playlist",
         "--retries",
         "3",
@@ -144,10 +147,10 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
         last_error = "yt-dlp produced no output file"
 
     version = _ytdlp_version()
-    raise RuntimeError(
-        f"{last_error.splitlines()[-1] if last_error else 'yt-dlp download failed'} "
-        f"(yt-dlp {version}; video {youtube_id})"
-    )
+    from app.services.ytdlp_auth import ytdlp_error_message
+
+    detail = ytdlp_error_message(last_error or "yt-dlp download failed")
+    raise RuntimeError(f"{detail} (yt-dlp {version}; video {youtube_id})")
 
 
 def compute_all_hashes(video_path: Path, probe: dict) -> tuple[int, str, str, float]:

@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     ytdlp_format: str = (
         "bv*[height<=480]+ba/b[height<=480]/bv*+ba/b"
     )
+    # Optional YouTube auth for yt-dlp bot / age-gate blocks.
+    # Admin panel writes the managed path; env override wins when that file exists.
+    ytdlp_cookies_managed_path: str = "/data/ytdlp/cookies.txt"
+    ytdlp_cookies_file: str = ""
+    # Host-only fallback, e.g. "chrome" or "chrome:Profile 1" — usually unavailable in Docker.
+    ytdlp_cookies_from_browser: str = ""
     hash_max_file_mb: int = 200
     # Max Hamming distance for perceptual-hash duplicate / lookup matches (64-bit pHash).
     phash_duplicate_threshold: int = 8

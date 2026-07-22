@@ -11,6 +11,23 @@ from app.services.video_popularity import enrich_video_public, list_commercial_v
 from app.utils import youtube_thumbnail_url
 
 
+def commercial_list_thumbnail_url(commercial: Commercial) -> str | None:
+    """Best public-video thumbnail for commercials list cards (main video preferred)."""
+    public = [v for v in commercial.videos if v.visibility == VideoVisibility.PUBLIC]
+    public.sort(
+        key=lambda v: (
+            0 if commercial.main_video_id and v.sbid == commercial.main_video_id else 1,
+            -v.popularity_score,
+            v.created_at,
+        )
+    )
+    for v in public:
+        thumb = video_to_public_dict(v).get("thumbnail_url")
+        if thumb:
+            return thumb
+    return None
+
+
 def video_to_public_dict(v: Video) -> dict:
     thumb = v.thumbnail_url
     if not thumb and v.youtube_id and v.visibility == VideoVisibility.PUBLIC:

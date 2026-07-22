@@ -10,6 +10,7 @@ from math import gcd
 from typing import Any
 from urllib.request import Request, urlopen
 
+from app.services.ytdlp_auth import ytdlp_auth_args, ytdlp_error_message
 from app.utils import extract_youtube_id, youtube_watch_url
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
     safe_url = _canonical_youtube_url(url)
     cmd = [
         "yt-dlp",
+        *ytdlp_auth_args(),
         "--no-playlist",
         "--skip-download",
         "--dump-single-json",
@@ -36,8 +38,7 @@ def _run_ytdlp_json(url: str) -> dict[str, Any]:
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=45)
     if result.returncode != 0:
-        msg = (result.stderr or result.stdout or "yt-dlp failed").strip()
-        raise RuntimeError(msg[:500])
+        raise RuntimeError(ytdlp_error_message(result.stderr or result.stdout))
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
@@ -49,6 +50,7 @@ def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
     safe_url = _canonical_youtube_url(url)
     cmd = [
         "yt-dlp",
+        *ytdlp_auth_args(),
         "--flat-playlist",
         "--skip-download",
         "--dump-single-json",
@@ -57,8 +59,8 @@ def _run_ytdlp_playlist_flat(url: str) -> dict[str, Any]:
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=120)
     if result.returncode != 0:
-        msg = (result.stderr or result.stdout or "yt-dlp playlist failed").strip()
-        raise RuntimeError(msg[:500])
+        raw = result.stderr or result.stdout or "yt-dlp playlist failed"
+        raise RuntimeError(ytdlp_error_message(raw))
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError as exc:

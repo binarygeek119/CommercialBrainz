@@ -116,7 +116,17 @@ def _create_entity(table: str, extras: list) -> None:
 
 
 def upgrade() -> None:
-    catalogstatus.create(op.get_bind(), checkfirst=True)
+    # Concurrent api+worker startups both run alembic; CREATE TYPE is not safe
+    # with SQLAlchemy checkfirst under that race. Match earlier migrations.
+    op.execute(
+        """
+        DO $$ BEGIN
+            CREATE TYPE catalogstatus AS ENUM ('pending', 'approved', 'rejected');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+        """
+    )
 
     for value in EDIT_TYPES:
         op.execute(f"ALTER TYPE edittype ADD VALUE IF NOT EXISTS '{value}'")

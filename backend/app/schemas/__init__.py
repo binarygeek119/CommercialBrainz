@@ -438,6 +438,7 @@ class CommercialPublic(ORMModel):
 class CommercialListItem(CommercialPublic):
     advertiser_name: str | None = None
     public_video_count: int = 0
+    thumbnail_url: str | None = None
 
 
 class CommercialMetadataUpdate(BaseModel):
@@ -560,6 +561,7 @@ class VideoPublic(ORMModel):
     commercial_title: str | None = None
     commercial_type: str | None = None
     bumper_channel: str | None = None
+
     metadata: dict
     visibility: str
     phash: str | None = None
@@ -876,6 +878,23 @@ class ArchiveExportStatus(BaseModel):
     logo_files: int | None = None
     youtube_thumbnails_fetched: int | None = None
     error: str | None = None
+
+
+class YtdlpCookiesStatus(BaseModel):
+    """Status of the admin-managed yt-dlp cookies file (never includes contents)."""
+
+    present: bool = False
+    path: str
+    size_bytes: int = 0
+    updated_at: str | None = None
+    active: bool = False
+    active_path: str | None = None
+    env_override: bool = False
+    browser_fallback: bool = False
+
+
+class YtdlpCookiesUpdate(BaseModel):
+    cookies: str = Field(..., min_length=1, max_length=2 * 1024 * 1024)
 
 
 class ModStats(BaseModel):
