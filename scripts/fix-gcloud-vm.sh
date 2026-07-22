@@ -44,10 +44,35 @@ ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
 bash infra/gcloud/generate-caddyfile.sh infra/caddy/Caddyfile.runtime "${DOMAIN}" "${ACME_EMAIL}"
 
 echo ""
-echo "==> Rebuild and start full stack"
-$COMPOSE build api worker web
-$COMPOSE up -d postgres redis
-$COMPOSE up -d --force-recreate api worker web
+# Prefer images prebuilt+pushed by GitHub Actions (GHCR). Fall back to on-VM
+# build only if pull fails (e.g. first boot before packages exist / private).
+# Allow IMAGE_TAG / GHCR_* from the environment or the VM .env file.
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source <(grep -E '^(IMAGE_TAG|GHCR_TOKEN|GHCR_USER)=' .env || true)
+  set +a
+fi
+export IMAGE_TAG="${IMAGE_TAG:-latest}"
+echo "==> App images IMAGE_TAG=${IMAGE_TAG}"
+
+if [[ -n "${GHCR_TOKEN:-}" ]]; then
+  echo "==> docker login ghcr.io"
+  echo "${GHCR_TOKEN}" | sudo docker login ghcr.io \
+    -u "${GHCR_USER:-binarygeek119}" --password-stdin
+fi
+
+echo "==> Pull prebuilt images from GHCR"
+if $COMPOSE pull api worker web; then
+  echo "==> Starting stack from pulled images (no on-VM build)"
+  $COMPOSE up -d postgres redis
+  $COMPOSE up -d --pull missing --force-recreate --no-build api worker web
+else
+  echo "WARN: GHCR pull failed — falling back to on-VM compose build"
+  $COMPOSE build api worker web
+  $COMPOSE up -d postgres redis
+  $COMPOSE up -d --force-recreate api worker web
+fi
 
 echo ""
 echo "==> Waiting for API (migrations + uvicorn)..."

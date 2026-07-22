@@ -1,5 +1,8 @@
 # Auto-deploy CommercialBrainz to the GCE VM after CI succeeds on main.
 #
+# CI pushes api/web images to GHCR; this workflow pulls them on the VM
+# (no on-VM docker build in the common path).
+#
 # Auth: Workload Identity Federation (no JSON key secret).
 # GCP setup (one-time, already applied for this project):
 #   SA: github-deploy@commercialbrainz.iam.gserviceaccount.com
@@ -38,6 +41,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Deploy the commit CI validated (not necessarily latest main tip).
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -52,8 +58,10 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'commercialbrainz' }}
           VM_NAME: ${{ vars.VM_NAME || 'commercialbrainz-vm' }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
           CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           set -euo pipefail
           chmod +x scripts/deploy-gcloud-vm.sh
+          echo "Deploying IMAGE_TAG=${IMAGE_TAG}"
           ./scripts/deploy-gcloud-vm.sh
