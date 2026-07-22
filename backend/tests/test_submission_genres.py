@@ -11,6 +11,12 @@ def test_compact_submission_genres_omits_empty():
     }
 
 
+def test_compact_submission_genres_ignores_legacy_spoof_flag():
+    # Spoof is a commercial type now; leftover genre flags must not be stored.
+    compact = compact_submission_genres({"spoof": True, "real": True})
+    assert compact == {"real": True}
+
+
 def test_merge_genres_into_metadata():
     merged = merge_genres_into_metadata(
         {"source": "youtube"},

@@ -18,7 +18,7 @@ import {
   referenceVideoFromCommercial,
 } from "../utils/addLinkDefaults";
 import { commercialUrl } from "../utils/commercialUrls";
-import { submissionGenresPayload, type SubmissionGenres } from "../utils/submissionGenres";
+import { EMPTY_SUBMISSION_GENRES, submissionGenresPayload, type SubmissionGenres } from "../utils/submissionGenres";
 import { extractYouTubeId } from "../utils/youtube";
 import { youtubeIdThumbnail } from "../utils/videoThumbnail";
 import { videoDisplayTitle } from "../utils/videoMetadata";
@@ -47,21 +47,7 @@ export default function AddCommercialLinkForm({
   const [transcript, setTranscript] = useState("");
   const [tags, setTags] = useState("");
   const [regionSelection, setRegionSelection] = useState<RegionSelection>({});
-  const [genres, setGenres] = useState<SubmissionGenres>({
-    age_range: "",
-    target_channel: "",
-    banned: false,
-    adult_rated: false,
-    late_night: false,
-    spoof: false,
-    fake: false,
-    real: false,
-    ai_enhanced: false,
-    holiday: "",
-    event: "",
-    store: "",
-    service: "",
-  });
+  const [genres, setGenres] = useState<SubmissionGenres>({ ...EMPTY_SUBMISSION_GENRES });
   const [referenceLabel, setReferenceLabel] = useState<string | null>(null);
   const [loadingDefaults, setLoadingDefaults] = useState(false);
   const [terms, setTerms] = useState<SubmissionTerms | null>(null);

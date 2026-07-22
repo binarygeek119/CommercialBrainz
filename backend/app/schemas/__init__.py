@@ -9,7 +9,7 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-CommercialTypeValue = Literal["general_ad", "psa", "service", "store", "bumper"]
+CommercialTypeValue = Literal["general_ad", "psa", "service", "store", "bumper", "spoof"]
 
 
 def _normalize_bumper_fields(
@@ -530,7 +530,6 @@ class SubmissionGenres(BaseModel):
     banned: bool = False
     adult_rated: bool = False
     late_night: bool = False
-    spoof: bool = False
     fake: bool = False
     real: bool = False
     ai_enhanced: bool = False

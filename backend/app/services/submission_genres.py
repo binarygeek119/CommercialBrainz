@@ -8,7 +8,6 @@ GENRE_BOOL_FIELDS = (
     "banned",
     "adult_rated",
     "late_night",
-    "spoof",
     "fake",
     "real",
     "ai_enhanced",

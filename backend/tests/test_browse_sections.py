@@ -17,9 +17,12 @@ def test_section_order_puts_needs_votes_first():
     assert "updated_events" in ids
     assert "new_holidays" in ids
     assert "updated_holidays" in ids
+    assert "spoof" in ids
     # Catalog shelves come before typed commercial video shelves.
     assert ids.index("new_brands") < ids.index("psa")
     assert ids.index("updated_holidays") < ids.index("psa")
+    assert ids.index("bumper") < ids.index("spoof")
+    assert ids.index("spoof") < ids.index("channel_commercial")
 
 
 def test_major_network_channel_matching():

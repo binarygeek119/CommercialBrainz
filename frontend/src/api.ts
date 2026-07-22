@@ -165,7 +165,7 @@ export interface Video {
   is_main?: boolean;
   viewer_vote?: "up" | "down" | null;
   commercial_title?: string | null;
-  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | "spoof" | null;
   bumper_channel?: string | null;
 
   visibility: string;
@@ -516,7 +516,7 @@ export interface CommercialListItem {
   agency_id: string | null;
   year: number | null;
   decade: number | null;
-  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | "spoof" | null;
   bumper_channel?: string | null;
   campaign_name: string | null;
   description: string | null;
@@ -538,7 +538,7 @@ export interface CommercialDetail {
   description?: string | null;
   year?: number | null;
   decade?: number | null;
-  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+  commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | "spoof" | null;
   bumper_channel?: string | null;
   campaign_name?: string | null;
   advertiser_id?: string | null;
@@ -1107,7 +1107,7 @@ export const api = {
       title?: string | null;
       year?: number | null;
       decade?: number | null;
-      commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+      commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | "spoof" | null;
       bumper_channel?: string | null;
       campaign_name?: string | null;
       description?: string | null;
@@ -1130,7 +1130,7 @@ export const api = {
       title: string;
       year?: number | null;
       decade?: number | null;
-      commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | null;
+      commercial_type?: "general_ad" | "psa" | "service" | "store" | "bumper" | "spoof" | null;
       bumper_channel?: string | null;
       campaign_name?: string | null;
       description?: string | null;

@@ -391,7 +391,7 @@ async def browse_videos(
     tag: str | None = None,
     commercial_type: str | None = Query(
         default=None,
-        pattern="^(general_ad|psa|service|store|bumper)$",
+        pattern="^(general_ad|psa|service|store|bumper|spoof)$",
     ),
     channel_commercials: bool = False,
     sort: str = Query(default="created_at", pattern="^(created_at|updated_at)$"),

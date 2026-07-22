@@ -208,6 +208,7 @@ class CommercialType(enum.StrEnum):
     SERVICE = "service"
     STORE = "store"
     BUMPER = "bumper"
+    SPOOF = "spoof"
 
 
 class User(Base):

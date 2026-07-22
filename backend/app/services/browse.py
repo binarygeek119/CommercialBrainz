@@ -443,6 +443,14 @@ SECTION_SPECS: list[dict[str, Any]] = [
         "see_all_path": "/browse?section=bumper",
     },
     {
+        "id": "spoof",
+        "title": "Spoofs",
+        "kind": "videos",
+        "commercial_type": CommercialType.SPOOF,
+        "main_only": True,
+        "see_all_path": "/browse?section=spoof",
+    },
+    {
         "id": "channel_commercial",
         "title": "Channel commercials",
         "kind": "videos",
