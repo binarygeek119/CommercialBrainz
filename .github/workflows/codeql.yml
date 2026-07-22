@@ -34,12 +34,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # Prefer the CodeQL tools bundled with the action (`linked`) to avoid a large
+      # separate download of codeql-bundle-*.tar.zst, which often fails with ECONNRESET.
+      # See: https://github.com/github/codeql-action/issues/3367
       - name: Initialize CodeQL
+        id: codeql-init
+        continue-on-error: true
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+          tools: linked
+
+      - name: Retry Initialize CodeQL
+        if: steps.codeql-init.outcome == 'failure'
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+          tools: linked
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
