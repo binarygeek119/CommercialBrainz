@@ -6,6 +6,7 @@ import { useAuth, canSubmit } from "../auth";
 import CommercialMetadataForm from "../components/CommercialMetadataForm";
 import CommercialMetadataDisplay from "../components/CommercialMetadataDisplay";
 import CommercialVideoGallery from "../components/CommercialVideoGallery";
+import ReportContentDialog from "../components/ReportContentDialog";
 import { videoThumbnailUrl } from "../utils/videoThumbnail";
 import { videoDisplayTitle } from "../utils/videoMetadata";
 
@@ -14,6 +15,7 @@ export default function CommercialPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [showMetadataForm, setShowMetadataForm] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["commercial", sbid],
@@ -65,15 +67,20 @@ export default function CommercialPage() {
             </p>
           )}
         </div>
-        {user && canSubmit(user) && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setShowMetadataForm((open) => !open)}
-          >
-            {showMetadataForm ? "Hide metadata editor" : "Edit metadata"}
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setShowReport(true)}>
+            Report
           </button>
-        )}
+          {user && canSubmit(user) && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowMetadataForm((open) => !open)}
+            >
+              {showMetadataForm ? "Hide metadata editor" : "Edit metadata"}
+            </button>
+          )}
+        </div>
       </div>
 
       {heroThumb && selectedVideo && (
@@ -119,6 +126,16 @@ export default function CommercialPage() {
         selectedVideoSbid={selectedVideoSbid}
         onSelectVideo={selectVideo}
       />
+
+      {showReport && (
+        <ReportContentDialog
+          targetType="commercial"
+          targetSbid={data.sbid}
+          targetTitle={data.title}
+          loggedIn={Boolean(user)}
+          onClose={() => setShowReport(false)}
+        />
+      )}
     </div>
   );
 }

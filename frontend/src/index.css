@@ -807,6 +807,41 @@ code, .mono {
   padding-right: 0.25rem;
 }
 
+
+.report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 17, 23, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.report-dialog-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.report-dialog-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+}
+
+.report-dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
 .version-box {
   position: fixed;
   right: 0.75rem;

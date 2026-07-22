@@ -148,7 +148,34 @@ export interface ModStats {
   failed_fingerprints: number;
   pending_deletion_requests: number;
   dead_links: number;
+  open_content_reports?: number;
+  open_commercial_reports?: number;
 }
+
+export interface ContentReport {
+  id: string;
+  target_type: string;
+  commercial_id?: string | null;
+  advertiser_id?: string | null;
+  commercial_title?: string | null;
+  advertiser_name?: string | null;
+  target_title?: string | null;
+  reporter_id: string;
+  reporter_username?: string | null;
+  reason: string;
+  details?: string | null;
+  status: string;
+  review_notes?: string | null;
+  reviewed_by_id?: string | null;
+  reviewed_by_username?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  outcome_hint?: string | null;
+}
+
+/** @deprecated Prefer ContentReport */
+export type CommercialReport = ContentReport;
 
 export interface DeadLink {
   sbid: string;
@@ -597,6 +624,18 @@ export const api = {
 
   getCommercial: (sbid: string) => request<CommercialDetail>(`/commercials/${sbid}`),
 
+  reportCommercial: (sbid: string, data: { reason: string; details?: string }) =>
+    request<ContentReport>(`/commercials/${sbid}/report`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  reportBrand: (sbid: string, data: { reason: string; details?: string }) =>
+    request<ContentReport>(`/advertisers/${sbid}/report`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   getCommercialVideos: (sbid: string) => request<Video[]>(`/commercials/${sbid}/videos`),
 
   voteCommercialVideoPopularity: (
@@ -868,4 +907,20 @@ export const api = {
 
   modRecheckDeadLink: (videoId: string) =>
     request<DeadLink>(`/mod/dead-links/${videoId}/recheck`, { method: "POST" }),
+
+  modContentReports: () => request<ContentReport[]>("/mod/content-reports"),
+
+  modCommercialReports: () => request<ContentReport[]>("/mod/content-reports"),
+
+  modReviewContentReport: (reportId: string, status: string, reviewNotes?: string) =>
+    request<ContentReport>(`/mod/content-reports/${reportId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ status, review_notes: reviewNotes ?? null }),
+    }),
+
+  modReviewCommercialReport: (reportId: string, status: string, reviewNotes?: string) =>
+    request<ContentReport>(`/mod/content-reports/${reportId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ status, review_notes: reviewNotes ?? null }),
+    }),
 };
