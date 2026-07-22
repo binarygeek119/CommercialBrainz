@@ -43,6 +43,7 @@ const VIDEO_SECTION_FILTERS: Record<
     opts: { commercial_type: "store", main_only: true },
   },
   bumper: { title: "Bumpers", opts: { commercial_type: "bumper", main_only: true } },
+  spoof: { title: "Spoofs", opts: { commercial_type: "spoof", main_only: true } },
   channel_commercial: {
     title: "Channel commercials",
     opts: { channel_commercials: true, main_only: true },

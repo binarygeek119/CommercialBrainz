@@ -14,7 +14,6 @@ export interface SubmissionGenres {
   banned: boolean;
   adult_rated: boolean;
   late_night: boolean;
-  spoof: boolean;
   fake: boolean;
   real: boolean;
   ai_enhanced: boolean;
@@ -30,7 +29,6 @@ export const EMPTY_SUBMISSION_GENRES: SubmissionGenres = {
   banned: false,
   adult_rated: false,
   late_night: false,
-  spoof: false,
   fake: false,
   real: false,
   ai_enhanced: false,
@@ -44,7 +42,6 @@ export const GENRE_FLAG_LABELS: { key: keyof SubmissionGenres; label: string }[]
   { key: "banned", label: "Banned" },
   { key: "adult_rated", label: "Adult rated" },
   { key: "late_night", label: "Late night" },
-  { key: "spoof", label: "Spoof" },
   { key: "fake", label: "Fake" },
   { key: "real", label: "Real" },
   { key: "ai_enhanced", label: "AI enhanced" },
@@ -101,7 +98,6 @@ export function genresFromMetadata(raw: unknown): SubmissionGenres {
     banned: bool("banned"),
     adult_rated: bool("adult_rated"),
     late_night: bool("late_night"),
-    spoof: bool("spoof"),
     fake: bool("fake"),
     real: bool("real"),
     ai_enhanced: bool("ai_enhanced"),

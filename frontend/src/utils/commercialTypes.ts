@@ -2,7 +2,13 @@ import { COMMERCIAL_DECADES } from "./commercialPeriod";
 
 import type { Video } from "../api";
 
-export type CommercialTypeValue = "general_ad" | "psa" | "service" | "store" | "bumper";
+export type CommercialTypeValue =
+  | "general_ad"
+  | "psa"
+  | "service"
+  | "store"
+  | "bumper"
+  | "spoof";
 
 export const COMMERCIAL_TYPES: { value: CommercialTypeValue; label: string }[] = [
   { value: "general_ad", label: "General ad" },
@@ -10,6 +16,7 @@ export const COMMERCIAL_TYPES: { value: CommercialTypeValue; label: string }[] =
   { value: "service", label: "Service" },
   { value: "store", label: "Store" },
   { value: "bumper", label: "Bumper" },
+  { value: "spoof", label: "Spoof" },
 ];
 
 export function commercialTypeLabel(value: string | null | undefined): string {
