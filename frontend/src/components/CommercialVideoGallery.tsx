@@ -132,6 +132,7 @@ export default function CommercialVideoGallery({
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [showAddLink, setShowAddLink] = useState(false);
   const { data: videos = commercial.videos ?? [], isLoading, error } = useQuery({
     queryKey: ["commercial-videos", commercial.sbid],
     queryFn: () => api.getCommercialVideos(commercial.sbid),
@@ -144,10 +145,22 @@ export default function CommercialVideoGallery({
   };
 
   const canSplit = !!user && canSubmit(user) && videos.length >= 2;
+  const canAddLink = !!user && canSubmit(user);
 
   return (
     <section style={{ marginTop: "1.5rem" }}>
-      <h2>YouTube links</h2>
+      <div className="flex-between" style={{ gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>YouTube links</h2>
+        {canAddLink && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowAddLink(true)}
+          >
+            Add another YouTube link
+          </button>
+        )}
+      </div>
       <p className="muted" style={{ marginBottom: "1rem" }}>
         A commercial has one <strong>master link</strong> (main YouTube upload) and optional{" "}
         <strong>sub links</strong> (alternate cuts, mirrors, regional copies). Sub links inherit
@@ -156,7 +169,11 @@ export default function CommercialVideoGallery({
         <strong>split proposal</strong> for community vote (20+ yes votes, or after 3 months).
       </p>
 
-      <AddCommercialLinkForm commercial={commercial} onSubmitted={refresh} />
+      {!canAddLink && (
+        <p className="muted" style={{ marginBottom: "1rem" }}>
+          <Link to="/login">Log in</Link> with submit access to add another YouTube link.
+        </p>
+      )}
 
       {isLoading && !videos.length && <p className="muted">Loading links…</p>}
       {error && <p className="error">{(error as Error).message}</p>}
@@ -185,6 +202,44 @@ export default function CommercialVideoGallery({
         <p className="muted" style={{ marginTop: "0.75rem" }}>
           <Link to="/login">Log in</Link> to vote on which link should be main.
         </p>
+      )}
+
+      {showAddLink && (
+        <div
+          className="add-link-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-link-dialog-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddLink(false);
+          }}
+        >
+          <div className="add-link-dialog-card">
+            <div className="flex-between" style={{ gap: "0.75rem", marginBottom: "0.75rem" }}>
+              <h2 id="add-link-dialog-title" className="add-link-dialog-title">
+                Add another YouTube link
+              </h2>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowAddLink(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="add-link-dialog-body">
+              <AddCommercialLinkForm
+                commercial={commercial}
+                embedded
+                onCancel={() => setShowAddLink(false)}
+                onSubmitted={() => {
+                  setShowAddLink(false);
+                  refresh();
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
