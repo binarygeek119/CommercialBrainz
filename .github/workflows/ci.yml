@@ -175,7 +175,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: infra/Dockerfile.api
@@ -187,7 +187,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api
 
       - name: Build and push web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: infra/Dockerfile.web
