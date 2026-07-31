@@ -161,7 +161,12 @@ Create the Origin certificate in Cloudflare → SSL/TLS → Origin Server first.
 
 ### Branches: `google` (testing) and `cloudflare` (public)
 
-See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for https://commercialbrainz.org.
+| Branch | URL |
+|--------|-----|
+| `google` | https://commercialbrainz.duckdns.org/ |
+| `cloudflare` | https://commercialbrainz.org/ |
+
+See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for the public site.
 
 ### Auto-deploy on push to `google` / `cloudflare`
 

@@ -1,19 +1,26 @@
 # Branching and environments
 
-| Branch | Role | Public URL (typical) |
-|--------|------|----------------------|
-| **`google`** | Testing / integration. **Default for all PRs.** | `https://commercialbrainz.duckdns.org` |
-| **`cloudflare`** | Public production site | `https://commercialbrainz.org` |
+| Branch | Role | Site URL |
+|--------|------|----------|
+| **`google`** | Testing / integration. **Default for all PRs.** | **https://commercialbrainz.duckdns.org/** |
+| **`cloudflare`** | Public production site | **https://commercialbrainz.org/** |
 
 `main` is legacy; prefer `google` and `cloudflare`.
 
 ## Workflow
 
 1. Open PRs against **`google`** (not `cloudflare`).
-2. CI runs on the PR; merge into `google` → images tagged `google` + commit SHA → auto-deploy to the GCE VM (testing).
-3. When testing looks good, open a PR **`google` → `cloudflare`** (or merge locally) → images tagged `cloudflare` + `latest` → auto-deploy production config.
+2. Merge into `google` → CI → auto-deploy to the GCE VM as the **DuckDNS testing site**.
+3. When testing looks good, promote **`google` → `cloudflare`** → auto-deploy as **https://commercialbrainz.org/**.
 
-Both environments currently share the **same GCE VM**. Deploys are serialized; the VM checks out the branch being deployed (`APP_BRANCH`) and pulls matching GHCR tags. Production should use Cloudflare Origin CA (`CADDY_TLS_MODE=origin`); testing can stay on DuckDNS + Let's Encrypt (`CADDY_TLS_MODE=auto`).
+On each deploy, `fix-gcloud-vm.sh` sets hostname / TLS from `APP_BRANCH`:
+
+| `APP_BRANCH` | `DOMAIN` | TLS |
+|--------------|----------|-----|
+| `google` | `commercialbrainz.duckdns.org` | Let's Encrypt (`auto`) |
+| `cloudflare` | `commercialbrainz.org` (+ `www` redirect; DuckDNS kept as alias) | Cloudflare Origin CA (`origin`) |
+
+Both share the **same GCE VM**; deploys are serialized. For `cloudflare`, Origin CA files must already be in `/opt/commercialbrainz/data/caddy/certs/` (see [cloudflare-domain.md](cloudflare-domain.md)).
 
 ## Promote testing → public
 

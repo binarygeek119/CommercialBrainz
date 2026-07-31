@@ -60,6 +60,52 @@ write_compose_env
 $COMPOSE ps -a
 
 echo ""
+echo "==> Apply site env for branch ${APP_BRANCH}"
+# google  → https://commercialbrainz.duckdns.org/  (Let's Encrypt)
+# cloudflare → https://commercialbrainz.org/       (Cloudflare Origin CA)
+set_env() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" .env 2>/dev/null; then
+    if [[ "$(id -u)" -eq 0 ]]; then
+      sed -i "s|^${key}=.*|${key}=${value}|" .env
+    else
+      sudo sed -i "s|^${key}=.*|${key}=${value}|" .env
+    fi
+  else
+    if [[ "$(id -u)" -eq 0 ]]; then
+      echo "${key}=${value}" >> .env
+    else
+      echo "${key}=${value}" | sudo tee -a .env >/dev/null
+    fi
+  fi
+}
+
+ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
+ACME_EMAIL="${ACME_EMAIL:-commercialbrainz@outlook.com}"
+
+if [[ "$APP_BRANCH" == "cloudflare" ]]; then
+  set_env DOMAIN "commercialbrainz.org"
+  set_env DOMAIN_ALIASES "www.commercialbrainz.org,commercialbrainz.duckdns.org"
+  set_env CADDY_TLS_MODE "origin"
+  set_env APP_PUBLIC_URL "https://commercialbrainz.org"
+  set_env API_PUBLIC_URL "https://commercialbrainz.org"
+  set_env CORS_ORIGINS "https://commercialbrainz.org,https://www.commercialbrainz.org,https://commercialbrainz.duckdns.org"
+  set_env ACME_EMAIL "$ACME_EMAIL"
+  echo "    Public site: https://commercialbrainz.org/ (Origin CA)"
+elif [[ "$APP_BRANCH" == "google" ]]; then
+  set_env DOMAIN "commercialbrainz.duckdns.org"
+  set_env DOMAIN_ALIASES ""
+  set_env CADDY_TLS_MODE "auto"
+  set_env APP_PUBLIC_URL "https://commercialbrainz.duckdns.org"
+  set_env API_PUBLIC_URL "https://commercialbrainz.duckdns.org"
+  set_env CORS_ORIGINS "https://commercialbrainz.duckdns.org"
+  set_env ACME_EMAIL "$ACME_EMAIL"
+  echo "    Testing site: https://commercialbrainz.duckdns.org/ (Let's Encrypt)"
+else
+  echo "    WARN: unknown APP_BRANCH=${APP_BRANCH}; leaving DOMAIN settings in .env unchanged"
+fi
+
+echo ""
 echo "==> Regenerate Caddyfile"
 DOMAIN="$(grep '^DOMAIN=' .env 2>/dev/null | cut -d= -f2- || true)"
 ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
@@ -73,6 +119,7 @@ bash infra/gcloud/generate-caddyfile.sh \
   "${ACME_EMAIL}" \
   "${DOMAIN_ALIASES}" \
   "${CADDY_TLS_MODE}"
+write_compose_env
 
 echo ""
 # Prefer images prebuilt+pushed by GitHub Actions (GHCR). Fall back to on-VM
