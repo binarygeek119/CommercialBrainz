@@ -2,7 +2,7 @@
 
 export const GITHUB_REPO = "https://github.com/binarygeek119/CommercialBrainz";
 /** PRs and doc edits target the default integration branch. */
-export const GITHUB_DOCS_BRANCH = "google";
+export const GITHUB_DOCS_BRANCH = "testing";
 export const SITE_DOCS_DIR = "docs/site";
 
 export type SiteDocId =

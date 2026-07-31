@@ -4,11 +4,11 @@
 # VM and pulls those images (no on-VM docker build in the common path).
 #
 # Usage:
-#   GCP_PROJECT_ID=commercialbrainz APP_BRANCH=google ./scripts/deploy-gcloud-vm.sh
+#   GCP_PROJECT_ID=commercialbrainz APP_BRANCH=testing ./scripts/deploy-gcloud-vm.sh
 #   IMAGE_TAG=<git-sha> APP_BRANCH=cloudflare GCP_PROJECT_ID=commercialbrainz ./scripts/deploy-gcloud-vm.sh
 #
 # Branches / default VMs:
-#   google     → commercialbrainz-vm   (DuckDNS testing)
+#   testing    → commercialbrainz-vm   (DuckDNS testing)
 #   cloudflare → commercialbrainz-public  (public site)
 # See docs/branches.md
 #
@@ -16,12 +16,16 @@ set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-APP_BRANCH="${APP_BRANCH:-google}"
+APP_BRANCH="${APP_BRANCH:-testing}"
+if [[ "$APP_BRANCH" == "main" || "$APP_BRANCH" == "google" ]]; then
+  echo "WARN: APP_BRANCH=${APP_BRANCH} is retired; using testing"
+  APP_BRANCH=testing
+fi
 
 if [[ -z "${VM_NAME:-}" ]]; then
   case "$APP_BRANCH" in
     cloudflare) VM_NAME="${VM_NAME_CLOUDFLARE:-commercialbrainz-public}" ;;
-    *) VM_NAME="${VM_NAME_GOOGLE:-commercialbrainz-vm}" ;;
+    *) VM_NAME="${VM_NAME_TESTING:-${VM_NAME_GOOGLE:-commercialbrainz-vm}}" ;;
   esac
 fi
 
@@ -68,9 +72,9 @@ gcloud compute ssh "$VM_NAME" \
   cd /opt/commercialbrainz
   IMAGE_TAG=${REMOTE_TAG}
   APP_BRANCH=${REMOTE_BRANCH}
-  if [[ \"\$APP_BRANCH\" == \"main\" ]]; then
-    echo \"WARN: APP_BRANCH=main is retired; using google\"
-    APP_BRANCH=google
+  if [[ \"\$APP_BRANCH\" == \"main\" || \"\$APP_BRANCH\" == \"google\" ]]; then
+    echo \"WARN: APP_BRANCH=\${APP_BRANCH} is retired; using testing\"
+    APP_BRANCH=testing
   fi
   sudo git config --global --add safe.directory /opt/commercialbrainz 2>/dev/null || true
   # Single-branch clones (old main) may lack origin/<branch> tracking refs.

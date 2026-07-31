@@ -232,7 +232,8 @@ Keep testing on the existing project (defaults / existing vars):
   GCP_PROJECT_ID                = commercialbrainz
   GCP_WIF_PROVIDER              = projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github
   GCP_SA_EMAIL                  = github-deploy@commercialbrainz.iam.gserviceaccount.com
-  VM_NAME_GOOGLE                = commercialbrainz-vm
+  VM_NAME_TESTING               = commercialbrainz-vm
+  # (legacy alias still accepted: VM_NAME_GOOGLE)
 
 Next:
   1. Set the *_CLOUDFLARE variables above in the repo.

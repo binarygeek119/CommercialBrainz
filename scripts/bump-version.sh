@@ -2,7 +2,7 @@
 # Bump CommercialBrainz public (cloudflare) app version.
 #
 # Scheme: major.minor.bug  ("bug" is the patch number)
-# Prefers the latest git tag (v…) so merges from google cannot rewind the
+# Prefers the latest git tag (v…) so merges from testing cannot rewind the
 # version. Writes frontend/src/version.ts, frontend/package.json, and
 # backend/pyproject.toml.
 #

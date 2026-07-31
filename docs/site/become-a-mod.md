@@ -48,7 +48,7 @@ We may decline or wait if the community is small, queues are light, or we need m
 
 - The **Mod** link appears in the nav.
 - Prefer applying clear consensus edits; leave controversial ones for community vote when that helps legitimacy.
-- Escalate security issues privately ([SECURITY.md](https://github.com/binarygeek119/CommercialBrainz/blob/google/.github/SECURITY.md)), not in public issues.
+- Escalate security issues privately ([SECURITY.md](https://github.com/binarygeek119/CommercialBrainz/blob/testing/.github/SECURITY.md)), not in public issues.
 - You can still [donate](/donate) time — moderation *is* donating time.
 
 ## Related

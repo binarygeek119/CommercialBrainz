@@ -4,9 +4,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [google, cloudflare]
+    branches: [testing, cloudflare]
   pull_request:
-    branches: [google, cloudflare]
+    branches: [testing, cloudflare]
   schedule:
     # Weekly scan catches newly published CodeQL queries / CVEs.
     - cron: "17 7 * * 1"

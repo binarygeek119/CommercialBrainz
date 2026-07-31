@@ -21,7 +21,7 @@
 #   VM_NAME           Instance name, default commercialbrainz-vm
 #                     (public site: commercialbrainz-public via setup-cloudflare-vm.sh)
 #   REPO_URL          Git repo to clone on VM
-#   REPO_BRANCH       Branch to deploy, default google (public: cloudflare)
+#   REPO_BRANCH       Branch to deploy, default testing (public: cloudflare)
 #   ADMIN_EMAIL       Seed admin on first boot (via instance metadata)
 #   ADMIN_USERNAME
 #   ADMIN_PASSWORD
@@ -61,7 +61,7 @@ resolve_startup_script() {
   local tmp
   tmp="$(mktemp)"
   curl -fsSL \
-    "https://raw.githubusercontent.com/binarygeek119/CommercialBrainz/google/infra/gcloud/vm-startup.sh" \
+    "https://raw.githubusercontent.com/binarygeek119/CommercialBrainz/testing/infra/gcloud/vm-startup.sh" \
     -o "$tmp"
   echo "$tmp"
 }
@@ -74,7 +74,11 @@ GCP_AUTO_ZONE="${GCP_AUTO_ZONE:-1}"
 ZONE="${GCP_ZONE:-}"
 VM_NAME="${VM_NAME:-commercialbrainz-vm}"
 REPO_URL="${REPO_URL:-https://github.com/binarygeek119/CommercialBrainz.git}"
-REPO_BRANCH="${REPO_BRANCH:-google}"
+REPO_BRANCH="${REPO_BRANCH:-testing}"
+if [[ "$REPO_BRANCH" == "main" || "$REPO_BRANCH" == "google" ]]; then
+  echo "WARN: REPO_BRANCH=${REPO_BRANCH} is retired; using testing"
+  REPO_BRANCH=testing
+fi
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
 DISK_SIZE="${DISK_SIZE:-40GB}"
 FIREWALL_TAG="${FIREWALL_TAG:-commercialbrainz-server}"

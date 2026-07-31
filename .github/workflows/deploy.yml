@@ -1,16 +1,16 @@
 # Auto-deploy CommercialBrainz to the matching GCE VM after CI succeeds.
 #
 # Branches / sites / VMs:
-#   google     — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
+#   testing    — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
 #   cloudflare — https://commercialbrainz.org/            → commercialbrainz-public
 #
 # CI pushes images to GHCR; this workflow pulls them on the target VM.
 # See docs/branches.md
 #
 # Optional repository variables:
-#   Testing (google):
+#   Testing (testing):
 #     GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
-#     VM_NAME_GOOGLE (or legacy VM_NAME) — default commercialbrainz-vm
+#     VM_NAME_TESTING (or legacy VM_NAME_GOOGLE / VM_NAME) — default commercialbrainz-vm
 #   Public (cloudflare) — separate GCP project:
 #     GCP_PROJECT_ID_CLOUDFLARE   — default commercialbrainz-public
 #     GCP_WIF_PROVIDER_CLOUDFLARE — default projects/227542386250/.../providers/github
@@ -24,16 +24,16 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [google, cloudflare]
+    branches: [testing, cloudflare]
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch to deploy (google or cloudflare)"
+        description: "Branch to deploy (testing or cloudflare)"
         required: true
-        default: google
+        default: testing
         type: choice
         options:
-          - google
+          - testing
           - cloudflare
 
 concurrency:
@@ -46,7 +46,7 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       (github.event.workflow_run.head_branch == 'google' ||
+       (github.event.workflow_run.head_branch == 'testing' ||
         github.event.workflow_run.head_branch == 'cloudflare'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -82,7 +82,11 @@ jobs:
             sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
             sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
           else
-            name="${{ vars.VM_NAME_GOOGLE }}"
+            # testing branch → DuckDNS VM (legacy vars: VM_NAME_GOOGLE, VM_NAME)
+            name="${{ vars.VM_NAME_TESTING }}"
+            if [[ -z "$name" ]]; then
+              name="${{ vars.VM_NAME_GOOGLE }}"
+            fi
             if [[ -z "$name" ]]; then
               name="${{ vars.VM_NAME }}"
             fi
@@ -126,5 +130,10 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/deploy-gcloud-vm.sh
+          # Legacy branch names map to testing.
+          if [[ "${APP_BRANCH}" == "google" || "${APP_BRANCH}" == "main" ]]; then
+            echo "WARN: APP_BRANCH=${APP_BRANCH} is retired; using testing"
+            APP_BRANCH=testing
+          fi
           echo "Deploying APP_BRANCH=${APP_BRANCH} project=${GCP_PROJECT_ID} VM_NAME=${VM_NAME} IMAGE_TAG=${IMAGE_TAG}"
           ./scripts/deploy-gcloud-vm.sh

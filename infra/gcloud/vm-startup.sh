@@ -17,10 +17,10 @@ APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
 REPO_URL="$(get_meta repo-url)"
 REPO_URL="${REPO_URL:-https://github.com/binarygeek119/CommercialBrainz.git}"
 REPO_BRANCH="$(get_meta repo-branch)"
-REPO_BRANCH="${REPO_BRANCH:-google}"
-if [[ "$REPO_BRANCH" == "main" ]]; then
-  echo "WARN: repo-branch=main is retired; using google"
-  REPO_BRANCH=google
+REPO_BRANCH="${REPO_BRANCH:-testing}"
+if [[ "$REPO_BRANCH" == "main" || "$REPO_BRANCH" == "google" ]]; then
+  echo "WARN: repo-branch=${REPO_BRANCH} is retired; using testing"
+  REPO_BRANCH=testing
 fi
 WEB_PORT="${WEB_PORT:-80}"
 

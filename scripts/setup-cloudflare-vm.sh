@@ -3,7 +3,7 @@
 #
 # This is separate from the testing VM (commercialbrainz-vm / DuckDNS).
 #
-#   google branch     → commercialbrainz-vm   → https://commercialbrainz.duckdns.org/
+#   testing branch    → commercialbrainz-vm   → https://commercialbrainz.duckdns.org/
 #   cloudflare branch → commercialbrainz-public  → https://commercialbrainz.org/
 #
 # Note: GCP Always Free includes only ONE e2-micro. A second VM is billed
