@@ -39,6 +39,7 @@ exports/
 
 # Generated on VM at deploy time
 infra/caddy/Caddyfile.runtime
+infra/compose.env
 
 # Docker
 *.log
