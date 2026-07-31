@@ -51,3 +51,8 @@ data/ytdlp/*.txt
 data/maintenance/*
 !data/maintenance/.gitkeep
 !data/maintenance/README.md
+
+# Cloudflare Origin CA private key/cert (never commit)
+data/caddy/certs/*
+!data/caddy/certs/.gitkeep
+!data/caddy/certs/README.md

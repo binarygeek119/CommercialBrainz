@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
-# Point CommercialBrainz at a real domain via Cloudflare Free (cheapest).
-#
-# You do Cloudflare DNS in the dashboard (this script cannot log into CF).
-# This script updates the GCE VM: DOMAIN, aliases, CORS, APP_PUBLIC_URL, Caddy.
+# Point CommercialBrainz at commercialbrainz.org via Cloudflare Free.
+# Cloudflare terminates visitor SSL; Caddy uses a free Cloudflare Origin CA cert.
 #
 # Prerequisites:
-#   - Domain registered (e.g. commercialbrainz.org) and added to Cloudflare Free
-#   - gcloud CLI authenticated
-#   - VM already running CommercialBrainz
+#   - Domain on Cloudflare Free; nameservers active
+#   - A @ and www → VM IP, Proxied (orange), SSL mode Full (strict)
+#   - Origin CA cert + key downloaded from Cloudflare
+#   - gcloud authenticated; VM already running CommercialBrainz
 #
 # Usage:
 #   GCP_PROJECT_ID=your-project \
 #   DOMAIN=commercialbrainz.org \
 #   ACME_EMAIL=you@example.com \
+#   ORIGIN_CERT=$HOME/cb-origin.crt \
+#   ORIGIN_KEY=$HOME/cb-origin.key \
 #     ./scripts/setup-cloudflare-domain.sh
 #
 # Optional:
 #   DOMAIN_ALIASES=www.commercialbrainz.org,commercialbrainz.duckdns.org
-#   KEEP_DUCKDNS=1   # append commercialbrainz.duckdns.org if not already in aliases
-#   ENABLE_PROXY=0   # print orange-cloud tips after DNS-only LE succeeds (default tips on)
+#   KEEP_DUCKDNS=1
+#   CADDY_TLS_MODE=origin   # default; use "auto" only for grey-cloud Let's Encrypt
 #
 set -euo pipefail
 
@@ -29,12 +30,28 @@ ACME_EMAIL="${ACME_EMAIL:-}"
 DOMAIN_ALIASES="${DOMAIN_ALIASES:-www.${DOMAIN}}"
 KEEP_DUCKDNS="${KEEP_DUCKDNS:-1}"
 DUCKDNS_FQDN="${DUCKDNS_FQDN:-commercialbrainz.duckdns.org}"
+CADDY_TLS_MODE="${CADDY_TLS_MODE:-origin}"
+ORIGIN_CERT="${ORIGIN_CERT:-}"
+ORIGIN_KEY="${ORIGIN_KEY:-}"
 
 if [[ -z "$PROJECT_ID" ]]; then
   read -rp "GCP Project ID: " PROJECT_ID
 fi
 if [[ -z "$ACME_EMAIL" ]]; then
-  read -rp "Email for Let's Encrypt notices: " ACME_EMAIL
+  read -rp "Admin / ACME email: " ACME_EMAIL
+fi
+
+if [[ "$CADDY_TLS_MODE" == "origin" ]]; then
+  if [[ -z "$ORIGIN_CERT" || -z "$ORIGIN_KEY" ]]; then
+    echo "ORIGIN_CERT and ORIGIN_KEY are required for CADDY_TLS_MODE=origin"
+    echo "Create them in Cloudflare → SSL/TLS → Origin Server → Create Certificate"
+    read -rp "Path to Origin Certificate (.crt/.pem): " ORIGIN_CERT
+    read -rp "Path to Private Key (.key): " ORIGIN_KEY
+  fi
+  if [[ ! -f "$ORIGIN_CERT" || ! -f "$ORIGIN_KEY" ]]; then
+    echo "ERROR: cert or key file not found"
+    exit 1
+  fi
 fi
 
 if [[ "$KEEP_DUCKDNS" == "1" ]]; then
@@ -42,8 +59,6 @@ if [[ "$KEEP_DUCKDNS" == "1" ]]; then
     DOMAIN_ALIASES="${DOMAIN_ALIASES},${DUCKDNS_FQDN}"
   fi
 fi
-
-# Normalize commas / spaces
 DOMAIN_ALIASES="$(echo "$DOMAIN_ALIASES" | tr -s ' ' | sed 's/ //g')"
 
 gcloud config set project "$PROJECT_ID" >/dev/null
@@ -82,33 +97,56 @@ for host in "${_aliases[@]}"; do
   fi
 done
 
-cat <<EOF
+if [[ "$CADDY_TLS_MODE" == "origin" ]]; then
+  cat <<EOF
 
 ═══════════════════════════════════════════════════════════════════
-  Cloudflare Free — do this in the dashboard (one-time, \$0/mo)
+  Cloudflare Free — edge SSL (\$0/mo). Confirm before continuing:
 ═══════════════════════════════════════════════════════════════════
 
-1. Add site ${DOMAIN} on https://dash.cloudflare.com (Free plan).
-2. At your registrar, switch nameservers to the two Cloudflare NS hosts.
-3. DNS → create records (IMPORTANT: Proxy status = DNS only / grey cloud
-   until Let's Encrypt succeeds — orange cloud breaks HTTP-01):
-
-     Type  Name  Content           Proxy
-     A     @     ${EXTERNAL_IP}    DNS only
-     A     www   ${EXTERNAL_IP}    DNS only
-
-4. SSL/TLS → Overview → set mode to **Full** (or Full strict after certs).
-5. Wait until Cloudflare shows the zone Active, then press Enter here.
+1. Site ${DOMAIN} on https://dash.cloudflare.com (Free).
+2. Registrar nameservers → Cloudflare NS.
+3. DNS A @ and www → ${EXTERNAL_IP}  (Proxied / orange cloud).
+4. SSL/TLS → Full (strict).
+5. Origin Server certificate created for ${DOMAIN} + *.${DOMAIN}
+   (files: ${ORIGIN_CERT} , ${ORIGIN_KEY}).
 
 EOF
+else
+  cat <<EOF
 
-read -rp "Cloudflare DNS ready (grey cloud) and nameservers active? [Enter] " _
+═══════════════════════════════════════════════════════════════════
+  Let's Encrypt mode (grey cloud until certs work)
+═══════════════════════════════════════════════════════════════════
 
-echo "==> Configuring VM for ${DOMAIN}..."
+A @ and www → ${EXTERNAL_IP} as DNS only (grey), then run this script.
+After HTTPS works you may switch to Proxied + Full strict (prefer Origin CA).
+
+EOF
+fi
+
+read -rp "Cloudflare ready? [Enter] " _
+
+REMOTE_CERT_DIR="/opt/commercialbrainz/data/caddy/certs"
+if [[ "$CADDY_TLS_MODE" == "origin" ]]; then
+  echo "==> Uploading Origin CA cert to VM..."
+  gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="sudo mkdir -p ${REMOTE_CERT_DIR} && sudo chmod 755 /opt/commercialbrainz/data /opt/commercialbrainz/data/caddy ${REMOTE_CERT_DIR}"
+  gcloud compute scp "$ORIGIN_CERT" "${VM_NAME}:/tmp/cb-origin.crt" --zone="$ZONE"
+  gcloud compute scp "$ORIGIN_KEY" "${VM_NAME}:/tmp/cb-origin.key" --zone="$ZONE"
+  gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
+    sudo mv /tmp/cb-origin.crt ${REMOTE_CERT_DIR}/origin.crt
+    sudo mv /tmp/cb-origin.key ${REMOTE_CERT_DIR}/origin.key
+    sudo chmod 644 ${REMOTE_CERT_DIR}/origin.crt
+    sudo chmod 600 ${REMOTE_CERT_DIR}/origin.key
+  "
+fi
+
+echo "==> Configuring VM for ${DOMAIN} (tls=${CADDY_TLS_MODE})..."
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set -e
   cd /opt/commercialbrainz
   sudo git fetch origin main
+  # Stay on whatever is deployed; prefer latest main for generator script.
   sudo git reset --hard origin/main
 
   set_env() {
@@ -123,6 +161,7 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set_env DOMAIN '${DOMAIN}'
   set_env DOMAIN_ALIASES '${DOMAIN_ALIASES}'
   set_env ACME_EMAIL '${ACME_EMAIL}'
+  set_env CADDY_TLS_MODE '${CADDY_TLS_MODE}'
   set_env APP_PUBLIC_URL 'https://${DOMAIN}'
   set_env API_PUBLIC_URL 'https://${DOMAIN}'
   set_env CORS_ORIGINS '${CORS_ORIGINS}'
@@ -132,11 +171,12 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
     infra/caddy/Caddyfile.runtime \
     '${DOMAIN}' \
     '${ACME_EMAIL}' \
-    '${DOMAIN_ALIASES}'
+    '${DOMAIN_ALIASES}' \
+    '${CADDY_TLS_MODE}'
 
   COMPOSE='docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml'
   sudo \$COMPOSE up -d --force-recreate --no-deps caddy api web
-  echo 'Waiting for HTTPS certificate (Let's Encrypt)...'
+  echo 'Waiting for https://${DOMAIN}/health ...'
   for i in \$(seq 1 36); do
     if curl -sf 'https://${DOMAIN}/health' >/dev/null 2>&1; then
       echo 'HTTPS is up for ${DOMAIN}'
@@ -144,7 +184,8 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
     fi
     sleep 10
   done
-  echo 'Not ready yet — on the VM check: sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs caddy --tail=80'
+  echo 'Not ready yet — check Caddy logs and Cloudflare SSL mode / Origin cert.'
+  sudo \$COMPOSE logs caddy --tail=40 || true
   exit 1
 "
 
@@ -155,12 +196,7 @@ cat <<EOF
   Site:  https://${DOMAIN}/
   WWW:   https://www.${DOMAIN}/  (redirects to apex)
   Docs:  https://${DOMAIN}/docs
-  Old:   https://${DUCKDNS_FQDN}/  (still served if kept as alias)
+  Old:   https://${DUCKDNS_FQDN}/  (LE alias if kept)
 
-Optional — turn on Cloudflare proxy (orange cloud) after certs work:
-  1. DNS → edit A @ and www → Proxied
-  2. SSL/TLS → Full (strict)
-  3. (Optional) Speed → Caching level standard; skip paid add-ons
-
-Cost: Cloudflare Free \$0 + your domain registration + existing free-tier VM.
+Cloudflare should stay Proxied + Full (strict). Cost: Free plan + your domain + existing VM.
 EOF

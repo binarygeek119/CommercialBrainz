@@ -1,4 +1,4 @@
-# VM override: Caddy TLS on 80/443 → maintenance gate → api/web
+# VM override: Caddy TLS on 80/443 → forward_auth(maintenance) → api/web
 services:
   postgres:
     ports: !reset []
@@ -44,6 +44,8 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./caddy/Caddyfile.runtime:/etc/caddy/Caddyfile:ro
+      # Cloudflare Origin CA (optional; used when CADDY_TLS_MODE=origin)
+      - ../data/caddy/certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

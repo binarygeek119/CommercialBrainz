@@ -1,17 +1,28 @@
 #!/usr/bin/env bash
-# Generate Caddyfile with optional Let's Encrypt for one or more hostnames.
+# Generate Caddyfile for CommercialBrainz.
 # Usage:
-#   generate-caddyfile.sh <output-path> [primary-domain] [acme-email] [aliases-csv]
+#   generate-caddyfile.sh <output-path> [primary-domain] [acme-email] [aliases-csv] [tls-mode]
+#
+# tls-mode:
+#   auto   — Caddy Let's Encrypt (HTTP-01). Use for DuckDNS or grey-cloud DNS.
+#   origin — Cloudflare Origin CA files at /data/certs/origin.crt + origin.key
+#            (Cloudflare Free edge SSL + Full strict; orange cloud OK).
 #
 # aliases-csv example: www.commercialbrainz.org,commercialbrainz.duckdns.org
-# www.<primary> gets a permanent redirect to https://<primary>{uri}.
-# Other aliases share the same site block (useful while migrating off DuckDNS).
+# www.<primary> redirects to https://<primary>{uri}.
+# Other aliases: with tls-mode=auto they share the site block; with origin,
+# only hosts under the primary domain use Origin CA — others get a separate
+# auto-HTTPS block (e.g. DuckDNS during cutover).
 set -euo pipefail
 
 OUT="${1:?output path required}"
 DOMAIN="${2:-}"
 ACME_EMAIL="${3:-admin@localhost}"
 ALIASES_CSV="${4:-}"
+TLS_MODE="${5:-${CADDY_TLS_MODE:-auto}}"
+
+ORIGIN_CERT="${CADDY_ORIGIN_CERT:-/etc/caddy/certs/origin.crt}"
+ORIGIN_KEY="${CADDY_ORIGIN_KEY:-/etc/caddy/certs/origin.key}"
 
 cat > "$OUT" <<EOF
 {
@@ -52,17 +63,30 @@ cat > "$OUT" <<EOF
 }
 EOF
 
+tls_block() {
+  if [[ "$TLS_MODE" == "origin" ]]; then
+    cat <<EOF
+	tls ${ORIGIN_CERT} ${ORIGIN_KEY}
+EOF
+  fi
+}
+
 if [[ -n "$DOMAIN" && -n "$ACME_EMAIL" && "$ACME_EMAIL" != "admin@localhost" ]]; then
   www_host=""
-  extra_hosts=()
+  under_primary=()
+  external_hosts=()
   IFS=',' read -ra _aliases <<< "$ALIASES_CSV"
   for raw in "${_aliases[@]+"${_aliases[@]}"}"; do
     host="$(echo "$raw" | xargs)"
     [[ -z "$host" || "$host" == "$DOMAIN" ]] && continue
     if [[ "$host" == "www.${DOMAIN}" ]]; then
       www_host="$host"
+    elif [[ "$TLS_MODE" == "origin" && ("$host" == *".${DOMAIN}" || "$host" == "$DOMAIN") ]]; then
+      under_primary+=("$host")
+    elif [[ "$TLS_MODE" == "origin" ]]; then
+      external_hosts+=("$host")
     else
-      extra_hosts+=("$host")
+      under_primary+=("$host")
     fi
   done
 
@@ -70,22 +94,34 @@ if [[ -n "$DOMAIN" && -n "$ACME_EMAIL" && "$ACME_EMAIL" != "admin@localhost" ]];
     cat >> "$OUT" <<EOF
 
 ${www_host} {
+$(tls_block)
 	redir https://${DOMAIN}{uri} permanent
 }
 EOF
   fi
 
   site_hosts="$DOMAIN"
-  for host in "${extra_hosts[@]+"${extra_hosts[@]}"}"; do
+  for host in "${under_primary[@]+"${under_primary[@]}"}"; do
     site_hosts="${site_hosts}, ${host}"
   done
 
   cat >> "$OUT" <<EOF
 
 ${site_hosts} {
+$(tls_block)
 	import commercialbrainz_proxy
 }
 EOF
+
+  # DuckDNS (or other) hosts cannot use Cloudflare Origin CA — keep LE auto HTTPS.
+  for host in "${external_hosts[@]+"${external_hosts[@]}"}"; do
+    cat >> "$OUT" <<EOF
+
+${host} {
+	import commercialbrainz_proxy
+}
+EOF
+  done
 fi
 
 cat >> "$OUT" <<'EOF'
@@ -95,4 +131,4 @@ cat >> "$OUT" <<'EOF'
 }
 EOF
 
-echo "Generated Caddyfile at $OUT (domain=${DOMAIN:-none} aliases=${ALIASES_CSV:-none})"
+echo "Generated Caddyfile at $OUT (domain=${DOMAIN:-none} aliases=${ALIASES_CSV:-none} tls=${TLS_MODE})"

@@ -144,18 +144,20 @@ Caddy obtains and renews certificates automatically (HTTP-01 challenge on port 8
 
 ### Custom domain on Cloudflare Free (`commercialbrainz.org`)
 
-Cheapest public hostname: **Cloudflare Free** DNS (+ optional orange-cloud proxy) in front of the same free-tier VM. No paid Cloudflare features required.
+Cheapest public site: **Cloudflare Free** does visitor SSL (orange cloud + Full strict). The VM uses a free **Cloudflare Origin CA** cert on Caddy. No paid Cloudflare add-ons.
 
-See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)** for the full checklist, then:
+See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)**, then:
 
 ```bash
 GCP_PROJECT_ID=your-project \
 DOMAIN=commercialbrainz.org \
 ACME_EMAIL=you@example.com \
+ORIGIN_CERT=$HOME/cb-origin.crt \
+ORIGIN_KEY=$HOME/cb-origin.key \
   ./scripts/setup-cloudflare-domain.sh
 ```
 
-Use **DNS only (grey cloud)** until Let's Encrypt succeeds, then optionally enable **Proxied** + SSL **Full (strict)**.
+Create the Origin certificate in Cloudflare → SSL/TLS → Origin Server first.
 
 ### Auto-deploy on push to `main`
 

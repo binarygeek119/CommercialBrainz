@@ -32,13 +32,13 @@ if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
     git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
     git fetch origin main
     git reset --hard origin/main
-    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance
+    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
     git rev-parse --short HEAD
   else
     sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
     sudo git fetch origin main
     sudo git reset --hard origin/main
-    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance
+    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
     sudo git rev-parse --short HEAD
   fi
   export CB_REPO_SYNCED=1
@@ -61,11 +61,15 @@ echo "==> Regenerate Caddyfile"
 DOMAIN="$(grep '^DOMAIN=' .env 2>/dev/null | cut -d= -f2- || true)"
 ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
 DOMAIN_ALIASES="$(grep '^DOMAIN_ALIASES=' .env 2>/dev/null | cut -d= -f2- || true)"
+CADDY_TLS_MODE="$(grep '^CADDY_TLS_MODE=' .env 2>/dev/null | cut -d= -f2- || true)"
+CADDY_TLS_MODE="${CADDY_TLS_MODE:-auto}"
+mkdir -p data/caddy/certs
 bash infra/gcloud/generate-caddyfile.sh \
   infra/caddy/Caddyfile.runtime \
   "${DOMAIN}" \
   "${ACME_EMAIL}" \
-  "${DOMAIN_ALIASES}"
+  "${DOMAIN_ALIASES}" \
+  "${CADDY_TLS_MODE}"
 
 echo ""
 # Prefer images prebuilt+pushed by GitHub Actions (GHCR). Fall back to on-VM
