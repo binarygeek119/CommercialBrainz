@@ -105,6 +105,7 @@ export interface BulkSubmissionItem {
   status: string;
   title?: string | null;
   metadata?: Record<string, unknown>;
+  metadata_ready?: boolean;
   batch_defaults?: BulkPlaylistDefaults;
   fingerprint_id?: string | null;
   edit_id?: string | null;

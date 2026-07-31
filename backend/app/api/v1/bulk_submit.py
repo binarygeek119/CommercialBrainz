@@ -25,6 +25,7 @@ from app.services.bulk_submit import (
     batch_to_dict,
     cancel_bulk_batch,
     create_bulk_batch,
+    enqueue_bulk_item_enrich,
     enqueue_bulk_playlist_import,
     finalize_bulk_item,
     get_owner_item,
@@ -180,7 +181,9 @@ async def submit_item(
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
     try:
-        edit, refill_fps = await finalize_bulk_item(db, user, item, body.model_dump())
+        edit, refill_fps, enrich_ids = await finalize_bulk_item(
+            db, user, item, body.model_dump()
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await db.commit()
@@ -201,6 +204,8 @@ async def submit_item(
         background_tasks.add_task(enqueue_hash_job, fp_id)
     for fp_id in refill_fps:
         background_tasks.add_task(enqueue_hash_job, fp_id)
+    for item_id_enrich in enrich_ids:
+        background_tasks.add_task(enqueue_bulk_item_enrich, item_id_enrich)
 
     return await build_edit_public(db, edit, editor_username=user.username)
 
@@ -216,12 +221,14 @@ async def skip_bulk_item(
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
     try:
-        refill_fps = await skip_item(db, item)
+        refill_fps, enrich_ids = await skip_item(db, item)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await db.commit()
     for fp_id in refill_fps:
         background_tasks.add_task(enqueue_hash_job, fp_id)
+    for item_id_enrich in enrich_ids:
+        background_tasks.add_task(enqueue_bulk_item_enrich, item_id_enrich)
     return BulkSubmissionItemPublic(**item_to_dict(item))
 
 

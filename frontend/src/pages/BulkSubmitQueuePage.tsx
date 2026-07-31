@@ -75,9 +75,9 @@ export default function BulkSubmitQueuePage() {
         </Link>
       </div>
       <p className="muted">
-        Review opens a submit-style popup. Submit creates the edit immediately — hashing continues
-        in the background and does not block you. After you submit, remaining videos move up and
-        the next playlist link is staged (up to 10 in review at a time).
+        Up to 10 videos are shown for review. YouTube metadata and hashing run in the background so
+        Review can open ready. Submit creates the edit immediately; the next waiting link then enters
+        the window.
       </p>
 
       {batches && batches.length > 0 && (

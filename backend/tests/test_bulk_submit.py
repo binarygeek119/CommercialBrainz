@@ -158,9 +158,15 @@ async def test_stage_next_bulk_items_respects_window(monkeypatch):
     monkeypatch.setattr(bs.settings, "bulk_submit_staging_window", 2)
     batch_id = uuid4()
     items = [
-        SimpleNamespace(youtube_id="aaaaaaaaaaa", status=BulkSubmissionItemStatus.QUEUED),
-        SimpleNamespace(youtube_id="bbbbbbbbbbb", status=BulkSubmissionItemStatus.QUEUED),
-        SimpleNamespace(youtube_id="ccccccccccc", status=BulkSubmissionItemStatus.QUEUED),
+        SimpleNamespace(
+            id=uuid4(), youtube_id="aaaaaaaaaaa", status=BulkSubmissionItemStatus.QUEUED
+        ),
+        SimpleNamespace(
+            id=uuid4(), youtube_id="bbbbbbbbbbb", status=BulkSubmissionItemStatus.QUEUED
+        ),
+        SimpleNamespace(
+            id=uuid4(), youtube_id="ccccccccccc", status=BulkSubmissionItemStatus.QUEUED
+        ),
     ]
     staged: list[str] = []
 
@@ -184,9 +190,10 @@ async def test_stage_next_bulk_items_respects_window(monkeypatch):
     monkeypatch.setattr(bs, "_count_batch_status", fake_count)
     monkeypatch.setattr(bs, "_stage_item", fake_stage)
 
-    fps = await bs.stage_next_bulk_items(db, batch_id)
+    fps, staged_ids = await bs.stage_next_bulk_items(db, batch_id)
     assert len(fps) == 2
     assert staged == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+    assert staged_ids == [items[0].id, items[1].id]
 
 
 @pytest.mark.asyncio
@@ -200,9 +207,19 @@ async def test_stage_next_skips_when_window_full(monkeypatch):
 
     db = AsyncMock()
     monkeypatch.setattr(bs, "_count_batch_status", fake_count)
-    fps = await bs.stage_next_bulk_items(db, uuid4())
+    fps, staged_ids = await bs.stage_next_bulk_items(db, uuid4())
     assert fps == []
+    assert staged_ids == []
     db.execute.assert_not_called()
+
+
+def test_item_metadata_ready_detects_fetched_and_legacy():
+    from app.services.bulk_submit import item_metadata_ready
+
+    assert not item_metadata_ready({"title": "Playlist title only"})
+    assert item_metadata_ready({"meta_fetched": True})
+    assert item_metadata_ready({"channel_name": "ESPN"})
+    assert item_metadata_ready({"metadata": {"youtube_title": "Spot"}})
 
 
 def test_open_queue_statuses_include_queued():
@@ -290,7 +307,7 @@ async def test_finalize_bulk_item_allows_pending_hash(monkeypatch):
         return created_edit
 
     async def fake_stage(_db, _batch_id):
-        return []
+        return [], []
 
     monkeypatch.setattr(bs, "refresh_item_hash_statuses", fake_refresh)
     monkeypatch.setattr(
@@ -308,7 +325,7 @@ async def test_finalize_bulk_item_allows_pending_hash(monkeypatch):
     monkeypatch.setattr("app.services.EditService.create_edit", fake_create_edit)
     monkeypatch.setattr(bs, "stage_next_bulk_items", fake_stage)
 
-    edit, fps = await bs.finalize_bulk_item(
+    edit, fps, enrich_ids = await bs.finalize_bulk_item(
         db,
         user,
         item,
@@ -324,6 +341,7 @@ async def test_finalize_bulk_item_allows_pending_hash(monkeypatch):
     assert item.edit_id == created_edit.id
     assert pending_fp.edit_id == created_edit.id
     assert item.fingerprint_id in fps
+    assert enrich_ids == []
 
 
 @pytest.mark.asyncio
