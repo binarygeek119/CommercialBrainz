@@ -18,7 +18,7 @@ The React app imports these files at build time and renders them on the site.
 
 1. Open the file on GitHub (or clone the repo).
 2. Edit the Markdown.
-3. Open a PR against the **`google`** branch (default for all changes).
+3. Open a PR against the **`testing`** branch (default for all changes).
 4. After merge + deploy, the site shows the new text.
 
 Each mirrored page has an **Edit on GitHub** link that opens the file in the GitHub web editor.

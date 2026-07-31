@@ -4,7 +4,7 @@ Dedicated Google Cloud **project** for https://commercialbrainz.org/ — separat
 
 | Env | GCP project | VM | Deploy branch |
 |-----|-------------|-----|---------------|
-| Testing | `commercialbrainz` | `commercialbrainz-vm` | `google` |
+| Testing | `commercialbrainz` | `commercialbrainz-vm` | `testing` |
 | Public | **`commercialbrainz-public`** | `commercialbrainz-public` | `cloudflare` |
 
 ## One-shot setup (laptop)
@@ -116,9 +116,9 @@ Testing (unchanged defaults):
 | `GCP_PROJECT_ID` | `commercialbrainz` |
 | `GCP_WIF_PROVIDER` | existing pool in `commercialbrainz` |
 | `GCP_SA_EMAIL` | `github-deploy@commercialbrainz.iam.gserviceaccount.com` |
-| `VM_NAME_GOOGLE` | `commercialbrainz-vm` |
+| `VM_NAME_TESTING` | `commercialbrainz-vm` (legacy: `VM_NAME_GOOGLE`) |
 
-**Deploy** and **Setup GCE VM** pick project / WIF / SA from the branch (`google` vs `cloudflare`).
+**Deploy** and **Setup GCE VM** pick project / WIF / SA from the branch (`testing` vs `cloudflare`).
 
 ## Deploy / DNS
 

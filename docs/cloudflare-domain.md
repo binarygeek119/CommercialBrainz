@@ -157,10 +157,10 @@ Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounte
 
 | Branch | VM | URL |
 |--------|-----|-----|
-| `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
+| `testing` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
 | `cloudflare` | `commercialbrainz-public` | https://commercialbrainz.org/ |
 
-After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) picks the VM from the branch. Optional repo variables: `VM_NAME_GOOGLE`, `VM_NAME_CLOUDFLARE`.
+After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) picks the VM from the branch. Optional repo variables: `VM_NAME_TESTING` (legacy `VM_NAME_GOOGLE`), `VM_NAME_CLOUDFLARE`.
 
 ## Why not Flexible SSL?
 

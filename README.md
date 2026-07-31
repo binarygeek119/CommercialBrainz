@@ -156,7 +156,7 @@ Use a **second** GCE VM for production (testing stays on DuckDNS):
 
 | Branch | VM | URL |
 |--------|-----|-----|
-| `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
+| `testing` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
 | `cloudflare` | `commercialbrainz-public` | https://commercialbrainz.org/ |
 
 **Create the public VM once** (static IP; no DuckDNS):
@@ -189,11 +189,11 @@ ORIGIN_KEY=$HOME/cb-origin.key \
 
 **Cost:** Always Free covers one e2-micro (`commercialbrainz-vm`). The second VM is billed (still cheap). Prefer a static IP on `commercialbrainz-public` so Cloudflare A records stay stable.
 
-See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for the public site.
+See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`testing`**. Promote to **`cloudflare`** for the public site.
 
-### Auto-deploy on push to `google` / `cloudflare`
+### Auto-deploy on push to `testing` / `cloudflare`
 
-GitHub Actions [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the matching GCE VM after **CI** succeeds (`google` → testing VM, `cloudflare` → public VM). Also runnable manually from the Actions tab.
+GitHub Actions [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the matching GCE VM after **CI** succeeds (`testing` → testing VM, `cloudflare` → public VM). Also runnable manually from the Actions tab.
 
 1. Create a GCP service account that can SSH to the VM, e.g.:
 
@@ -247,7 +247,7 @@ Optional repository variables:
 
 | Variable | Default |
 |----------|---------|
-| `VM_NAME_GOOGLE` | `commercialbrainz-vm` |
+| `VM_NAME_TESTING` | `commercialbrainz-vm` (legacy: `VM_NAME_GOOGLE`) |
 | `VM_NAME_CLOUDFLARE` | `commercialbrainz-public` |
 | `VM_NAME` | legacy alias for the testing VM |
 
@@ -255,7 +255,7 @@ Manual deploy from your laptop:
 
 ```bash
 # Testing
-GCP_PROJECT_ID=your-project APP_BRANCH=google ./scripts/deploy-gcloud-vm.sh
+GCP_PROJECT_ID=your-project APP_BRANCH=testing ./scripts/deploy-gcloud-vm.sh
 
 # Public
 GCP_PROJECT_ID=your-project APP_BRANCH=cloudflare ./scripts/deploy-gcloud-vm.sh

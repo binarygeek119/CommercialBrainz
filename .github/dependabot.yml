@@ -1,11 +1,11 @@
 # Dependency vulnerability alerts + automated update PRs.
 # Enable Dependabot alerts in Settings → Security if not already on.
-# PRs target the testing branch (google).
+# PRs target the testing branch (testing).
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /backend
-    target-branch: google
+    target-branch: testing
     schedule:
       interval: weekly
       day: monday
@@ -16,7 +16,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /frontend
-    target-branch: google
+    target-branch: testing
     schedule:
       interval: weekly
       day: monday
@@ -27,7 +27,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
-    target-branch: google
+    target-branch: testing
     schedule:
       interval: weekly
       day: monday

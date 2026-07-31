@@ -5,17 +5,17 @@
 #
 # Targets:
 #   cloudflare — project commercialbrainz-public, VM commercialbrainz-public
-#   google     — project commercialbrainz, VM commercialbrainz-vm (+ DuckDNS secrets)
+#   testing    — project commercialbrainz, VM commercialbrainz-vm (+ DuckDNS secrets)
 #
 # Optional secrets:
 #   VM_ADMIN_EMAIL / VM_ADMIN_USERNAME / VM_ADMIN_PASSWORD — seed admin on first boot
 #   ACME_EMAIL — Let's Encrypt contact (testing) / Caddy email
-#   DUCKDNS_DOMAIN / DUCKDNS_TOKEN — only for target=google
+#   DUCKDNS_DOMAIN / DUCKDNS_TOKEN — only for target=testing
 #
 # Optional variables: see docs/public-gcp-project.md
 #   GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
 #   GCP_PROJECT_ID_CLOUDFLARE / GCP_WIF_PROVIDER_CLOUDFLARE / GCP_SA_EMAIL_CLOUDFLARE
-#   VM_NAME_CLOUDFLARE / VM_NAME_GOOGLE
+#   VM_NAME_CLOUDFLARE / VM_NAME_TESTING (legacy: VM_NAME_GOOGLE)
 #
 name: Setup GCE VM
 
@@ -29,7 +29,7 @@ on:
         type: choice
         options:
           - cloudflare
-          - google
+          - testing
       reset_existing:
         description: "If the VM already exists, reset it (re-run startup)"
         required: true
@@ -70,7 +70,10 @@ jobs:
             sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
             script=scripts/setup-cloudflare-vm.sh
           else
-            name="${{ vars.VM_NAME_GOOGLE }}"
+            name="${{ vars.VM_NAME_TESTING }}"
+            if [[ -z "$name" ]]; then
+              name="${{ vars.VM_NAME_GOOGLE }}"
+            fi
             if [[ -z "$name" ]]; then
               name="${{ vars.VM_NAME }}"
             fi
@@ -137,7 +140,7 @@ jobs:
             export CREATE_STATIC_IP=1
             bash scripts/setup-cloudflare-vm.sh
           else
-            export REPO_BRANCH=google
+            export REPO_BRANCH=testing
             export CREATE_STATIC_IP="${CREATE_STATIC_IP:-0}"
             if [[ -z "${DUCKDNS_DOMAIN:-}" || -z "${DUCKDNS_TOKEN:-}" ]]; then
               echo "WARNING: DUCKDNS_DOMAIN / DUCKDNS_TOKEN secrets missing — testing VM will not auto-update DuckDNS."
@@ -195,5 +198,5 @@ jobs:
             echo "  4. Deploy: Actions → Deploy → branch cloudflare"
           else
             echo "  1. Wait for startup (~10–20 min), then check https://commercialbrainz.duckdns.org/"
-            echo "  2. Deploy: Actions → Deploy → branch google"
+            echo "  2. Deploy: Actions → Deploy → branch testing"
           fi
