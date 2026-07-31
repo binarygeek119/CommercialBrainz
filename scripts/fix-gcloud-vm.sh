@@ -174,6 +174,15 @@ WEB_IMAGE="ghcr.io/binarygeek119/commercialbrainz-web:${IMAGE_TAG}"
 MAINT_IMAGE="ghcr.io/binarygeek119/commercialbrainz-maintenance:${IMAGE_TAG}"
 if [[ "$(id -u)" -eq 0 ]]; then DOCKER=docker; else DOCKER="sudo docker"; fi
 
+echo "==> Free disk space (unused Docker images/cache; keeps named volumes)"
+df -h / 2>/dev/null | tail -1 || true
+$DOCKER builder prune -af >/dev/null 2>&1 || true
+$DOCKER image prune -af >/dev/null 2>&1 || true
+$DOCKER container prune -f >/dev/null 2>&1 || true
+$DOCKER system prune -af >/dev/null 2>&1 || true
+df -h / 2>/dev/null | tail -1 || true
+$DOCKER system df 2>/dev/null || true
+
 echo "==> Enable maintenance gate (UPDATE_IN_PROGRESS)"
 touch "$MAINT_FLAG"
 
