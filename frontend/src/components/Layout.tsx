@@ -63,6 +63,7 @@ export default function Layout() {
             )}
             <NavLink to="/about">About</NavLink>
             <NavLink to="/help">Help</NavLink>
+            <NavLink to="/help/basic-usage">Guide</NavLink>
             <NavLink to="/donate">Donate</NavLink>
             <a
               href="https://discord.gg/AEhVjqX4Af"

@@ -5,7 +5,15 @@ export const GITHUB_REPO = "https://github.com/binarygeek119/CommercialBrainz";
 export const GITHUB_DOCS_BRANCH = "google";
 export const SITE_DOCS_DIR = "docs/site";
 
-export type SiteDocId = "about" | "dmca" | "terms-overview" | "donate" | "help";
+export type SiteDocId =
+  | "about"
+  | "dmca"
+  | "terms-overview"
+  | "donate"
+  | "help"
+  | "basic-usage"
+  | "api"
+  | "become-a-mod";
 
 export type SiteDocMeta = {
   id: SiteDocId;
@@ -19,18 +27,39 @@ export type SiteDocMeta = {
 
 export const SITE_DOCS: SiteDocMeta[] = [
   {
-    id: "about",
-    file: "about.md",
-    title: "About",
-    route: "/about",
-    summary: "What CommercialBrainz is and how to get involved",
-  },
-  {
     id: "help",
     file: "help.md",
     title: "Help",
     route: "/help",
     summary: "Index of site docs and how to edit them on GitHub",
+  },
+  {
+    id: "basic-usage",
+    file: "basic-usage.md",
+    title: "Using the site",
+    route: "/help/basic-usage",
+    summary: "Browse, register, vote, submit, and reputation",
+  },
+  {
+    id: "api",
+    file: "api.md",
+    title: "API",
+    route: "/help/api",
+    summary: "JSON API, dumps, rate limits, and scraper etiquette",
+  },
+  {
+    id: "become-a-mod",
+    file: "become-a-mod.md",
+    title: "Become a mod",
+    route: "/help/become-a-mod",
+    summary: "How moderation works and how to ask for the role",
+  },
+  {
+    id: "about",
+    file: "about.md",
+    title: "About",
+    route: "/about",
+    summary: "What CommercialBrainz is and how to get involved",
   },
   {
     id: "donate",

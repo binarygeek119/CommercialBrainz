@@ -22,7 +22,8 @@ Anyone can browse. Registered users vote on community edits. Submitters add new 
 - [Browse](/browse) recent commercials and [search](/search) by brand, tag, or title.
 - [Register](/register) to vote on open edits. Read the [Terms of Submission](/terms) and complete the submission quiz to unlock [submitting](/submit) new links and metadata.
 - [Vote on submissions](/voting) — approvals earn reputation points and unlock more concurrent submit slots.
-- Developers: public JSON API and nightly dumps under [CC0](/docs). See [API docs](/docs). Source code is on [GitHub](https://github.com/binarygeek119/CommercialBrainz).
+- Developers: see the [API guide](/help/api) and interactive OpenAPI at [/docs](/docs). Source code is on [GitHub](https://github.com/binarygeek119/CommercialBrainz).
+- New here? Read [Using the site](/help/basic-usage). Interested in helping moderate? [Become a mod](/help/become-a-mod).
 - Join the community on [Discord](https://discord.gg/AEhVjqX4Af).
 - Support the project on the [Donate](/donate) page — domain, cloud VM, spare YouTube cookies, or your time.
 

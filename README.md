@@ -13,7 +13,7 @@
 
 ## Site docs (edit on GitHub)
 
-Public help pages (`/about`, `/help`, `/donate`, `/terms` overview, `/dmca` policy) are Markdown under [`docs/site/`](docs/site/). The web UI mirrors them at build time. Click **Edit on GitHub** on any of those pages, or see [`docs/site/README.md`](docs/site/README.md).
+Public help pages (`/about`, `/help`, `/help/basic-usage`, `/help/api`, `/help/become-a-mod`, `/donate`, `/terms` overview, `/dmca` policy) are Markdown under [`docs/site/`](docs/site/). The web UI mirrors them at build time. Click **Edit on GitHub** on any of those pages, or see [`docs/site/README.md`](docs/site/README.md).
 
 ## Quick start (Docker)
 

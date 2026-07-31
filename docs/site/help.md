@@ -2,15 +2,23 @@
 
 Public help pages are written as Markdown in the GitHub repository and mirrored on this site after each deploy. That way anyone can improve the docs with a pull request.
 
-## Pages
+## Start here
 
-| Topic | On the site | Source file on GitHub |
-|-------|-------------|------------------------|
-| About CommercialBrainz | [/about](/about) | [`docs/site/about.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/about.md) |
-| Donate | [/donate](/donate) | [`docs/site/donate.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/donate.md) |
-| Terms overview | [/terms](/terms) | [`docs/site/terms-overview.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/terms-overview.md) |
-| DMCA policy | [/dmca](/dmca) | [`docs/site/dmca.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/dmca.md) |
-| This help index | [/help](/help) | [`docs/site/help.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/help.md) |
+| Topic | On the site | Source on GitHub |
+|-------|-------------|------------------|
+| **Using the site** | [/help/basic-usage](/help/basic-usage) | [`basic-usage.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/basic-usage.md) |
+| **API for scrapers** | [/help/api](/help/api) | [`api.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/api.md) |
+| **Become a moderator** | [/help/become-a-mod](/help/become-a-mod) | [`become-a-mod.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/become-a-mod.md) |
+
+## More pages
+
+| Topic | On the site | Source on GitHub |
+|-------|-------------|------------------|
+| About CommercialBrainz | [/about](/about) | [`about.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/about.md) |
+| Donate | [/donate](/donate) | [`donate.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/donate.md) |
+| Terms overview | [/terms](/terms) | [`terms-overview.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/terms-overview.md) |
+| DMCA policy | [/dmca](/dmca) | [`dmca.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/dmca.md) |
+| This help index | [/help](/help) | [`help.md`](https://github.com/binarygeek119/CommercialBrainz/blob/google/docs/site/help.md) |
 
 ## How to edit
 
@@ -22,6 +30,6 @@ Public help pages are written as Markdown in the GitHub repository and mirrored 
 ## Related (not Markdown)
 
 - **Submission Terms** (agree before submit) — versioned in the app; shown on [/terms](/terms) under the overview.
-- **API reference** — OpenAPI UI at [/docs](/docs).
+- **Interactive API reference** — OpenAPI UI at [/docs](/docs) (generated from the backend; the human guide is [/help/api](/help/api)).
 - **Source code** — [github.com/binarygeek119/CommercialBrainz](https://github.com/binarygeek119/CommercialBrainz)
 - **Community** — [Discord](https://discord.gg/AEhVjqX4Af)
