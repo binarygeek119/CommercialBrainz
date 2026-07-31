@@ -220,16 +220,25 @@ gcloud iam service-accounts keys create github-deploy-key.json \
   --iam-account="github-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-2. On **each** deploy VM, grant the SA OS Login access (once per instance):
+2. On **each** deploy VM, grant the SA OS Login access (once per instance).
+   Deploy also runs [`scripts/ensure-gcloud-vm-ssh.sh`](scripts/ensure-gcloud-vm-ssh.sh) automatically.
+   If Actions still gets `Permission denied (publickey)`, run this from an owner laptop:
 
 ```bash
+PROJECT_ID=commercialbrainz
+ZONE=us-central1-b   # testing VM zone (use the org VM zone for public)
+
 # Testing
 gcloud compute instances add-iam-policy-binding commercialbrainz-vm \
-  --zone=YOUR_ZONE \
+  --zone="$ZONE" \
   --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/compute.osAdminLogin"
+gcloud compute instances remove-metadata commercialbrainz-vm \
+  --zone="$ZONE" --keys=block-project-ssh-keys
+gcloud compute instances add-metadata commercialbrainz-vm \
+  --zone="$ZONE" --metadata=enable-oslogin=TRUE
 
-# Public (after setup-cloudflare-vm.sh)
+# Public (after setup-cloudflare-vm.sh / Setup GCE VM)
 gcloud compute instances add-iam-policy-binding commercialbrainz-org \
   --zone=YOUR_ZONE \
   --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
