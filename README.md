@@ -1,6 +1,10 @@
 # CommercialBrainz
 
+**Live site:** [https://commercialbrainz.org/](https://commercialbrainz.org/)
+
 **CommercialBrainz** is an open commercial video database modeled after [MusicBrainz](https://musicbrainz.org). Each entry represents one YouTube video of a single commercial, with rich metadata, community edits, voting, and a scrape-friendly public API.
+
+Testing / staging: [https://commercialbrainz.duckdns.org/](https://commercialbrainz.duckdns.org/)
 
 ## Features
 
@@ -146,11 +150,27 @@ Caddy obtains and renews certificates automatically (HTTP-01 challenge on port 8
 
 **Troubleshooting:** run `GCP_PROJECT_ID=your-project ./scripts/diagnose-gcloud-vm.sh`
 
-### Custom domain on Cloudflare Free (`commercialbrainz.org`)
+### Public site VM + Cloudflare Free (`commercialbrainz.org`)
 
-Cheapest public site: **Cloudflare Free** does visitor SSL (orange cloud + Full strict). The VM uses a free **Cloudflare Origin CA** cert on Caddy. No paid Cloudflare add-ons.
+Use a **second** GCE VM for production (testing stays on DuckDNS):
 
-See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)**, then:
+| Branch | VM | URL |
+|--------|-----|-----|
+| `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
+| `cloudflare` | `commercialbrainz-org` | https://commercialbrainz.org/ |
+
+**Create the public VM once** (static IP; no DuckDNS):
+
+```bash
+GCP_PROJECT_ID=your-project \
+ACME_EMAIL=you@example.com \
+ADMIN_EMAIL=you@example.com \
+ADMIN_USERNAME=admin \
+ADMIN_PASSWORD='…' \
+  ./scripts/setup-cloudflare-vm.sh
+```
+
+Then Cloudflare Free + Origin CA (Full strict). See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)**:
 
 ```bash
 GCP_PROJECT_ID=your-project \
@@ -161,20 +181,13 @@ ORIGIN_KEY=$HOME/cb-origin.key \
   ./scripts/setup-cloudflare-domain.sh
 ```
 
-Create the Origin certificate in Cloudflare → SSL/TLS → Origin Server first.
-
-### Branches: `google` (testing) and `cloudflare` (public)
-
-| Branch | URL |
-|--------|-----|
-| `google` | https://commercialbrainz.duckdns.org/ |
-| `cloudflare` | https://commercialbrainz.org/ |
+**Cost:** Always Free covers one e2-micro (`commercialbrainz-vm`). The second VM is billed (still cheap). Prefer a static IP on `commercialbrainz-org` so Cloudflare A records stay stable.
 
 See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for the public site.
 
 ### Auto-deploy on push to `google` / `cloudflare`
 
-GitHub Actions [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the GCE VM after **CI** succeeds on `google` (testing) or `cloudflare` (public). Also runnable manually from the Actions tab.
+GitHub Actions [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the matching GCE VM after **CI** succeeds (`google` → testing VM, `cloudflare` → public VM). Also runnable manually from the Actions tab.
 
 1. Create a GCP service account that can SSH to the VM, e.g.:
 
@@ -201,25 +214,42 @@ gcloud iam service-accounts keys create github-deploy-key.json \
   --iam-account="github-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-2. On the VM, grant the SA OS Login access (once):
+2. On **each** deploy VM, grant the SA OS Login access (once per instance):
 
 ```bash
+# Testing
 gcloud compute instances add-iam-policy-binding commercialbrainz-vm \
+  --zone=YOUR_ZONE \
+  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/compute.osAdminLogin"
+
+# Public (after setup-cloudflare-vm.sh)
+gcloud compute instances add-iam-policy-binding commercialbrainz-org \
   --zone=YOUR_ZONE \
   --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/compute.osAdminLogin"
 ```
 
 3. In the GitHub repo: **Settings → Secrets and variables → Actions**, add:
-   - `GCP_PROJECT_ID` — your GCP project id
-   - `GCP_SA_KEY` — full contents of `github-deploy-key.json`
+   - `GCP_PROJECT_ID` — your GCP project id (variable; default `commercialbrainz`)
+   - Workload Identity is preferred (see existing deploy workflow); or `GCP_SA_KEY` if using a JSON key
 
-Optional repository variable: `VM_NAME` (default `commercialbrainz-vm`).
+Optional repository variables:
 
-Manual deploy from your laptop is unchanged:
+| Variable | Default |
+|----------|---------|
+| `VM_NAME_GOOGLE` | `commercialbrainz-vm` |
+| `VM_NAME_CLOUDFLARE` | `commercialbrainz-org` |
+| `VM_NAME` | legacy alias for the testing VM |
+
+Manual deploy from your laptop:
 
 ```bash
-GCP_PROJECT_ID=your-project ./scripts/deploy-gcloud-vm.sh
+# Testing
+GCP_PROJECT_ID=your-project APP_BRANCH=google ./scripts/deploy-gcloud-vm.sh
+
+# Public
+GCP_PROJECT_ID=your-project APP_BRANCH=cloudflare ./scripts/deploy-gcloud-vm.sh
 ```
 
 ## Google Cloud — production (Cloud Run)

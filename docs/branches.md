@@ -1,26 +1,28 @@
 # Branching and environments
 
-| Branch | Role | Site URL |
-|--------|------|----------|
-| **`google`** | Testing / integration. **Default for all PRs.** | **https://commercialbrainz.duckdns.org/** |
-| **`cloudflare`** | Public production site | **https://commercialbrainz.org/** |
+| Branch | Role | Site URL | GCE VM |
+|--------|------|----------|--------|
+| **`google`** | Testing / integration. **Default for all PRs.** | **https://commercialbrainz.duckdns.org/** | `commercialbrainz-vm` |
+| **`cloudflare`** | Public production site | **https://commercialbrainz.org/** | `commercialbrainz-org` |
 
 `main` is legacy; prefer `google` and `cloudflare`.
 
 ## Workflow
 
 1. Open PRs against **`google`** (not `cloudflare`).
-2. Merge into `google` → CI → auto-deploy to the GCE VM as the **DuckDNS testing site**.
-3. When testing looks good, promote **`google` → `cloudflare`** → auto-deploy as **https://commercialbrainz.org/**.
+2. Merge into `google` → CI → auto-deploy to **`commercialbrainz-vm`** (DuckDNS testing).
+3. When testing looks good, promote **`google` → `cloudflare`** → auto-deploy to **`commercialbrainz-org`** (public).
 
 On each deploy, `fix-gcloud-vm.sh` sets hostname / TLS from `APP_BRANCH`:
 
-| `APP_BRANCH` | `DOMAIN` | TLS |
-|--------------|----------|-----|
-| `google` | `commercialbrainz.duckdns.org` | Let's Encrypt (`auto`) |
-| `cloudflare` | `commercialbrainz.org` (+ `www` redirect; DuckDNS kept as alias) | Cloudflare Origin CA (`origin`) |
+| `APP_BRANCH` | VM | `DOMAIN` | TLS |
+|--------------|-----|----------|-----|
+| `google` | `commercialbrainz-vm` | `commercialbrainz.duckdns.org` | Let's Encrypt (`auto`) |
+| `cloudflare` | `commercialbrainz-org` | `commercialbrainz.org` (+ `www`) | Cloudflare Origin CA (`origin`) |
 
-Both share the **same GCE VM**; deploys are serialized. For `cloudflare`, Origin CA files must already be in `/opt/commercialbrainz/data/caddy/certs/` (see [cloudflare-domain.md](cloudflare-domain.md)).
+Create the public VM once with [`scripts/setup-cloudflare-vm.sh`](../scripts/setup-cloudflare-vm.sh), then Cloudflare DNS + Origin CA via [`docs/cloudflare-domain.md`](cloudflare-domain.md).
+
+**Cost note:** GCP Always Free includes only one e2-micro. The second VM (`commercialbrainz-org`) is billed (still low on e2-micro). Use a static IP on the public VM so Cloudflare A records stay stable.
 
 ## Versioning (cloudflare / public)
 

@@ -1,12 +1,12 @@
-# Custom domain on Cloudflare Free (cheapest) — Cloudflare does SSL
+# Custom domain on Cloudflare Free — public VM
 
 Serve **https://commercialbrainz.org** with:
 
 - Cloudflare **Free** (edge HTTPS, CDN, DDoS)
-- Existing GCE free-tier VM as origin
+- Dedicated GCE VM **`commercialbrainz-org`** as origin
 - **Cloudflare Origin CA** cert on Caddy (also free)
 
-No paid Cloudflare products. DuckDNS can stay as a secondary URL during cutover.
+Testing stays on **`commercialbrainz-vm`** + DuckDNS. See [branches.md](branches.md).
 
 ## Cost
 
@@ -15,20 +15,61 @@ No paid Cloudflare products. DuckDNS can stay as a secondary URL during cutover.
 | Cloudflare Free | $0 |
 | Cloudflare Origin CA | $0 |
 | Domain `commercialbrainz.org` | whatever you paid |
-| GCE e2-micro (free tier) | $0 in free-tier regions |
+| Testing VM `commercialbrainz-vm` (e2-micro free tier) | $0 in free-tier regions |
+| Public VM `commercialbrainz-org` (second e2-micro) | **billed** (Always Free = one e2-micro only) |
+| Static IP on public VM | small monthly charge (recommended) |
 
 ## Architecture
 
 ```
-Browser --HTTPS--> Cloudflare (Free SSL) --HTTPS--> Caddy (Origin CA) --> api/web
+Browser --HTTPS--> Cloudflare (Free SSL) --HTTPS--> Caddy on commercialbrainz-org (Origin CA) --> api/web
 ```
 
 SSL/TLS mode on Cloudflare: **Full (strict)**.  
-DNS: **Proxied** (orange cloud) from the start — Cloudflare terminates visitor SSL.
+DNS: **Proxied** (orange cloud) — Cloudflare terminates visitor SSL.
 
 ## Steps
 
-### 1. Cloudflare dashboard
+### 1. Create the public VM (once)
+
+From your laptop (`gcloud` authenticated, billing on):
+
+```bash
+GCP_PROJECT_ID=your-project \
+ACME_EMAIL=you@example.com \
+ADMIN_EMAIL=you@example.com \
+ADMIN_USERNAME=admin \
+ADMIN_PASSWORD='…' \
+  ./scripts/setup-cloudflare-vm.sh
+```
+
+This wraps `setup-gcloud-vm.sh` with:
+
+- `VM_NAME=commercialbrainz-org`
+- `REPO_BRANCH=cloudflare`
+- `CREATE_STATIC_IP=1`
+- DuckDNS **unset** (testing VM keeps DuckDNS)
+
+Note the printed **External IP** (static). Wait until startup finishes (~10–20 min):
+
+```bash
+gcloud compute ssh commercialbrainz-org --zone=ZONE \
+  --command='sudo tail -f /var/log/commercialbrainz-startup.log'
+```
+
+Grant GitHub Actions deploy access on the **new** instance (same SA as testing):
+
+```bash
+PROJECT_ID=your-project
+ZONE=us-central1-a   # whatever zone the VM landed in
+
+gcloud compute instances add-iam-policy-binding commercialbrainz-org \
+  --zone="$ZONE" \
+  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/compute.osAdminLogin"
+```
+
+### 2. Cloudflare dashboard
 
 1. [Add a site](https://dash.cloudflare.com) → `commercialbrainz.org` → **Free**.
 2. At your registrar, set the two Cloudflare nameservers shown.
@@ -36,71 +77,79 @@ DNS: **Proxied** (orange cloud) from the start — Cloudflare terminates visitor
 
    | Type | Name | Content | Proxy |
    |------|------|---------|-------|
-   | A | `@` | your VM external IP | Proxied |
+   | A | `@` | **commercialbrainz-org** external IP | Proxied |
    | A | `www` | same IP | Proxied |
 
-   VM IP:
-
    ```bash
-   gcloud compute instances describe commercialbrainz-vm \
+   gcloud compute instances describe commercialbrainz-org \
      --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
    ```
+
+   Do **not** point these at `commercialbrainz-vm`.
 
 4. **SSL/TLS → Overview** → **Full (strict)**.
 5. **SSL/TLS → Origin Server → Create Certificate**:
    - Hostnames: `commercialbrainz.org` and `*.commercialbrainz.org`
    - Validity: 15 years is fine
-   - Download / copy **Origin Certificate** and **Private Key** to your laptop, e.g.:
+   - Save **Origin Certificate** and **Private Key** on your laptop, e.g.:
      - `~/cb-origin.crt`
      - `~/cb-origin.key`  
-     (keep the key private; never commit it)
+     (never commit the key)
 
 6. (Optional) SSL/TLS → **Always Use HTTPS** = On.
 
-### 2. Configure the VM
-
-From your laptop (after the zone is Active and Origin cert files exist):
+### 3. Install Origin CA on the public VM
 
 ```bash
-chmod +x scripts/setup-cloudflare-domain.sh
 GCP_PROJECT_ID=your-project \
 DOMAIN=commercialbrainz.org \
-ACME_EMAIL=commercialbrainz@outlook.com \
+ACME_EMAIL=you@example.com \
 ORIGIN_CERT=$HOME/cb-origin.crt \
 ORIGIN_KEY=$HOME/cb-origin.key \
+VM_NAME=commercialbrainz-org \
   ./scripts/setup-cloudflare-domain.sh
 ```
 
-This uploads the Origin CA files, sets `.env` (`DOMAIN`, CORS, public URLs, `CADDY_TLS_MODE=origin`), regenerates Caddy, and probes `https://commercialbrainz.org/health`.
+Defaults: `VM_NAME=commercialbrainz-org`, `KEEP_DUCKDNS=0` (DuckDNS stays on the testing VM only).
 
-Defaults also keep `www` → apex redirect and `commercialbrainz.duckdns.org` as a Let's Encrypt alias during cutover.
+This uploads Origin CA files, sets `.env` (`DOMAIN`, CORS, public URLs, `CADDY_TLS_MODE=origin`), regenerates Caddy, and probes `https://commercialbrainz.org/health`.
 
-### 3. App env (what the script sets)
+### 4. App env (what the script sets)
 
-On the VM `/opt/commercialbrainz/.env`:
+On **`commercialbrainz-org`** `/opt/commercialbrainz/.env`:
 
 ```env
 DOMAIN=commercialbrainz.org
-DOMAIN_ALIASES=www.commercialbrainz.org,commercialbrainz.duckdns.org
+DOMAIN_ALIASES=www.commercialbrainz.org
 CADDY_TLS_MODE=origin
 ACME_EMAIL=you@example.com
 APP_PUBLIC_URL=https://commercialbrainz.org
 API_PUBLIC_URL=https://commercialbrainz.org
-CORS_ORIGINS=https://commercialbrainz.org,https://www.commercialbrainz.org,https://commercialbrainz.duckdns.org
+CORS_ORIGINS=https://commercialbrainz.org,https://www.commercialbrainz.org
 ```
 
-Origin cert files live at `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounted into Caddy at `/etc/caddy/certs`).  
+Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounted at `/etc/caddy/certs`).  
 `fix-gcloud-vm.sh` regenerates the Caddyfile from `DOMAIN` + `DOMAIN_ALIASES` + `CADDY_TLS_MODE` on each deploy.
+
+### 5. Deploys
+
+| Branch | VM | URL |
+|--------|-----|-----|
+| `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
+| `cloudflare` | `commercialbrainz-org` | https://commercialbrainz.org/ |
+
+After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) picks the VM from the branch. Optional repo variables: `VM_NAME_GOOGLE`, `VM_NAME_CLOUDFLARE`.
 
 ## Why not Flexible SSL?
 
-**Flexible** (HTTPS to Cloudflare, HTTP to origin) is weaker and fights Caddy’s HTTPS redirects. Prefer **Full (strict) + Origin CA** — still $0.
+**Flexible** (HTTPS to Cloudflare, HTTP to origin) is weaker and fights Caddy’s HTTPS redirects. Prefer **Full (strict) + Origin CA** — still $0 on Cloudflare.
 
 ## Troubleshooting
 
-- **526 Invalid SSL certificate:** Origin CA missing/expired, or SSL mode not Full (strict); check files on the VM under `data/caddy/certs/`.
-- **522 / 523:** firewall or VM down — ports **80** and **443** must allow Cloudflare (and the world for DuckDNS).
-- **Wrong IP after VM recreate:** update Cloudflare A records (ephemeral IP) or reserve a static IP later (not free).
+- **526 Invalid SSL certificate:** Origin CA missing/expired, or SSL mode not Full (strict); check `data/caddy/certs/` on **commercialbrainz-org**.
+- **522 / 523:** firewall or VM down — ports **80** and **443** must allow Cloudflare; confirm A records use the **org** VM IP.
+- **Wrong IP:** update Cloudflare A records to the static IP on `commercialbrainz-org-ip`.
+- **Deploy can’t SSH:** grant `github-deploy` `roles/compute.osAdminLogin` on **commercialbrainz-org** (step 1).
 - **Caddy logs:**  
   `sudo docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs caddy --tail=80`
-- **Renew Origin CA:** Cloudflare Origin certs last up to 15 years; recreate in the dashboard and re-run the setup script with new files before expiry.
+- **Renew Origin CA:** recreate in the dashboard and re-run `setup-cloudflare-domain.sh` before expiry.
