@@ -172,6 +172,8 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set_env APP_PUBLIC_URL 'https://${DOMAIN}'
   set_env API_PUBLIC_URL 'https://${DOMAIN}'
   set_env CORS_ORIGINS '${CORS_ORIGINS}'
+  set_env PUBLIC_SITE 'true'
+  set_env APP_ENV 'production'
 
   sudo bash infra/gcloud/write-compose-env.sh /opt/commercialbrainz
   sudo bash infra/gcloud/generate-caddyfile.sh \
