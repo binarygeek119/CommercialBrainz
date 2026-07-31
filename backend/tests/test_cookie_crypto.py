@@ -8,8 +8,11 @@ import pytest
 from app.services import cookie_crypto as crypto
 from app.services import ytdlp_cookies as yc
 
+# Meets MIN_SEED_LENGTH (64).
+_TEST_SEED = "test-cookie-seed-value-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-def _settings(*, seed: str = "test-cookie-seed-value", managed: str = ""):
+
+def _settings(*, seed: str = _TEST_SEED, managed: str = ""):
     class S:
         cookie_encryption_seed = seed
         ytdlp_cookies_managed_path = managed
@@ -36,11 +39,23 @@ def test_encrypt_requires_seed():
             crypto.encrypt_cookies(".youtube.com\tTRUE\t/\tFALSE\t0\tSID\tx\n")
 
 
+def test_encrypt_rejects_short_seed():
+    with patch.object(
+        crypto,
+        "get_settings",
+        return_value=_settings(seed="only-32-chars-not-enough!!!!!!!!!!!"),
+    ):
+        crypto._fernet_from_seed.cache_clear()
+        with pytest.raises(crypto.CookieEncryptionError, match="at least 64"):
+            crypto.encrypt_cookies(".youtube.com\tTRUE\t/\tFALSE\t0\tSID\tx\n")
+
+
 def test_wrong_seed_fails_decrypt():
-    with patch.object(crypto, "get_settings", return_value=_settings(seed="correct-seed-here")):
+    with patch.object(crypto, "get_settings", return_value=_settings(seed=_TEST_SEED)):
         crypto._fernet_from_seed.cache_clear()
         blob = crypto.encrypt_cookies(".youtube.com\tTRUE\t/\tFALSE\t0\tSID\tx\n")
-    with patch.object(crypto, "get_settings", return_value=_settings(seed="different-seed!!")):
+    other = "different-seed-value-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    with patch.object(crypto, "get_settings", return_value=_settings(seed=other)):
         crypto._fernet_from_seed.cache_clear()
         with pytest.raises(crypto.CookieEncryptionError, match="decrypt"):
             crypto.decrypt_cookies(blob)
@@ -51,6 +66,13 @@ def test_legacy_plaintext_passthrough():
         crypto._fernet_from_seed.cache_clear()
         legacy = ".youtube.com\tTRUE\t/\tFALSE\t0\tSID\told\n"
         assert crypto.decrypt_cookies(legacy) == legacy
+
+
+def test_cookie_encryption_configured_requires_min_length():
+    with patch.object(crypto, "get_settings", return_value=_settings(seed="short")):
+        assert crypto.cookie_encryption_configured() is False
+    with patch.object(crypto, "get_settings", return_value=_settings(seed=_TEST_SEED)):
+        assert crypto.cookie_encryption_configured() is True
 
 
 def test_save_cookies_writes_encrypted_and_materialized(tmp_path: Path):

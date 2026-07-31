@@ -1,8 +1,9 @@
 """Encrypt/decrypt YouTube cookies.txt at rest using a site operator seed.
 
-Set COOKIE_ENCRYPTION_SEED in the environment (a long random passphrase you choose).
-Donated cookies in the database and the admin-managed cookie file are stored encrypted.
-A short-lived plaintext file is materialized only for yt-dlp to read.
+Set COOKIE_ENCRYPTION_SEED in the environment (a long random passphrase you choose,
+at least 64 characters). Donated cookies in the database and the admin-managed cookie
+file are stored encrypted. A short-lived plaintext file is materialized only for yt-dlp
+to read.
 """
 
 from functools import lru_cache
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Versioned ciphertext prefix so we can detect encrypted blobs vs legacy plaintext.
 ENC_PREFIX = "cbenc1:"
+# Operator-chosen seed must be long enough to resist guessing / brute force.
+MIN_SEED_LENGTH = 64
 # Fixed salt mixed with a digest of the seed so different seeds still get distinct keys
 # without requiring a stored salt column. Not a secret by itself.
 _KDF_SALT_BASE = b"commercialbrainz-cookie-v1"
@@ -31,19 +34,22 @@ class CookieEncryptionError(ValueError):
 
 
 def cookie_encryption_configured() -> bool:
-    return bool((get_settings().cookie_encryption_seed or "").strip())
+    seed = (get_settings().cookie_encryption_seed or "").strip()
+    return len(seed) >= MIN_SEED_LENGTH
 
 
 def _require_seed() -> str:
     seed = (get_settings().cookie_encryption_seed or "").strip()
     if not seed:
         raise CookieEncryptionError(
-            "COOKIE_ENCRYPTION_SEED is not set. Choose a long random passphrase and set it "
-            "in the environment before saving or accepting YouTube cookies."
+            "COOKIE_ENCRYPTION_SEED is not set. Choose a long random passphrase "
+            f"(at least {MIN_SEED_LENGTH} characters) and set it in the environment "
+            "before saving or accepting YouTube cookies."
         )
-    if len(seed) < 12:
+    if len(seed) < MIN_SEED_LENGTH:
         raise CookieEncryptionError(
-            "COOKIE_ENCRYPTION_SEED must be at least 12 characters"
+            f"COOKIE_ENCRYPTION_SEED must be at least {MIN_SEED_LENGTH} characters "
+            f"(currently {len(seed)})"
         )
     return seed
 

@@ -25,7 +25,7 @@ def _settings(
     managed: str = "",
     browser: str = "",
     extractor_args: str = "youtube:player_client=android,web,mweb",
-    cookie_seed: str = "test-cookie-seed-value",
+    cookie_seed: str = "test-cookie-seed-value-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 ):
     class S:
         ytdlp_cookies_file = cookies_file
