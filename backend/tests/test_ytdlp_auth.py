@@ -24,12 +24,8 @@ def _settings(
     cookies_file: str = "",
     managed: str = "",
     browser: str = "",
-<<<<<<< HEAD
-    extractor_args: str = "youtube:player_client=android,web,mweb",
-    cookie_seed: str = "test-cookie-seed-value-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-=======
     extractor_args: str = "",
->>>>>>> 1f72a4d (Fix YouTube format-unavailable by using modern yt-dlp clients)
+    cookie_seed: str = "test-cookie-seed-value-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 ):
     class S:
         ytdlp_cookies_file = cookies_file
