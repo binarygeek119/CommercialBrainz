@@ -17,18 +17,19 @@
 #     ./scripts/setup-cloudflare-domain.sh
 #
 # Optional:
-#   DOMAIN_ALIASES=www.commercialbrainz.org,commercialbrainz.duckdns.org
-#   KEEP_DUCKDNS=1
-#   CADDY_TLS_MODE=origin   # default; use "auto" only for grey-cloud Let's Encrypt
+#   VM_NAME=commercialbrainz-org   # public VM (default)
+#   DOMAIN_ALIASES=www.commercialbrainz.org
+#   KEEP_DUCKDNS=0                 # default 0 on public VM
+#   CADDY_TLS_MODE=origin          # default; use "auto" only for grey-cloud Let's Encrypt
 #
 set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-}"
-VM_NAME="${VM_NAME:-commercialbrainz-vm}"
+VM_NAME="${VM_NAME:-commercialbrainz-org}"
 DOMAIN="${DOMAIN:-commercialbrainz.org}"
 ACME_EMAIL="${ACME_EMAIL:-}"
 DOMAIN_ALIASES="${DOMAIN_ALIASES:-www.${DOMAIN}}"
-KEEP_DUCKDNS="${KEEP_DUCKDNS:-1}"
+KEEP_DUCKDNS="${KEEP_DUCKDNS:-0}"
 DUCKDNS_FQDN="${DUCKDNS_FQDN:-commercialbrainz.duckdns.org}"
 CADDY_TLS_MODE="${CADDY_TLS_MODE:-origin}"
 ORIGIN_CERT="${ORIGIN_CERT:-}"
@@ -204,5 +205,6 @@ cat <<EOF
   Docs:  https://${DOMAIN}/docs
   Old:   https://${DUCKDNS_FQDN}/  (LE alias if kept)
 
-Cloudflare should stay Proxied + Full (strict). Cost: Free plan + your domain + existing VM.
+Cloudflare should stay Proxied + Full (strict).
+Cost: Free plan + your domain + public VM (second e2-micro is billed; see docs/cloudflare-domain.md).
 EOF

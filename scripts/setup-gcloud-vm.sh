@@ -19,15 +19,19 @@
 #   GCP_ZONE          Zone (default: auto — tries free-tier zones until one works)
 #   GCP_AUTO_ZONE     Set to 0 to disable automatic zone fallback (default: 1)
 #   VM_NAME           Instance name, default commercialbrainz-vm
+#                     (public site: commercialbrainz-org via setup-cloudflare-vm.sh)
 #   REPO_URL          Git repo to clone on VM
-#   REPO_BRANCH       Branch to deploy, default main
+#   REPO_BRANCH       Branch to deploy, default main (public: cloudflare)
 #   ADMIN_EMAIL       Seed admin on first boot (via instance metadata)
 #   ADMIN_USERNAME
 #   ADMIN_PASSWORD
-#   CREATE_STATIC_IP  Set to 1 to reserve a static external IP
+#   CREATE_STATIC_IP  Set to 1 to reserve a static external IP (recommended for Cloudflare)
 #   DUCKDNS_DOMAIN    DuckDNS subdomain only (e.g. commercialbrainz → commercialbrainz.duckdns.org)
 #   DUCKDNS_TOKEN     DuckDNS token from https://www.duckdns.org/
 #   ACME_EMAIL        Email for Let's Encrypt (enables HTTPS when DuckDNS is set)
+#
+# Public Cloudflare VM (separate from DuckDNS testing):
+#   ./scripts/setup-cloudflare-vm.sh
 #
 set -euo pipefail
 
@@ -336,6 +340,16 @@ if [[ -n "${DUCKDNS_DOMAIN:-}" ]]; then
     echo "    HTTPS:        https://${DUCKDNS_DOMAIN}.duckdns.org/"
     echo "    HTTPS docs:   https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
   fi
+elif [[ "$VM_NAME" == "commercialbrainz-org" || "$REPO_BRANCH" == "cloudflare" ]]; then
+  echo ""
+  echo "    Next (public / Cloudflare):"
+  echo "      1. Point Cloudflare A @ and www (Proxied) at ${EXTERNAL_IP}"
+  echo "      2. SSL/TLS → Full (strict); create Origin CA cert"
+  echo "      3. GCP_PROJECT_ID=$PROJECT_ID VM_NAME=$VM_NAME \\"
+  echo "           ORIGIN_CERT=~/cb-origin.crt ORIGIN_KEY=~/cb-origin.key \\"
+  echo "           ACME_EMAIL=… ./scripts/setup-cloudflare-domain.sh"
+  echo "      4. Grant github-deploy OS Login on this VM (see docs/cloudflare-domain.md)"
+  echo "    Docs: docs/cloudflare-domain.md"
 fi
 echo ""
 echo "Monitor startup progress:"
