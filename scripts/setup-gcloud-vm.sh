@@ -21,7 +21,7 @@
 #   VM_NAME           Instance name, default commercialbrainz-vm
 #                     (public site: commercialbrainz-org via setup-cloudflare-vm.sh)
 #   REPO_URL          Git repo to clone on VM
-#   REPO_BRANCH       Branch to deploy, default main (public: cloudflare)
+#   REPO_BRANCH       Branch to deploy, default google (public: cloudflare)
 #   ADMIN_EMAIL       Seed admin on first boot (via instance metadata)
 #   ADMIN_USERNAME
 #   ADMIN_PASSWORD
@@ -74,7 +74,7 @@ GCP_AUTO_ZONE="${GCP_AUTO_ZONE:-1}"
 ZONE="${GCP_ZONE:-}"
 VM_NAME="${VM_NAME:-commercialbrainz-vm}"
 REPO_URL="${REPO_URL:-https://github.com/binarygeek119/CommercialBrainz.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-google}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
 DISK_SIZE="${DISK_SIZE:-30GB}"
 FIREWALL_TAG="${FIREWALL_TAG:-commercialbrainz-server}"
