@@ -241,6 +241,92 @@ def test_normalize_bulk_defaults_strips_empty():
 
 
 @pytest.mark.asyncio
+async def test_finalize_bulk_item_allows_pending_hash(monkeypatch):
+    """Submit must not wait for fingerprint completion."""
+    from app.models import BulkSubmissionItemStatus, EditStatus, FingerprintStatus
+    from app.services import bulk_submit as bs
+
+    item = SimpleNamespace(
+        id=uuid4(),
+        batch_id=uuid4(),
+        youtube_id="abcdefghijk",
+        youtube_url="https://www.youtube.com/watch?v=abcdefghijk",
+        status=BulkSubmissionItemStatus.HASHING,
+        fingerprint_id=uuid4(),
+        extra_data={"title": "Spot"},
+        edit_id=None,
+        updated_at=None,
+    )
+    pending_fp = SimpleNamespace(
+        id=item.fingerprint_id,
+        status=FingerprintStatus.PENDING,
+        edit_id=None,
+        video_id=None,
+    )
+    created_edit = SimpleNamespace(
+        id=uuid4(),
+        status=EditStatus.OPEN,
+        entity_id=None,
+    )
+    user = SimpleNamespace(id=uuid4())
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=pending_fp)
+    db.refresh = AsyncMock()
+    db.flush = AsyncMock()
+
+    async def fake_refresh(_db):
+        return 0
+
+    async def fake_terms(_db, _user, _agreed):
+        return None
+
+    async def fake_resolve_advertiser(_db, _user, commercial, brand_comment=None):
+        return SimpleNamespace(commercial=commercial, brand_edit=None)
+
+    async def fake_resolve_catalogs(_db, _user, commercial):
+        return commercial, []
+
+    async def fake_create_edit(*_args, **_kwargs):
+        return created_edit
+
+    async def fake_stage(_db, _batch_id):
+        return []
+
+    monkeypatch.setattr(bs, "refresh_item_hash_statuses", fake_refresh)
+    monkeypatch.setattr(
+        "app.services.submission_terms.validate_and_record_terms_acceptance",
+        fake_terms,
+    )
+    monkeypatch.setattr(
+        "app.services.advertisers.resolve_commercial_advertiser",
+        fake_resolve_advertiser,
+    )
+    monkeypatch.setattr(
+        "app.services.catalog.resolve_all_catalogs",
+        fake_resolve_catalogs,
+    )
+    monkeypatch.setattr("app.services.EditService.create_edit", fake_create_edit)
+    monkeypatch.setattr(bs, "stage_next_bulk_items", fake_stage)
+
+    edit, fps = await bs.finalize_bulk_item(
+        db,
+        user,
+        item,
+        {
+            "terms_agreed": True,
+            "commercial": {"title": "Spot"},
+            "tags": [],
+        },
+    )
+
+    assert edit is created_edit
+    assert item.status == BulkSubmissionItemStatus.SUBMITTED
+    assert item.edit_id == created_edit.id
+    assert pending_fp.edit_id == created_edit.id
+    assert item.fingerprint_id in fps
+
+
+@pytest.mark.asyncio
 async def test_cancel_bulk_batch_deletes_preview_fingerprints(monkeypatch):
     from app.services import bulk_submit as bs
 

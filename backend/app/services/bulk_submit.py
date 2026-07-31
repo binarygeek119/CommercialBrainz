@@ -572,9 +572,12 @@ async def finalize_bulk_item(
     submit_payload: dict[str, Any],
 ) -> tuple[Edit, list[UUID]]:
     """
-    Create a normal CREATE_VIDEO edit from a ready staging item.
+    Create a normal CREATE_VIDEO edit from a staging item.
 
-    Returns the edit and fingerprint ids for newly staged refill items.
+    Hashing is not required to finish first: any in-flight preview fingerprint is
+    attached to the edit (and video when auto-applied) and continues in the background.
+    Returns the edit and fingerprint ids for newly staged refill items (plus any
+    fingerprint that still needs to be enqueued for this submit).
     """
     from app.services import EditService
     from app.services.advertisers import resolve_commercial_advertiser
@@ -587,18 +590,22 @@ async def finalize_bulk_item(
     }:
         raise ValueError(f"Item cannot be submitted in status {item.status.value}")
 
-    # Allow submit when hash still pending only if fingerprint completed meanwhile.
     await refresh_item_hash_statuses(db)
     await db.refresh(item)
-    if item.status != BulkSubmissionItemStatus.READY:
-        # Still allow if fingerprint completed
-        if item.fingerprint_id:
-            fp = await db.get(MediaFingerprint, item.fingerprint_id)
-            if not fp or fp.status != FingerprintStatus.COMPLETED:
-                raise ValueError("Item fingerprint is not ready yet")
-            item.status = BulkSubmissionItemStatus.READY
-        else:
-            raise ValueError("Item is not ready")
+
+    # Ensure a fingerprint exists so hashing can continue (or start) in the background.
+    enqueue_fps: list[UUID] = []
+    if not item.fingerprint_id:
+        fp = MediaFingerprint(
+            edit_id=None,
+            youtube_id=item.youtube_id,
+            phase=FingerprintPhase.PREVIEW,
+            status=FingerprintStatus.PENDING,
+        )
+        db.add(fp)
+        await db.flush()
+        item.fingerprint_id = fp.id
+        enqueue_fps.append(fp.id)
 
     terms_agreed = bool(submit_payload.get("terms_agreed"))
     await validate_and_record_terms_acceptance(db, user, terms_agreed)
@@ -667,7 +674,7 @@ async def finalize_bulk_item(
         if catalog_edits:
             after_state["catalog_edit_ids"] = [str(e.id) for e in catalog_edits]
 
-    # Attach fingerprint to upcoming edit before create when possible.
+    # Create the edit immediately; hashing continues asynchronously.
     edit = await EditService.create_edit(
         db,
         user,
@@ -680,15 +687,44 @@ async def finalize_bulk_item(
 
     if item.fingerprint_id:
         fp = await db.get(MediaFingerprint, item.fingerprint_id)
-        if fp:
+        if fp and fp.status == FingerprintStatus.FAILED:
+            applied = edit.status in {
+                EditStatus.APPLIED,
+                EditStatus.AUTOMATICALLY_APPLIED,
+            }
+            # Auto-apply already creates a FINAL fingerprint when the preview failed.
+            # For open edits, start a fresh background hash on the edit.
+            if not applied:
+                new_fp = MediaFingerprint(
+                    edit_id=edit.id,
+                    youtube_id=item.youtube_id,
+                    phase=FingerprintPhase.PREVIEW,
+                    status=FingerprintStatus.PENDING,
+                )
+                db.add(new_fp)
+                await db.flush()
+                item.fingerprint_id = new_fp.id
+                enqueue_fps.append(new_fp.id)
+        elif fp:
             fp.edit_id = edit.id
             applied = edit.status in {
                 EditStatus.APPLIED,
                 EditStatus.AUTOMATICALLY_APPLIED,
             }
-            if applied and edit.entity_id and fp.status == FingerprintStatus.COMPLETED:
-                await _copy_to_video(db, edit.entity_id, fp)
-                fp.video_id = edit.entity_id
+            if applied and edit.entity_id:
+                if fp.status == FingerprintStatus.COMPLETED:
+                    await _copy_to_video(db, edit.entity_id, fp)
+                    fp.video_id = edit.entity_id
+                elif fp.status in {
+                    FingerprintStatus.PENDING,
+                    FingerprintStatus.PROCESSING,
+                }:
+                    # In-flight hash should land on the video when the worker finishes.
+                    fp.video_id = edit.entity_id
+                    if fp.status == FingerprintStatus.PENDING:
+                        enqueue_fps.append(fp.id)
+            elif fp.status == FingerprintStatus.PENDING:
+                enqueue_fps.append(fp.id)
 
     item.status = BulkSubmissionItemStatus.SUBMITTED
     item.edit_id = edit.id
@@ -696,4 +732,12 @@ async def finalize_bulk_item(
 
     # Free a staging slot → pull the next playlist link into review + hashing.
     refill_fps = await stage_next_bulk_items(db, item.batch_id)
-    return edit, refill_fps
+    # Dedupe while preserving order.
+    seen: set[UUID] = set()
+    combined: list[UUID] = []
+    for fp_id in [*enqueue_fps, *refill_fps]:
+        if fp_id in seen:
+            continue
+        seen.add(fp_id)
+        combined.append(fp_id)
+    return edit, combined

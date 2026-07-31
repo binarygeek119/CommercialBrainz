@@ -337,8 +337,8 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
         <div className="add-link-dialog-body">
           <p className="muted" style={{ marginTop: 0 }}>
             YouTube metadata is fetched before the form unlocks. Shared playlist defaults (type,
-            brand, decade, etc.) are applied afterward and can still be edited. Prefetched hash stays
-            attached.
+            brand, decade, etc.) are applied afterward and can still be edited. Submit does not wait
+            for hashing — any prefetched hash continues in the background and attaches when ready.
           </p>
 
           <div style={{ marginBottom: "1rem" }}>
