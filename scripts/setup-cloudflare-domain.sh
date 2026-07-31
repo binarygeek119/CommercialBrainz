@@ -145,9 +145,15 @@ echo "==> Configuring VM for ${DOMAIN} (tls=${CADDY_TLS_MODE})..."
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set -e
   cd /opt/commercialbrainz
-  sudo git fetch origin main
-  # Stay on whatever is deployed; prefer latest main for generator script.
-  sudo git reset --hard origin/main
+  sudo git fetch origin cloudflare google main
+  # Prefer cloudflare for public domain setup; fall back to google.
+  if sudo git rev-parse --verify origin/cloudflare >/dev/null 2>&1; then
+    sudo git checkout -B cloudflare origin/cloudflare
+    sudo git reset --hard origin/cloudflare
+  else
+    sudo git checkout -B google origin/google
+    sudo git reset --hard origin/google
+  fi
 
   set_env() {
     local key=\$1 value=\$2

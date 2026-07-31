@@ -159,9 +159,13 @@ ORIGIN_KEY=$HOME/cb-origin.key \
 
 Create the Origin certificate in Cloudflare → SSL/TLS → Origin Server first.
 
-### Auto-deploy on push to `main`
+### Branches: `google` (testing) and `cloudflare` (public)
 
-GitHub Actions workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the GCE VM after **CI** succeeds on `main` (also runnable manually from the Actions tab).
+See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for https://commercialbrainz.org.
+
+### Auto-deploy on push to `google` / `cloudflare`
+
+GitHub Actions [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the GCE VM after **CI** succeeds on `google` (testing) or `cloudflare` (public). Also runnable manually from the Actions tab.
 
 1. Create a GCP service account that can SSH to the VM, e.g.:
 
