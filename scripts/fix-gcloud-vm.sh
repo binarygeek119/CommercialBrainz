@@ -178,8 +178,10 @@ curl -sf http://127.0.0.1/health && echo "OK: /health via Caddy" || {
   exit 1
 }
 curl -sf -o /dev/null http://127.0.0.1/ && echo "OK: / web UI via Caddy" || {
-  echo "WARN: / web UI failed (check web container)"
+  echo "FAIL: / web UI via Caddy"
   $COMPOSE logs web --tail=20
+  $COMPOSE logs caddy --tail=20
+  exit 1
 }
 
 echo ""

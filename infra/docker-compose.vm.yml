@@ -49,11 +49,11 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      maintenance:
-        condition: service_started
       api:
         condition: service_healthy
       web:
+        condition: service_started
+      maintenance:
         condition: service_started
 
 volumes:
