@@ -60,7 +60,14 @@ echo "==> Configuring HTTPS on VM..."
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set -e
   cd /opt/commercialbrainz
-  sudo git pull origin main
+  sudo git fetch origin google cloudflare
+  if sudo git rev-parse --verify origin/google >/dev/null 2>&1; then
+    sudo git checkout -B google origin/google
+    sudo git reset --hard origin/google
+  else
+    sudo git checkout -B cloudflare origin/cloudflare
+    sudo git reset --hard origin/cloudflare
+  fi
 
   set_env() {
     local key=\$1 value=\$2
