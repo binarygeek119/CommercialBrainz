@@ -157,18 +157,24 @@ Use a **second** GCE VM for production (testing stays on DuckDNS):
 | Branch | VM | URL |
 |--------|-----|-----|
 | `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
-| `cloudflare` | `commercialbrainz-org` | https://commercialbrainz.org/ |
+| `cloudflare` | `commercialbrainz-public` | https://commercialbrainz.org/ |
 
 **Create the public VM once** (static IP; no DuckDNS):
 
+- **GitHub Actions:** Actions → **Setup GCE VM** → target `cloudflare` → Run workflow  
+  (uses Workload Identity; grants deploy OS Login; prints the IP in the log)
+- **Laptop:**
+
 ```bash
-GCP_PROJECT_ID=your-project \
+GCP_PROJECT_ID=commercialbrainz \
 ACME_EMAIL=you@example.com \
 ADMIN_EMAIL=you@example.com \
 ADMIN_USERNAME=admin \
 ADMIN_PASSWORD='…' \
   ./scripts/setup-cloudflare-vm.sh
 ```
+
+Optional Action secrets: `VM_ADMIN_EMAIL`, `VM_ADMIN_USERNAME`, `VM_ADMIN_PASSWORD`, `ACME_EMAIL`.
 
 Then Cloudflare Free + Origin CA (Full strict). See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)**:
 
@@ -181,7 +187,7 @@ ORIGIN_KEY=$HOME/cb-origin.key \
   ./scripts/setup-cloudflare-domain.sh
 ```
 
-**Cost:** Always Free covers one e2-micro (`commercialbrainz-vm`). The second VM is billed (still cheap). Prefer a static IP on `commercialbrainz-org` so Cloudflare A records stay stable.
+**Cost:** Always Free covers one e2-micro (`commercialbrainz-vm`). The second VM is billed (still cheap). Prefer a static IP on `commercialbrainz-public` so Cloudflare A records stay stable.
 
 See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for the public site.
 
@@ -214,21 +220,24 @@ gcloud iam service-accounts keys create github-deploy-key.json \
   --iam-account="github-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-2. On **each** deploy VM, grant the SA OS Login access (once per instance):
+2. On **each** deploy VM, allow GitHub Actions SSH (metadata keys as user `runner`).
+   Deploy runs [`scripts/ensure-gcloud-vm-ssh.sh`](scripts/ensure-gcloud-vm-ssh.sh) automatically.
+   If Actions still gets `Permission denied (publickey)`, run **once from your laptop**:
 
 ```bash
-# Testing
-gcloud compute instances add-iam-policy-binding commercialbrainz-vm \
-  --zone=YOUR_ZONE \
-  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/compute.osAdminLogin"
+# Login first (browser)
+gcloud auth login
+gcloud config set project commercialbrainz
 
-# Public (after setup-cloudflare-vm.sh)
-gcloud compute instances add-iam-policy-binding commercialbrainz-org \
-  --zone=YOUR_ZONE \
-  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/compute.osAdminLogin"
+# Testing VM
+./scripts/fix-deploy-ssh-from-laptop.sh
+
+# Public VM (after it exists)
+VM_NAME=commercialbrainz-public ZONE=YOUR_ZONE ./scripts/fix-deploy-ssh-from-laptop.sh
 ```
+
+That script disables OS Login on the instance (CI needs metadata SSH), clears
+`block-project-ssh-keys`, ensures firewall/tag, and probes SSH.
 
 3. In the GitHub repo: **Settings → Secrets and variables → Actions**, add:
    - `GCP_PROJECT_ID` — your GCP project id (variable; default `commercialbrainz`)
@@ -239,7 +248,7 @@ Optional repository variables:
 | Variable | Default |
 |----------|---------|
 | `VM_NAME_GOOGLE` | `commercialbrainz-vm` |
-| `VM_NAME_CLOUDFLARE` | `commercialbrainz-org` |
+| `VM_NAME_CLOUDFLARE` | `commercialbrainz-public` |
 | `VM_NAME` | legacy alias for the testing VM |
 
 Manual deploy from your laptop:

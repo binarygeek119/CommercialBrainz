@@ -10,6 +10,11 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
 APP_BRANCH="${APP_BRANCH:-google}"
+# main was removed; map any leftover callers/metadata to google.
+if [[ "$APP_BRANCH" == "main" ]]; then
+  echo "WARN: APP_BRANCH=main is retired; using google"
+  APP_BRANCH=google
+fi
 cd "$APP_DIR"
 
 # Narrow env for compose interpolation (IMAGE_TAG/DOMAIN/ACME_EMAIL only).
@@ -29,28 +34,32 @@ fi
 # inode (bash keeps reading the old file after `git reset` replaces it).
 if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
   echo "==> Sync to origin/${APP_BRANCH} (discard local tracked changes; keep .env)"
-  if [[ "$(id -u)" -eq 0 ]]; then
-    git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    git fetch origin "$APP_BRANCH"
-    git checkout -B "$APP_BRANCH" "origin/$APP_BRANCH"
-    git reset --hard "origin/$APP_BRANCH"
-    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
-    git rev-parse --short HEAD
+  run_git() {
+    if [[ "$(id -u)" -eq 0 ]]; then
+      "$@"
+    else
+      sudo "$@"
+    fi
+  }
+  run_git git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+  # Heal single-branch clones left over from the deleted main branch.
+  run_git git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' || true
+  run_git git fetch origin "refs/heads/${APP_BRANCH}:refs/remotes/origin/${APP_BRANCH}"
+  if run_git git rev-parse --verify "origin/${APP_BRANCH}" >/dev/null 2>&1; then
+    run_git git checkout -B "$APP_BRANCH" "origin/${APP_BRANCH}"
+    run_git git reset --hard "origin/${APP_BRANCH}"
   else
-    sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    sudo git fetch origin "$APP_BRANCH"
-    sudo git checkout -B "$APP_BRANCH" "origin/$APP_BRANCH"
-    sudo git reset --hard "origin/$APP_BRANCH"
-    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
-    sudo git rev-parse --short HEAD
+    run_git git checkout -B "$APP_BRANCH" FETCH_HEAD
+    run_git git reset --hard FETCH_HEAD
   fi
+  run_git git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
+  run_git git rev-parse --short HEAD
   export CB_REPO_SYNCED=1
   echo "==> Re-executing deploy script from synced tree"
   if [[ "$(id -u)" -eq 0 ]]; then
     exec env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
   else
-    exec sudo --preserve-env=IMAGE_TAG,CB_REPO_SYNCED,APP_BRANCH \
-      env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" \
+    exec sudo env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" \
       bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
   fi
 fi
@@ -91,7 +100,9 @@ if [[ "$APP_BRANCH" == "cloudflare" ]]; then
   set_env API_PUBLIC_URL "https://commercialbrainz.org"
   set_env CORS_ORIGINS "https://commercialbrainz.org,https://www.commercialbrainz.org"
   set_env ACME_EMAIL "$ACME_EMAIL"
-  echo "    Public site: https://commercialbrainz.org/ (Origin CA on commercialbrainz-org)"
+  set_env PUBLIC_SITE "true"
+  set_env APP_ENV "production"
+  echo "    Public site: https://commercialbrainz.org/ (Origin CA on commercialbrainz-public)"
 elif [[ "$APP_BRANCH" == "google" ]]; then
   set_env DOMAIN "commercialbrainz.duckdns.org"
   set_env DOMAIN_ALIASES ""
@@ -100,6 +111,8 @@ elif [[ "$APP_BRANCH" == "google" ]]; then
   set_env API_PUBLIC_URL "https://commercialbrainz.duckdns.org"
   set_env CORS_ORIGINS "https://commercialbrainz.duckdns.org"
   set_env ACME_EMAIL "$ACME_EMAIL"
+  set_env PUBLIC_SITE "false"
+  set_env APP_ENV "testing"
   echo "    Testing site: https://commercialbrainz.duckdns.org/ (Let's Encrypt on commercialbrainz-vm)"
 else
   echo "    WARN: unknown APP_BRANCH=${APP_BRANCH}; leaving DOMAIN settings in .env unchanged"

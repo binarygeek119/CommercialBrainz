@@ -17,7 +17,11 @@ APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
 REPO_URL="$(get_meta repo-url)"
 REPO_URL="${REPO_URL:-https://github.com/binarygeek119/CommercialBrainz.git}"
 REPO_BRANCH="$(get_meta repo-branch)"
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-google}"
+if [[ "$REPO_BRANCH" == "main" ]]; then
+  echo "WARN: repo-branch=main is retired; using google"
+  REPO_BRANCH=google
+fi
 WEB_PORT="${WEB_PORT:-80}"
 
 # e2-micro has 1 GB RAM — add swap so Docker builds don't OOM

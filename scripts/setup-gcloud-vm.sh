@@ -19,9 +19,9 @@
 #   GCP_ZONE          Zone (default: auto — tries free-tier zones until one works)
 #   GCP_AUTO_ZONE     Set to 0 to disable automatic zone fallback (default: 1)
 #   VM_NAME           Instance name, default commercialbrainz-vm
-#                     (public site: commercialbrainz-org via setup-cloudflare-vm.sh)
+#                     (public site: commercialbrainz-public via setup-cloudflare-vm.sh)
 #   REPO_URL          Git repo to clone on VM
-#   REPO_BRANCH       Branch to deploy, default main (public: cloudflare)
+#   REPO_BRANCH       Branch to deploy, default google (public: cloudflare)
 #   ADMIN_EMAIL       Seed admin on first boot (via instance metadata)
 #   ADMIN_USERNAME
 #   ADMIN_PASSWORD
@@ -74,7 +74,7 @@ GCP_AUTO_ZONE="${GCP_AUTO_ZONE:-1}"
 ZONE="${GCP_ZONE:-}"
 VM_NAME="${VM_NAME:-commercialbrainz-vm}"
 REPO_URL="${REPO_URL:-https://github.com/binarygeek119/CommercialBrainz.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-google}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
 DISK_SIZE="${DISK_SIZE:-30GB}"
 FIREWALL_TAG="${FIREWALL_TAG:-commercialbrainz-server}"
@@ -143,6 +143,10 @@ find_existing_vm_zone() {
 }
 
 if [[ -z "$PROJECT_ID" ]]; then
+  if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || "${CLOUDSDK_CORE_DISABLE_PROMPTS:-}" == "1" ]]; then
+    echo "ERROR: GCP_PROJECT_ID must be set in CI"
+    exit 1
+  fi
   read -rp "GCP Project ID: " PROJECT_ID
 fi
 
@@ -176,8 +180,12 @@ if [[ -n "$ZONE" ]] && ! zone_in_free_tier "$ZONE"; then
   echo ""
   echo "WARNING: Zone $ZONE is not in a documented Always Free region."
   echo "         Free-tier e2-micro applies to: us-west1, us-central1, us-east1"
-  read -rp "Continue anyway? [y/N] " confirm
-  [[ "${confirm,,}" == "y" ]] || exit 1
+  if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || "${CLOUDSDK_CORE_DISABLE_PROMPTS:-}" == "1" ]]; then
+    echo "         Continuing non-interactively (CI)."
+  else
+    read -rp "Continue anyway? [y/N] " confirm
+    [[ "${confirm,,}" == "y" ]] || exit 1
+  fi
 fi
 
 gcloud config set project "$PROJECT_ID"
@@ -340,7 +348,7 @@ if [[ -n "${DUCKDNS_DOMAIN:-}" ]]; then
     echo "    HTTPS:        https://${DUCKDNS_DOMAIN}.duckdns.org/"
     echo "    HTTPS docs:   https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
   fi
-elif [[ "$VM_NAME" == "commercialbrainz-org" || "$REPO_BRANCH" == "cloudflare" ]]; then
+elif [[ "$VM_NAME" == "commercialbrainz-public" || "$REPO_BRANCH" == "cloudflare" ]]; then
   echo ""
   echo "    Next (public / Cloudflare):"
   echo "      1. Point Cloudflare A @ and www (Proxied) at ${EXTERNAL_IP}"

@@ -2,16 +2,21 @@
 #
 # Branches / sites / VMs:
 #   google     — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
-#   cloudflare — https://commercialbrainz.org/            → commercialbrainz-org
+#   cloudflare — https://commercialbrainz.org/            → commercialbrainz-public
 #
 # CI pushes images to GHCR; this workflow pulls them on the target VM.
 # See docs/branches.md
 #
 # Optional repository variables:
-#   GCP_PROJECT_ID       — default commercialbrainz
-#   VM_NAME_GOOGLE       — default commercialbrainz-vm
-#   VM_NAME_CLOUDFLARE   — default commercialbrainz-org
-#   VM_NAME              — legacy alias for the google/testing VM
+#   Testing (google):
+#     GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
+#     VM_NAME_GOOGLE (or legacy VM_NAME) — default commercialbrainz-vm
+#   Public (cloudflare) — separate GCP project:
+#     GCP_PROJECT_ID_CLOUDFLARE   — default commercialbrainz-public
+#     GCP_WIF_PROVIDER_CLOUDFLARE — required once public project WIF exists
+#     GCP_SA_EMAIL_CLOUDFLARE     — default github-deploy@commercialbrainz-public…
+#     VM_NAME_CLOUDFLARE          — default commercialbrainz-public
+#   See docs/public-gcp-project.md
 #
 name: Deploy
 
@@ -62,23 +67,44 @@ jobs:
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Resolve target VM
+      - name: Resolve target VM and GCP project
         id: vm
         run: |
           set -euo pipefail
           branch="${{ steps.target.outputs.branch }}"
           if [[ "$branch" == "cloudflare" ]]; then
             name="${{ vars.VM_NAME_CLOUDFLARE }}"
-            name="${name:-commercialbrainz-org}"
+            name="${name:-commercialbrainz-public}"
+            project="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            project="${project:-commercialbrainz-public}"
+            wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
+            if [[ -z "$wif" ]]; then
+              echo "ERROR: Set repo variable GCP_WIF_PROVIDER_CLOUDFLARE"
+              echo "  (run scripts/setup-public-gcp-project.sh — see docs/public-gcp-project.md)"
+              exit 1
+            fi
           else
             name="${{ vars.VM_NAME_GOOGLE }}"
             if [[ -z "$name" ]]; then
               name="${{ vars.VM_NAME }}"
             fi
             name="${name:-commercialbrainz-vm}"
+            project="${{ vars.GCP_PROJECT_ID }}"
+            project="${project:-commercialbrainz}"
+            wif="${{ vars.GCP_WIF_PROVIDER }}"
+            wif="${wif:-projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github}"
+            sa="${{ vars.GCP_SA_EMAIL }}"
+            sa="${sa:-github-deploy@commercialbrainz.iam.gserviceaccount.com}"
           fi
-          echo "name=${name}" >> "$GITHUB_OUTPUT"
-          echo "Target VM: ${name} (branch=${branch})"
+          {
+            echo "name=${name}"
+            echo "project=${project}"
+            echo "wif=${wif}"
+            echo "sa=${sa}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Target VM=${name} project=${project} branch=${branch}"
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -88,15 +114,15 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: github-deploy@commercialbrainz.iam.gserviceaccount.com
+          workload_identity_provider: ${{ steps.vm.outputs.wif }}
+          service_account: ${{ steps.vm.outputs.sa }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
 
       - name: Deploy
         env:
-          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'commercialbrainz' }}
+          GCP_PROJECT_ID: ${{ steps.vm.outputs.project }}
           VM_NAME: ${{ steps.vm.outputs.name }}
           IMAGE_TAG: ${{ steps.target.outputs.sha }}
           APP_BRANCH: ${{ steps.target.outputs.branch }}
@@ -104,5 +130,5 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/deploy-gcloud-vm.sh
-          echo "Deploying APP_BRANCH=${APP_BRANCH} VM_NAME=${VM_NAME} IMAGE_TAG=${IMAGE_TAG}"
+          echo "Deploying APP_BRANCH=${APP_BRANCH} project=${GCP_PROJECT_ID} VM_NAME=${VM_NAME} IMAGE_TAG=${IMAGE_TAG}"
           ./scripts/deploy-gcloud-vm.sh

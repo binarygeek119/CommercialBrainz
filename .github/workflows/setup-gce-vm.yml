@@ -1,0 +1,203 @@
+# Create (or reset) a CommercialBrainz GCE VM via Workload Identity.
+#
+# Uses github-deploy SA via Workload Identity (same as Deploy).
+# Run from Actions → Setup GCE VM.
+#
+# Targets:
+#   cloudflare — project commercialbrainz-public, VM commercialbrainz-public
+#   google     — project commercialbrainz, VM commercialbrainz-vm (+ DuckDNS secrets)
+#
+# Optional secrets:
+#   VM_ADMIN_EMAIL / VM_ADMIN_USERNAME / VM_ADMIN_PASSWORD — seed admin on first boot
+#   ACME_EMAIL — Let's Encrypt contact (testing) / Caddy email
+#   DUCKDNS_DOMAIN / DUCKDNS_TOKEN — only for target=google
+#
+# Optional variables: see docs/public-gcp-project.md
+#   GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
+#   GCP_PROJECT_ID_CLOUDFLARE / GCP_WIF_PROVIDER_CLOUDFLARE / GCP_SA_EMAIL_CLOUDFLARE
+#   VM_NAME_CLOUDFLARE / VM_NAME_GOOGLE
+#
+name: Setup GCE VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which environment / VM to create"
+        required: true
+        default: cloudflare
+        type: choice
+        options:
+          - cloudflare
+          - google
+      reset_existing:
+        description: "If the VM already exists, reset it (re-run startup)"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: setup-gce-vm-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: Create ${{ inputs.target }} VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve target
+        id: target
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == "cloudflare" ]]; then
+            name="${{ vars.VM_NAME_CLOUDFLARE }}"
+            name="${name:-commercialbrainz-public}"
+            PROJECT_ID="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            PROJECT_ID="${PROJECT_ID:-commercialbrainz-public}"
+            wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
+            script=scripts/setup-cloudflare-vm.sh
+            if [[ -z "$wif" ]]; then
+              echo "ERROR: Set repo variable GCP_WIF_PROVIDER_CLOUDFLARE"
+              echo "  (run scripts/setup-public-gcp-project.sh — see docs/public-gcp-project.md)"
+              exit 1
+            fi
+          else
+            name="${{ vars.VM_NAME_GOOGLE }}"
+            if [[ -z "$name" ]]; then
+              name="${{ vars.VM_NAME }}"
+            fi
+            name="${name:-commercialbrainz-vm}"
+            PROJECT_ID="${{ vars.GCP_PROJECT_ID }}"
+            PROJECT_ID="${PROJECT_ID:-commercialbrainz}"
+            wif="${{ vars.GCP_WIF_PROVIDER }}"
+            wif="${wif:-projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github}"
+            sa="${{ vars.GCP_SA_EMAIL }}"
+            sa="${sa:-github-deploy@commercialbrainz.iam.gserviceaccount.com}"
+            script=scripts/setup-gcloud-vm.sh
+          fi
+          {
+            echo "project_id=${PROJECT_ID}"
+            echo "vm_name=${name}"
+            echo "script=${script}"
+            echo "wif=${wif}"
+            echo "sa=${sa}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Target=${TARGET} VM=${name} project=${PROJECT_ID}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ steps.target.outputs.wif }}
+          service_account: ${{ steps.target.outputs.sa }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Abort if VM exists and reset disabled
+        if: ${{ inputs.reset_existing == false }}
+        env:
+          GCP_PROJECT_ID: ${{ steps.target.outputs.project_id }}
+          VM_NAME: ${{ steps.target.outputs.vm_name }}
+        run: |
+          set -euo pipefail
+          gcloud config set project "$GCP_PROJECT_ID" >/dev/null
+          if gcloud compute instances list --filter="name=${VM_NAME}" --format='value(name)' | grep -qx "$VM_NAME"; then
+            echo "ERROR: VM ${VM_NAME} already exists. Re-run with reset_existing=true to update/reset it."
+            exit 1
+          fi
+
+      - name: Create / reset VM
+        env:
+          GCP_PROJECT_ID: ${{ steps.target.outputs.project_id }}
+          VM_NAME: ${{ steps.target.outputs.vm_name }}
+          CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
+          CI: "1"
+          TARGET: ${{ inputs.target }}
+          ADMIN_EMAIL: ${{ secrets.VM_ADMIN_EMAIL }}
+          ADMIN_USERNAME: ${{ secrets.VM_ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.VM_ADMIN_PASSWORD }}
+          ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+          DUCKDNS_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
+          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/setup-gcloud-vm.sh scripts/setup-cloudflare-vm.sh
+          if [[ "${TARGET}" == "cloudflare" ]]; then
+            # Public VM: force cloudflare branch + static IP; no DuckDNS.
+            unset DUCKDNS_DOMAIN DUCKDNS_TOKEN || true
+            export REPO_BRANCH=cloudflare
+            export CREATE_STATIC_IP=1
+            bash scripts/setup-cloudflare-vm.sh
+          else
+            export REPO_BRANCH=google
+            export CREATE_STATIC_IP="${CREATE_STATIC_IP:-0}"
+            if [[ -z "${DUCKDNS_DOMAIN:-}" || -z "${DUCKDNS_TOKEN:-}" ]]; then
+              echo "WARNING: DUCKDNS_DOMAIN / DUCKDNS_TOKEN secrets missing — testing VM will not auto-update DuckDNS."
+            fi
+            bash scripts/setup-gcloud-vm.sh
+          fi
+
+      - name: Grant github-deploy OS Login on the VM
+        id: vm_info
+        env:
+          GCP_PROJECT_ID: ${{ steps.target.outputs.project_id }}
+          VM_NAME: ${{ steps.target.outputs.vm_name }}
+          CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          gcloud config set project "$GCP_PROJECT_ID" >/dev/null
+          ZONE="$(gcloud compute instances list --filter="name=${VM_NAME}" --format='value(zone.basename())' --limit=1)"
+          if [[ -z "$ZONE" ]]; then
+            echo "ERROR: could not find zone for ${VM_NAME}"
+            exit 1
+          fi
+          IP="$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" \
+            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+          echo "VM ${VM_NAME} zone=${ZONE} ip=${IP}"
+          echo "ip=${IP}" >> "$GITHUB_OUTPUT"
+          echo "zone=${ZONE}" >> "$GITHUB_OUTPUT"
+          MEMBER="serviceAccount:github-deploy@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+          gcloud compute instances add-iam-policy-binding "$VM_NAME" \
+            --zone="$ZONE" \
+            --member="$MEMBER" \
+            --role="roles/compute.osAdminLogin" \
+            --quiet || true
+          gcloud compute instances add-iam-policy-binding "$VM_NAME" \
+            --zone="$ZONE" \
+            --member="$MEMBER" \
+            --role="roles/compute.osLogin" \
+            --quiet || true
+          gcloud compute instances remove-metadata "$VM_NAME" \
+            --zone="$ZONE" \
+            --keys=block-project-ssh-keys \
+            --quiet 2>/dev/null || true
+          # Actions uses metadata SSH as user "runner"; OS Login breaks that path.
+          gcloud compute instances add-metadata "$VM_NAME" \
+            --zone="$ZONE" \
+            --metadata=enable-oslogin=FALSE \
+            --quiet || true
+          echo ""
+          echo "==> Next steps"
+          if [[ "${TARGET}" == "cloudflare" ]]; then
+            echo "  1. Point Cloudflare A @ and www (Proxied) at ${IP}"
+            echo "  2. SSL Full (strict) + Origin CA cert"
+            echo "  3. From a laptop with gcloud: run scripts/setup-cloudflare-domain.sh"
+            echo "     (needs ORIGIN_CERT / ORIGIN_KEY files — see docs/cloudflare-domain.md)"
+            echo "  4. Deploy: Actions → Deploy → branch cloudflare"
+          else
+            echo "  1. Wait for startup (~10–20 min), then check https://commercialbrainz.duckdns.org/"
+            echo "  2. Deploy: Actions → Deploy → branch google"
+          fi
