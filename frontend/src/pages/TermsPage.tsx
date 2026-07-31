@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, type SubmissionTerms } from "../api";
 import { useAuth, canSubmit, isVoteOnly } from "../auth";
 import SubmissionTermsView from "../components/SubmissionTermsView";

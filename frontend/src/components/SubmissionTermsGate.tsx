@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router";
 import { api, type SubmissionTerms } from "../api";
 import { useAuth } from "../auth";
 import { needsSubmissionTermsAgreement } from "../utils/submissionTerms";

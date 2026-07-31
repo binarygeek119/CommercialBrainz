@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, type AdvertiserLogo, type AdvertiserLogoSubmit, type Edit } from "../api";
 import { LOGO_MONTHS } from "../utils/brandLogos";
 

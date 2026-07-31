@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import type { Edit } from "../api";
 import BrandLogoImage from "./BrandLogoImage";
 import { isCatalogLogoEdit, catalogKindFromEditType } from "../catalog/kinds";

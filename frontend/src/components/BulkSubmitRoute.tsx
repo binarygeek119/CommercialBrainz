@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "react-router";
 import { useAuth } from "../auth";
 
 /** Silent gate: non–power users never see bulk-submit UI. */

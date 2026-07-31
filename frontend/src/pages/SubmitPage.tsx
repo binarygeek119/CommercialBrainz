@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuth, canSubmit } from "../auth";
 import { api, type CommercialDetail, type SubmissionTerms, type YouTubeMetadataPreview } from "../api";
 import SubmissionTermsView from "../components/SubmissionTermsView";

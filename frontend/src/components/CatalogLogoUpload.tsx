@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, type CatalogLogoSubmit, type Edit } from "../api";
 import BrandLogoImage from "./BrandLogoImage";
 import { LOGO_MONTHS } from "../utils/brandLogos";

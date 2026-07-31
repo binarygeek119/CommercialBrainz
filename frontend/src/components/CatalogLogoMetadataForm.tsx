@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, type CatalogLogo, type CatalogLogoSubmit, type Edit } from "../api";
 import { LOGO_MONTHS } from "../utils/brandLogos";
 import type { CatalogKindConfig } from "../catalog/kinds";

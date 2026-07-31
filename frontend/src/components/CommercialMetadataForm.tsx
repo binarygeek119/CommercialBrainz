@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, type Edit } from "../api";
 import CatalogPicker, { type CatalogSelection } from "./CatalogPicker";
 import { CATALOG_KIND_LIST } from "../catalog/kinds";

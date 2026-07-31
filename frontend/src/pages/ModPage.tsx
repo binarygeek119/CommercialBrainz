@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Edit } from "../api";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";

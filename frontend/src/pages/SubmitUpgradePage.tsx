@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { api, type QuizQuestion, type SubmissionTerms } from "../api";
 import SubmissionTermsView from "../components/SubmissionTermsView";
 import { useAuth, canSubmit } from "../auth";
