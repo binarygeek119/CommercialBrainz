@@ -8,6 +8,7 @@ from app.api.v1 import (
     catalog,
     commercial_videos,
     dmca,
+    donate,
     dumps,
     edits,
     hashes,
@@ -28,6 +29,7 @@ api_router.include_router(catalog.router)
 api_router.include_router(commercial_videos.router)
 api_router.include_router(edits.router)
 api_router.include_router(dmca.router)
+api_router.include_router(donate.router)
 api_router.include_router(reports.router)
 api_router.include_router(admin.router)
 api_router.include_router(mod_panel.router)

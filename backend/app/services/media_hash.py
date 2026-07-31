@@ -255,6 +255,33 @@ def _clear_video_hash_error(video: Video) -> None:
         video.extra_data = extra
 
 
+def _is_cookie_auth_error(message: str) -> bool:
+    lowered = (message or "").lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "sign in to confirm",
+            "not a bot",
+            "login required",
+            "use --cookies",
+            "cookies",
+        )
+    )
+
+
+async def _rotate_donated_cookies_if_available() -> bool:
+    """Exhaust active donated cookies and promote the next backlog entry."""
+    from app.services.cookie_donations import rotate_exhausted_to_next
+
+    async with async_session_factory() as db:
+        nxt = await rotate_exhausted_to_next(db)
+        if not nxt:
+            return False
+        await db.commit()
+        logger.info("Rotated to donated cookies %s after auth failure", nxt.id)
+        return True
+
+
 async def run_fingerprint_job(fingerprint_id: UUID) -> None:
     temp_dir = Path(settings.hash_temp_dir) / str(fingerprint_id)
     async with async_session_factory() as db:
@@ -271,10 +298,14 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
         await db.commit()
 
     try:
-        video_path = download_youtube(
-            (await _get_youtube_id(fingerprint_id)),
-            temp_dir,
-        )
+        youtube_id = await _get_youtube_id(fingerprint_id)
+        try:
+            video_path = download_youtube(youtube_id, temp_dir)
+        except Exception as exc:
+            if _is_cookie_auth_error(str(exc)) and await _rotate_donated_cookies_if_available():
+                video_path = download_youtube(youtube_id, temp_dir)
+            else:
+                raise
         probe = probe_media_file(video_path)
         phash, file_hash, audio_fp, duration = compute_all_hashes(video_path, probe)
 

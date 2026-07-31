@@ -25,12 +25,14 @@ def _settings(
     managed: str = "",
     browser: str = "",
     extractor_args: str = "youtube:player_client=android,web,mweb",
+    cookie_seed: str = "test-cookie-seed-value-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 ):
     class S:
         ytdlp_cookies_file = cookies_file
         ytdlp_cookies_managed_path = managed
         ytdlp_cookies_from_browser = browser
         ytdlp_extractor_args = extractor_args
+        cookie_encryption_seed = cookie_seed
 
     return S()
 
@@ -136,20 +138,28 @@ def test_ytdlp_common_args_includes_extractor_and_js(tmp_path: Path):
 
 def test_save_and_clear_cookies(tmp_path: Path):
     managed = tmp_path / "cookies.txt"
-    with patch("app.services.ytdlp_cookies.get_settings", return_value=_settings(
-        managed=str(managed)
-    )):
+    settings = _settings(managed=str(managed))
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
+        patch("app.services.cookie_crypto.get_settings", return_value=settings),
+    ):
+        from app.services.cookie_crypto import _fernet_from_seed
+
+        _fernet_from_seed.cache_clear()
         status = save_cookies_text(
             "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tFALSE\t0\tSID\tvalue\n"
         )
         assert status["present"] is True
         assert managed.is_file()
         assert "SID" in managed.read_text(encoding="utf-8")
+        assert Path(str(managed) + ".enc").is_file()
         assert cookies_status()["size_bytes"] > 0
+        assert status["encrypted_at_rest"] is True
 
         cleared = clear_cookies()
         assert cleared["present"] is False
         assert not managed.exists()
+        assert not Path(str(managed) + ".enc").exists()
 
 
 def test_validate_cookies_rejects_garbage():

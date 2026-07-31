@@ -32,6 +32,7 @@ export default function Layout() {
               </NavLink>
             )}
             <NavLink to="/about">About</NavLink>
+            <NavLink to="/donate">Donate</NavLink>
             <NavLink to="/terms">Terms</NavLink>
             <NavLink to="/dmca">DMCA</NavLink>
             {isMod(user) && <NavLink to="/mod" className="nav-mod">Mod</NavLink>}

@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     ytdlp_cookies_file: str = ""
     # Host-only fallback, e.g. "chrome" or "chrome:Profile 1" — usually unavailable in Docker.
     ytdlp_cookies_from_browser: str = ""
+    # Passphrase you choose to encrypt donated + admin-managed YouTube cookies at rest.
+    # Required before saving cookies (min 64 chars). Changing it makes previously
+    # encrypted jars unreadable.
+    cookie_encryption_seed: str = ""
     hash_max_file_mb: int = 200
     # Max Hamming distance for perceptual-hash duplicate / lookup matches (64-bit pHash).
     phash_duplicate_threshold: int = 8

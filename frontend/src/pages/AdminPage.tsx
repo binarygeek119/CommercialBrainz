@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type RegistrationInvite, type YtdlpCookiesStatus } from "../api";
+import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type CookieDonationPublic, type RegistrationInvite, type YtdlpCookiesStatus } from "../api";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
 type Tab = "overview" | "users" | "fingerprints" | "fp-queue" | "registration" | "exports" | "ytdlp";
@@ -63,6 +63,12 @@ export default function AdminPage() {
   const { data: ytdlpCookies, refetch: refetchYtdlpCookies } = useQuery({
     queryKey: ["admin-ytdlp-cookies"],
     queryFn: () => api.adminYtdlpCookiesStatus(),
+    enabled: tab === "ytdlp",
+  });
+
+  const { data: cookieDonations, refetch: refetchCookieDonations } = useQuery({
+    queryKey: ["admin-cookie-donations"],
+    queryFn: () => api.adminCookieDonations({ limit: 30 }),
     enabled: tab === "ytdlp",
   });
 
@@ -202,6 +208,49 @@ export default function AdminPage() {
     try {
       await api.adminClearYtdlpCookies();
       await refetchYtdlpCookies();
+    } catch (err) {
+      setCookiesError((err as Error).message);
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleActivateNextDonation = async () => {
+    setCookiesError("");
+    setCookiesLoading(true);
+    try {
+      await api.adminActivateNextCookieDonation();
+      await Promise.all([refetchYtdlpCookies(), refetchCookieDonations()]);
+    } catch (err) {
+      setCookiesError((err as Error).message);
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleRotateDonation = async () => {
+    if (!confirm("Exhaust the active donated cookies and activate the next pending donation?")) {
+      return;
+    }
+    setCookiesError("");
+    setCookiesLoading(true);
+    try {
+      await api.adminRotateCookieDonation();
+      await Promise.all([refetchYtdlpCookies(), refetchCookieDonations()]);
+    } catch (err) {
+      setCookiesError((err as Error).message);
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleRejectDonation = async (row: CookieDonationPublic) => {
+    if (!confirm(`Reject cookie donation ${row.id}?`)) return;
+    setCookiesError("");
+    setCookiesLoading(true);
+    try {
+      await api.adminRejectCookieDonation(row.id);
+      await refetchCookieDonations();
     } catch (err) {
       setCookiesError((err as Error).message);
     } finally {
@@ -568,6 +617,62 @@ export default function AdminPage() {
             onSave={handleSaveYtdlpCookies}
             onClear={handleClearYtdlpCookies}
           />
+
+          <div style={{ marginTop: "1.5rem", paddingTop: "1.25rem", borderTop: "1px solid var(--border)" }}>
+            <h3 style={{ marginTop: 0 }}>Community cookie backlog</h3>
+            <p className="muted" style={{ fontSize: "0.9rem" }}>
+              Donations from <Link to="/donate">/donate</Link>. When the active jar fails, hashing
+              will try rotating to the next pending donation automatically.
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={cookiesLoading}
+                onClick={() => void handleActivateNextDonation()}
+              >
+                Activate next pending
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={cookiesLoading}
+                onClick={() => void handleRotateDonation()}
+              >
+                Rotate active → next
+              </button>
+            </div>
+            {cookieDonations && cookieDonations.items.length === 0 && (
+              <p className="muted">No donations yet.</p>
+            )}
+            {cookieDonations && cookieDonations.items.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.9rem" }}>
+                {cookieDonations.items.map((row) => (
+                  <li key={row.id} style={{ marginBottom: "0.4rem" }}>
+                    <span className={`badge badge-${row.status === "active" ? "applied" : row.status === "rejected" ? "rejected" : "open"}`}>
+                      {row.status}
+                    </span>{" "}
+                    {row.size_bytes} bytes · {new Date(row.created_at).toLocaleString()}
+                    {row.donor_note ? ` · ${row.donor_note}` : ""}
+                    {row.status === "pending" && (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: "0.15rem 0.45rem", fontSize: "0.8rem" }}
+                          disabled={cookiesLoading}
+                          onClick={() => void handleRejectDonation(row)}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
@@ -626,6 +731,27 @@ function YtdlpCookiesPanel({
       {status?.path && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>
           Path: <code>{status.path}</code>
+          {status.encrypted_path && (
+            <>
+              {" "}
+              · encrypted: <code>{status.encrypted_path}</code>
+            </>
+          )}
+        </p>
+      )}
+      <p className="muted" style={{ fontSize: "0.9rem" }}>
+        At-rest encryption:{" "}
+        <span
+          className={`badge badge-${status?.encryption_configured ? "applied" : "rejected"}`}
+        >
+          {status?.encryption_configured ? "COOKIE_ENCRYPTION_SEED set" : "seed missing"}
+        </span>
+        {status?.encrypted_at_rest && <> · jar encrypted on disk</>}
+      </p>
+      {!status?.encryption_configured && (
+        <p className="error" style={{ fontSize: "0.9rem" }}>
+          Set <code>COOKIE_ENCRYPTION_SEED</code> (64+ character passphrase you choose) in the
+          server environment before saving cookies. Donated cookies also require this seed.
         </p>
       )}
       {status?.present && (

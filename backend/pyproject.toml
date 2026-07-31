@@ -25,6 +25,7 @@ dependencies = [
     "imagehash>=4.3.0",
     "yt-dlp>=2026.6.9",
     "yt-dlp-ejs>=0.8.0",
+    "cryptography>=42.0.0",
 ]
 
 [project.optional-dependencies]

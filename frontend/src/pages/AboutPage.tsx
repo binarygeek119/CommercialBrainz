@@ -77,6 +77,10 @@ export default function AboutPage() {
             </a>
             . See <a href="/docs" target="_blank" rel="noreferrer">API docs</a>.
           </p>
+          <p style={{ margin: 0 }}>
+            Support the project on the <Link to="/donate">Donate</Link> page — domain, cloud VM,
+            spare YouTube cookies, or your time.
+          </p>
         </div>
       </section>
 

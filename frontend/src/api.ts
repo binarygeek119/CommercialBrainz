@@ -440,12 +440,40 @@ export interface ArchiveExportStatus {
 export interface YtdlpCookiesStatus {
   present: boolean;
   path: string;
+  encrypted_path?: string | null;
+  encrypted_at_rest?: boolean;
+  encryption_configured?: boolean;
   size_bytes: number;
   updated_at?: string | null;
   active: boolean;
   active_path?: string | null;
   env_override: boolean;
   browser_fallback: boolean;
+}
+
+export interface CookieDonationPublic {
+  id: string;
+  status: string;
+  size_bytes: number;
+  agreement_accepted: boolean;
+  donor_note?: string | null;
+  activated_at?: string | null;
+  exhausted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CookieDonationSubmitResult {
+  id: string;
+  status: string;
+  message: string;
+}
+
+export interface CookieBacklogStats {
+  pending: number;
+  active: number;
+  exhausted: number;
+  rejected: number;
 }
 
 export interface Edit {
@@ -1298,6 +1326,41 @@ export const api = {
 
   adminClearYtdlpCookies: () =>
     request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", { method: "DELETE" }),
+
+  donateCookieBacklogStats: () => request<CookieBacklogStats>("/donate/cookie-backlog/stats"),
+
+  donateYouTubeCookies: (data: {
+    cookies: string;
+    agreement_accepted: boolean;
+    donor_note?: string;
+  }) =>
+    request<CookieDonationSubmitResult>("/donate/cookies", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  adminCookieDonations: (params?: { status?: string; offset?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return request<Paginated<CookieDonationPublic>>(
+      `/donate/admin/cookies${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  adminActivateNextCookieDonation: () =>
+    request<CookieDonationPublic>("/donate/admin/cookies/activate-next", { method: "POST" }),
+
+  adminRotateCookieDonation: () =>
+    request<CookieDonationPublic>("/donate/admin/cookies/rotate", { method: "POST" }),
+
+  adminRejectCookieDonation: (id: string, notes?: string) =>
+    request<CookieDonationPublic>(`/donate/admin/cookies/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    }),
 
   modStats: () => request<ModStats>("/mod/stats"),
 
