@@ -2,31 +2,45 @@
 # Requires DOMAIN and ACME_EMAIL in environment (.env)
 # https://caddyserver.com/docs/automatic-https
 #
-# Direct routing to api/web. The maintenance service remains in compose for
-# deploy-flag / scheduled gating once the edge proxy is re-enabled.
+# App traffic is reverse_proxied by Caddy. Maintenance is checked via
+# forward_auth against the maintenance container (deploy flag + site-status).
+# Non-2xx auth responses (503 HTML) are returned to the client as-is.
 
 {
 	email {$ACME_EMAIL}
 }
 
 (commercialbrainz_proxy) {
-	handle /api/* {
-		reverse_proxy http://api:8000
-	}
-	handle /docs* {
-		reverse_proxy http://api:8000
-	}
-	handle /redoc* {
-		reverse_proxy http://api:8000
-	}
-	handle /openapi.json {
-		reverse_proxy http://api:8000
-	}
+	# Always reach API for deploy probes and gate self-poll (via browser).
 	handle /health {
 		reverse_proxy http://api:8000
 	}
+	handle /api/v1/site-status {
+		reverse_proxy http://api:8000
+	}
+	handle /_maintenance/* {
+		reverse_proxy http://maintenance:8080
+	}
+
 	handle {
-		reverse_proxy http://web:80
+		forward_auth http://maintenance:8080 {
+			uri /_maintenance/auth
+		}
+		handle /api/* {
+			reverse_proxy http://api:8000
+		}
+		handle /docs* {
+			reverse_proxy http://api:8000
+		}
+		handle /redoc* {
+			reverse_proxy http://api:8000
+		}
+		handle /openapi.json {
+			reverse_proxy http://api:8000
+		}
+		handle {
+			reverse_proxy http://web:80
+		}
 	}
 }
 

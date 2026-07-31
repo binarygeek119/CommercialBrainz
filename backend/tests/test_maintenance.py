@@ -121,6 +121,13 @@ def test_gate_deploy_flag(tmp_path: Path):
     assert decision.reason == "deploy"
 
 
+def test_forward_auth_paths():
+    from gate import LOCAL_ALIVE_PATH, LOCAL_AUTH_PATH
+
+    assert LOCAL_AUTH_PATH == "/_maintenance/auth"
+    assert LOCAL_ALIVE_PATH == "/_maintenance/alive"
+
+
 def test_gate_scheduled_from_status():
     decision = decide_gate(
         flag_active=False,

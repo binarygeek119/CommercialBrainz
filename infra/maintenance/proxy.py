@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Maintenance edge proxy: gate on deploy flag / site-status, else reverse-proxy."""
+"""Maintenance gate for Caddy forward_auth (no reverse-proxy of app traffic).
+
+Caddy asks GET /_maintenance/auth before proxying to api/web. When gated we
+return 503 + HTML; when open we return 200. That keeps reverse_proxy in Caddy
+and avoids the HTTP/1.1 buffering 502s from the previous Python middlebox.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +15,6 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from http.client import HTTPConnection, HTTPSConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -18,29 +22,10 @@ from urllib.parse import urlsplit
 
 from gate import (
     LOCAL_ALIVE_PATH,
+    LOCAL_AUTH_PATH,
     decide_gate,
     deploy_flag_active,
     render_maintenance_html,
-    should_always_pass,
-)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [maintenance] %(message)s",
-)
-logger = logging.getLogger("maintenance")
-
-LISTEN_HOST = os.environ.get("LISTEN_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))
-FLAGS_DIR = os.environ.get("FLAGS_DIR", "/var/maintenance/flags")
-STATUS_URL = os.environ.get(
-    "STATUS_URL", "http://api:8000/api/v1/site-status"
-)
-API_UPSTREAM = os.environ.get("API_UPSTREAM", "http://api:8000").rstrip("/")
-WEB_UPSTREAM = os.environ.get("WEB_UPSTREAM", "http://web:80").rstrip("/")
-POLL_INTERVAL_SEC = float(os.environ.get("POLL_INTERVAL_SEC", "15"))
-TEMPLATE_PATH = Path(
-    os.environ.get("TEMPLATE_PATH", "/app/index.html")
 )
 
 _state_lock = threading.Lock()
@@ -122,110 +107,50 @@ def _current_gate(*, force_refresh: bool = False):
     )
 
 
-def _pick_upstream(path: str) -> str:
-    if (
-        path.startswith("/api/")
-        or path.startswith("/docs")
-        or path.startswith("/redoc")
-        or path == "/openapi.json"
-        or path.startswith("/openapi.json?")
-        or path == "/health"
-        or path.startswith("/health?")
-    ):
-        return API_UPSTREAM
-    return WEB_UPSTREAM
-
-
-_HOP_BY_HOP = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "proxy-connection",
-    "te",
-    "trailers",
-    "transfer-encoding",
-    "upgrade",
-}
-
-
-def _proxy(handler: BaseHTTPRequestHandler) -> None:
-    parsed_req = urlsplit(handler.path)
-    path = parsed_req.path or "/"
-    upstream_base = _pick_upstream(path)
-    upstream = urlsplit(upstream_base)
-    target_path = handler.path
-    headers = {
-        k: v
-        for k, v in handler.headers.items()
-        if k.lower() not in _HOP_BY_HOP and k.lower() != "host"
-    }
-    # Prefer hostname without default port — some upstreams reject Host: web:80.
-    if upstream.hostname:
-        default_port = 443 if upstream.scheme == "https" else 80
-        port = upstream.port or default_port
-        headers["Host"] = (
-            upstream.hostname
-            if port == default_port
-            else f"{upstream.hostname}:{port}"
-        )
-    body = b""
-    length = int(handler.headers.get("Content-Length") or 0)
-    if length > 0:
-        body = handler.rfile.read(length)
-    if body:
-        headers["Content-Length"] = str(len(body))
-    else:
-        headers.pop("Content-Length", None)
-
-    conn: HTTPConnection | HTTPSConnection
-    if upstream.scheme == "https":
-        conn = HTTPSConnection(upstream.hostname, upstream.port or 443, timeout=120)
-    else:
-        conn = HTTPConnection(upstream.hostname, upstream.port or 80, timeout=120)
-    try:
-        conn.request(handler.command, target_path, body=body or None, headers=headers)
-        resp = conn.getresponse()
-        resp_body = resp.read()
-        handler.send_response(resp.status)
-        for key, value in resp.getheaders():
-            if key.lower() in _HOP_BY_HOP or key.lower() == "content-length":
-                continue
-            handler.send_header(key, value)
-        # Always set Content-Length after buffering. Upstream may have used
-        # Transfer-Encoding: chunked; without a length, HTTP/1.1 keep-alive
-        # responses confuse Caddy into returning 502.
-        handler.send_header("Content-Length", str(len(resp_body)))
-        handler.send_header("Connection", "close")
-        handler.end_headers()
-        if handler.command != "HEAD":
-            handler.wfile.write(resp_body)
-    except Exception as exc:
-        logger.warning("upstream proxy error: %s", exc)
-        try:
-            decision = decide_gate(
-                flag_active=True,
-                status=None,
-                status_fetch_ok=False,
-            )
-            _serve_maintenance(handler, decision)
-        except Exception as inner:
-            logger.exception("failed to serve maintenance fallback: %s", inner)
-    finally:
-        conn.close()
-
-
-def _serve_maintenance(handler: BaseHTTPRequestHandler, decision) -> None:
-    html = render_maintenance_html(TEMPLATE, decision).encode("utf-8")
-    handler.send_response(503)
-    handler.send_header("Content-Type", "text/html; charset=utf-8")
-    handler.send_header("Content-Length", str(len(html)))
+def _send(
+    handler: BaseHTTPRequestHandler,
+    *,
+    status: int,
+    body: bytes,
+    content_type: str,
+    extra_headers: dict[str, str] | None = None,
+) -> None:
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
     handler.send_header("Cache-Control", "no-store")
-    handler.send_header("Retry-After", "30")
     handler.send_header("Connection", "close")
+    if extra_headers:
+        for key, value in extra_headers.items():
+            handler.send_header(key, value)
     handler.end_headers()
     if handler.command != "HEAD":
-        handler.wfile.write(html)
+        handler.wfile.write(body)
+
+
+def _serve_auth(handler: BaseHTTPRequestHandler) -> None:
+    """Caddy forward_auth: 2xx = allow; otherwise Caddy returns this response."""
+    decision = _current_gate()
+    if not decision.gated:
+        _send(
+            handler,
+            status=200,
+            body=b'{"gated":false}\n',
+            content_type="application/json",
+            extra_headers={"X-Maintenance-Gate": "open"},
+        )
+        return
+    html = render_maintenance_html(TEMPLATE, decision).encode("utf-8")
+    _send(
+        handler,
+        status=503,
+        body=html,
+        content_type="text/html; charset=utf-8",
+        extra_headers={
+            "Retry-After": "30",
+            "X-Maintenance-Gate": decision.reason or "gated",
+        },
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -238,23 +163,26 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlsplit(self.path)
         path = parsed.path or "/"
         if path == LOCAL_ALIVE_PATH:
-            body = b'{"status":"ok"}\n'
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(body)
+            _send(
+                self,
+                status=200,
+                body=b'{"status":"ok"}\n',
+                content_type="application/json",
+            )
             return
-        if should_always_pass(path, self.command):
-            _proxy(self)
+        if path == LOCAL_AUTH_PATH:
+            _serve_auth(self)
             return
-        decision = _current_gate()
-        if decision.gated:
-            _serve_maintenance(self, decision)
+        # Direct hits (debugging): same as auth.
+        if path in {"/", "/index.html"}:
+            _serve_auth(self)
             return
-        _proxy(self)
+        _send(
+            self,
+            status=404,
+            body=b'{"error":"not_found"}\n',
+            content_type="application/json",
+        )
 
     def do_GET(self) -> None:
         self._handle()
@@ -263,18 +191,7 @@ class Handler(BaseHTTPRequestHandler):
         self._handle()
 
     def do_POST(self) -> None:
-        self._handle()
-
-    def do_PUT(self) -> None:
-        self._handle()
-
-    def do_PATCH(self) -> None:
-        self._handle()
-
-    def do_DELETE(self) -> None:
-        self._handle()
-
-    def do_OPTIONS(self) -> None:
+        # forward_auth uses GET by default; accept POST for probes.
         self._handle()
 
 
@@ -284,11 +201,9 @@ def main() -> None:
     poller.start()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     logger.info(
-        "listening on %s:%s api=%s web=%s status=%s flags=%s",
+        "listening on %s:%s (forward_auth gate) status=%s flags=%s",
         LISTEN_HOST,
         LISTEN_PORT,
-        API_UPSTREAM,
-        WEB_UPSTREAM,
         STATUS_URL,
         FLAGS_DIR,
     )

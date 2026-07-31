@@ -13,23 +13,35 @@ cat > "$OUT" <<EOF
 }
 
 (commercialbrainz_proxy) {
-	handle /api/* {
-		reverse_proxy http://api:8000
-	}
-	handle /docs* {
-		reverse_proxy http://api:8000
-	}
-	handle /redoc* {
-		reverse_proxy http://api:8000
-	}
-	handle /openapi.json {
-		reverse_proxy http://api:8000
-	}
 	handle /health {
 		reverse_proxy http://api:8000
 	}
+	handle /api/v1/site-status {
+		reverse_proxy http://api:8000
+	}
+	handle /_maintenance/* {
+		reverse_proxy http://maintenance:8080
+	}
+
 	handle {
-		reverse_proxy http://web:80
+		forward_auth http://maintenance:8080 {
+			uri /_maintenance/auth
+		}
+		handle /api/* {
+			reverse_proxy http://api:8000
+		}
+		handle /docs* {
+			reverse_proxy http://api:8000
+		}
+		handle /redoc* {
+			reverse_proxy http://api:8000
+		}
+		handle /openapi.json {
+			reverse_proxy http://api:8000
+		}
+		handle {
+			reverse_proxy http://web:80
+		}
 	}
 }
 EOF
