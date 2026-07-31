@@ -172,7 +172,11 @@ async def test_sync_requires_token(monkeypatch):
         "get_settings",
         lambda: SimpleNamespace(buymeacoffee_access_token=""),
     )
-    monkeypatch.setattr(funds, "ensure_settings", AsyncMock(return_value=funds.default_settings_value()))
+    monkeypatch.setattr(
+        funds,
+        "ensure_settings",
+        AsyncMock(return_value=funds.default_settings_value()),
+    )
     with pytest.raises(ValueError, match="BUYMEACOFFEE_ACCESS_TOKEN"):
         await funds.sync_supporters(AsyncMock(), force=True)
 

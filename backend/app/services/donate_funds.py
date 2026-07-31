@@ -171,7 +171,11 @@ async def sum_spent(db: AsyncSession, fund: DonationFund) -> Decimal:
     return Decimal(str(result.scalar_one()))
 
 
-async def fund_snapshot(db: AsyncSession, fund: DonationFund, settings: dict[str, Any]) -> dict[str, Any]:
+async def fund_snapshot(
+    db: AsyncSession,
+    fund: DonationFund,
+    settings: dict[str, Any],
+) -> dict[str, Any]:
     key = fund.value
     bucket = settings.get(key) if isinstance(settings.get(key), dict) else {}
     goal = money(bucket.get("goal") if isinstance(bucket, dict) else 0)
