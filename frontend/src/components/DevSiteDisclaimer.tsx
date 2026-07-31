@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../api";
 
 const STORAGE_KEY = "commercialbrainz_dev_disclaimer_ack";
 
@@ -10,10 +11,40 @@ function hasAcknowledged(): boolean {
   }
 }
 
-export default function DevSiteDisclaimer() {
-  const [visible, setVisible] = useState(() => !hasAcknowledged());
+/** Hostname fallback when /site-status is slow or unavailable. */
+function hostnameLooksPublic(): boolean {
+  const host = window.location.hostname.toLowerCase();
+  return host === "commercialbrainz.org" || host === "www.commercialbrainz.org";
+}
 
-  if (!visible) return null;
+export default function DevSiteDisclaimer() {
+  const [visible, setVisible] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const apply = (isPublic: boolean) => {
+      if (cancelled) return;
+      if (isPublic || hasAcknowledged()) {
+        setVisible(false);
+      } else {
+        setVisible(true);
+      }
+      setReady(true);
+    };
+
+    api
+      .siteStatus()
+      .then((status) => apply(Boolean(status.public_site)))
+      .catch(() => apply(hostnameLooksPublic()));
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!ready || !visible) return null;
 
   const acknowledge = () => {
     try {

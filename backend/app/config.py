@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     app_name: str = "CommercialBrainz"
     app_env: str = "development"
+    # When true (public production), the SPA hides the "Test site only" disclaimer.
+    # Testing / DuckDNS / local default to false.
+    public_site: bool = False
     database_url: str = "postgresql+asyncpg://commercialbrainz:commercialbrainz@localhost:5432/commercialbrainz"
     database_url_sync: str = "postgresql://commercialbrainz:commercialbrainz@localhost:5432/commercialbrainz"
     redis_url: str = "redis://localhost:6379/0"

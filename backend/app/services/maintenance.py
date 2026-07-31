@@ -271,6 +271,8 @@ def build_maintenance_state(
 
 
 async def build_site_status(db: AsyncSession, *, now: datetime | None = None) -> dict[str, Any]:
+    from app.config import get_settings
+
     now = now or datetime.now(UTC)
     announcement = await get_announcement(db)
     manual = await get_manual_maintenance(db)
@@ -292,6 +294,7 @@ async def build_site_status(db: AsyncSession, *, now: datetime | None = None) ->
     return {
         "maintenance": maintenance,
         "announcement": public_announcement,
+        "public_site": bool(get_settings().public_site),
     }
 
 
