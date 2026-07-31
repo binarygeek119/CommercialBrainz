@@ -10,10 +10,11 @@
 # (still cheap on e2-micro). Prefer CREATE_STATIC_IP=1 so Cloudflare A records
 # do not break when the ephemeral IP changes.
 #
-# Prerequisites: gcloud authenticated; billing enabled.
+# Prerequisites: gcloud authenticated; billing enabled on the public project.
+# Prefer GCP project commercialbrainz-public (see scripts/setup-public-gcp-project.sh).
 #
 # Usage:
-#   GCP_PROJECT_ID=your-project \
+#   GCP_PROJECT_ID=commercialbrainz-public \
 #   ADMIN_EMAIL=you@example.com \
 #   ADMIN_USERNAME=admin \
 #   ADMIN_PASSWORD='…' \

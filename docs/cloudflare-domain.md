@@ -3,10 +3,11 @@
 Serve **https://commercialbrainz.org** with:
 
 - Cloudflare **Free** (edge HTTPS, CDN, DDoS)
-- Dedicated GCE VM **`commercialbrainz-public`** as origin
+- Dedicated GCE VM **`commercialbrainz-public`** as origin (GCP project **`commercialbrainz-public`**)
 - **Cloudflare Origin CA** cert on Caddy (also free)
 
-Testing stays on **`commercialbrainz-vm`** + DuckDNS. See [branches.md](branches.md).
+Testing stays on project **`commercialbrainz`** / VM **`commercialbrainz-vm`** + DuckDNS.  
+New public project: [public-gcp-project.md](public-gcp-project.md). See [branches.md](branches.md).
 
 ## Cost
 
@@ -30,6 +31,16 @@ DNS: **Proxied** (orange cloud) — Cloudflare terminates visitor SSL.
 
 ## Steps
 
+### 0. Public GCP project (once)
+
+Create project **`commercialbrainz-public`**, WIF, and deploy SA:
+
+```bash
+./scripts/setup-public-gcp-project.sh
+```
+
+Then set GitHub variables `GCP_*_CLOUDFLARE` from the script output ([public-gcp-project.md](public-gcp-project.md)).
+
 ### 1. Create the public VM (once)
 
 **Option A — GitHub Actions (no local gcloud):**
@@ -39,10 +50,10 @@ DNS: **Proxied** (orange cloud) — Cloudflare terminates visitor SSL.
 3. Optional secrets (Settings → Secrets): `VM_ADMIN_EMAIL`, `VM_ADMIN_USERNAME`, `VM_ADMIN_PASSWORD`, `ACME_EMAIL`
 4. When the job finishes, copy the printed **External IP** from the log
 
-**Option B — laptop** (`gcloud` authenticated, billing on):
+**Option B — laptop** (`gcloud` authenticated, billing on public project):
 
 ```bash
-GCP_PROJECT_ID=commercialbrainz \
+GCP_PROJECT_ID=commercialbrainz-public \
 ACME_EMAIL=you@example.com \
 ADMIN_EMAIL=you@example.com \
 ADMIN_USERNAME=admin \
@@ -67,10 +78,11 @@ gcloud compute ssh commercialbrainz-public --zone=ZONE \
 The Actions workflow already grants `github-deploy` OS Login on the new instance. From a laptop, do it once:
 
 ```bash
-PROJECT_ID=commercialbrainz
+PROJECT_ID=commercialbrainz-public
 ZONE=us-central1-a   # whatever zone the VM landed in
 
 gcloud compute instances add-iam-policy-binding commercialbrainz-public \
+  --project="$PROJECT_ID" \
   --zone="$ZONE" \
   --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/compute.osAdminLogin"

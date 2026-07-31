@@ -1,18 +1,20 @@
 # Create (or reset) a CommercialBrainz GCE VM via Workload Identity.
 #
-# Uses the same github-deploy SA as Deploy. Run from Actions → Setup GCE VM.
+# Uses github-deploy SA via Workload Identity (same as Deploy).
+# Run from Actions → Setup GCE VM.
 #
 # Targets:
-#   cloudflare — commercialbrainz-public (public, static IP, no DuckDNS)
-#   google     — commercialbrainz-vm  (testing; needs DuckDNS secrets)
+#   cloudflare — project commercialbrainz-public, VM commercialbrainz-public
+#   google     — project commercialbrainz, VM commercialbrainz-vm (+ DuckDNS secrets)
 #
 # Optional secrets:
 #   VM_ADMIN_EMAIL / VM_ADMIN_USERNAME / VM_ADMIN_PASSWORD — seed admin on first boot
 #   ACME_EMAIL — Let's Encrypt contact (testing) / Caddy email
 #   DUCKDNS_DOMAIN / DUCKDNS_TOKEN — only for target=google
 #
-# Optional variables:
-#   GCP_PROJECT_ID (default commercialbrainz)
+# Optional variables: see docs/public-gcp-project.md
+#   GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
+#   GCP_PROJECT_ID_CLOUDFLARE / GCP_WIF_PROVIDER_CLOUDFLARE / GCP_SA_EMAIL_CLOUDFLARE
 #   VM_NAME_CLOUDFLARE / VM_NAME_GOOGLE
 #
 name: Setup GCE VM
@@ -51,39 +53,57 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: github-deploy@commercialbrainz.iam.gserviceaccount.com
-
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v3
-
       - name: Resolve target
         id: target
         env:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
-          PROJECT_ID="${{ vars.GCP_PROJECT_ID }}"
-          PROJECT_ID="${PROJECT_ID:-commercialbrainz}"
           if [[ "$TARGET" == "cloudflare" ]]; then
             name="${{ vars.VM_NAME_CLOUDFLARE }}"
             name="${name:-commercialbrainz-public}"
+            PROJECT_ID="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            PROJECT_ID="${PROJECT_ID:-commercialbrainz-public}"
+            wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
             script=scripts/setup-cloudflare-vm.sh
+            if [[ -z "$wif" ]]; then
+              echo "ERROR: Set repo variable GCP_WIF_PROVIDER_CLOUDFLARE"
+              echo "  (run scripts/setup-public-gcp-project.sh — see docs/public-gcp-project.md)"
+              exit 1
+            fi
           else
             name="${{ vars.VM_NAME_GOOGLE }}"
             if [[ -z "$name" ]]; then
               name="${{ vars.VM_NAME }}"
             fi
             name="${name:-commercialbrainz-vm}"
+            PROJECT_ID="${{ vars.GCP_PROJECT_ID }}"
+            PROJECT_ID="${PROJECT_ID:-commercialbrainz}"
+            wif="${{ vars.GCP_WIF_PROVIDER }}"
+            wif="${wif:-projects/820871329461/locations/global/workloadIdentityPools/github-actions/providers/github}"
+            sa="${{ vars.GCP_SA_EMAIL }}"
+            sa="${sa:-github-deploy@commercialbrainz.iam.gserviceaccount.com}"
             script=scripts/setup-gcloud-vm.sh
           fi
-          echo "project_id=${PROJECT_ID}" >> "$GITHUB_OUTPUT"
-          echo "vm_name=${name}" >> "$GITHUB_OUTPUT"
-          echo "script=${script}" >> "$GITHUB_OUTPUT"
+          {
+            echo "project_id=${PROJECT_ID}"
+            echo "vm_name=${name}"
+            echo "script=${script}"
+            echo "wif=${wif}"
+            echo "sa=${sa}"
+          } >> "$GITHUB_OUTPUT"
           echo "Target=${TARGET} VM=${name} project=${PROJECT_ID}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ steps.target.outputs.wif }}
+          service_account: ${{ steps.target.outputs.sa }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Abort if VM exists and reset disabled
         if: ${{ inputs.reset_existing == false }}
