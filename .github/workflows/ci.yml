@@ -184,20 +184,18 @@ jobs:
             EXTRA="pr-${{ github.event.number }}"
             write_tags() {
               local name="$1"
-              cat <<EOF
-          ghcr.io/binarygeek119/${name}:${SHA}
-          ghcr.io/binarygeek119/${name}:${EXTRA}
-          EOF
+              printf '%s\n' \
+                "ghcr.io/binarygeek119/${name}:${SHA}" \
+                "ghcr.io/binarygeek119/${name}:${EXTRA}"
             }
           else
             EXTRA="${GITHUB_REF_NAME//\//-}"
             write_tags() {
               local name="$1"
-              cat <<EOF
-          ghcr.io/binarygeek119/${name}:${SHA}
-          ghcr.io/binarygeek119/${name}:${EXTRA}
-          ghcr.io/binarygeek119/${name}:latest
-          EOF
+              printf '%s\n' \
+                "ghcr.io/binarygeek119/${name}:${SHA}" \
+                "ghcr.io/binarygeek119/${name}:${EXTRA}" \
+                "ghcr.io/binarygeek119/${name}:latest"
             }
           fi
           {
@@ -212,6 +210,7 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
           echo "Resolved tags (extra=${EXTRA})"
+          write_tags commercialbrainz-api
 
       - name: Build and push API image
         uses: docker/build-push-action@v7
