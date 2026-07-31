@@ -195,6 +195,22 @@ export default function AdminPage() {
     }
   };
 
+  const handleValidateYtdlpCookies = async () => {
+    setCookiesError("");
+    setCookiesLoading(true);
+    try {
+      const status = await api.adminValidateYtdlpCookies();
+      queryClient.setQueryData(["admin-ytdlp-cookies"], status);
+      if (status.last_validation_ok === false) {
+        setCookiesError(status.last_validation_error || "Cookie validation failed");
+      }
+    } catch (err) {
+      setCookiesError((err as Error).message);
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
   const handleClearYtdlpCookies = async () => {
     if (
       !confirm(
@@ -597,7 +613,8 @@ export default function AdminPage() {
           <p className="muted">
             YouTube may block anonymous yt-dlp with a bot check. Paste a Netscape{" "}
             <code>cookies.txt</code> exported from a logged-in browser. Contents are stored on
-            the server and never shown again after save.{" "}
+            the server and never shown again after save. Automatic Google login is not supported —
+            use Check validity when downloads start failing, then re-export and save.{" "}
             <a
               href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
               target="_blank"
@@ -615,6 +632,7 @@ export default function AdminPage() {
             onCookiesTextChange={setCookiesText}
             onFile={handleCookiesFile}
             onSave={handleSaveYtdlpCookies}
+            onValidate={handleValidateYtdlpCookies}
             onClear={handleClearYtdlpCookies}
           />
 
@@ -696,6 +714,17 @@ export default function AdminPage() {
   );
 }
 
+function formatExpiresIn(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  if (seconds <= 0) return "expired";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h`;
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
 function YtdlpCookiesPanel({
   status,
   cookiesText,
@@ -704,6 +733,7 @@ function YtdlpCookiesPanel({
   onCookiesTextChange,
   onFile,
   onSave,
+  onValidate,
   onClear,
 }: {
   status?: YtdlpCookiesStatus;
@@ -713,8 +743,10 @@ function YtdlpCookiesPanel({
   onCookiesTextChange: (value: string) => void;
   onFile: (file: File | null) => void;
   onSave: () => void;
+  onValidate: () => void;
   onClear: () => void;
 }) {
+  const expiresIn = formatExpiresIn(status?.expires_in_seconds);
   return (
     <div>
       <p>
@@ -758,6 +790,42 @@ function YtdlpCookiesPanel({
         <p className="muted" style={{ fontSize: "0.9rem" }}>
           {status.size_bytes} bytes
           {status.updated_at && <> · updated {new Date(status.updated_at).toLocaleString()}</>}
+          {typeof status.auth_cookie_count === "number" && (
+            <> · {status.auth_cookie_count} auth cookie{status.auth_cookie_count === 1 ? "" : "s"}</>
+          )}
+        </p>
+      )}
+      {status?.expiry_known && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Auth cookie expiry:{" "}
+          <span className={`badge badge-${status.expired ? "rejected" : "applied"}`}>
+            {status.expired ? "expired" : "ok"}
+          </span>
+          {status.expires_at && (
+            <>
+              {" "}
+              · {new Date(status.expires_at).toLocaleString()}
+              {expiresIn ? ` (${expiresIn})` : ""}
+            </>
+          )}
+        </p>
+      )}
+      {status?.last_validated_at && (
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Last live check:{" "}
+          <span
+            className={`badge badge-${status.last_validation_ok ? "applied" : "rejected"}`}
+          >
+            {status.last_validation_ok ? "passed" : "failed"}
+          </span>{" "}
+          · {new Date(status.last_validated_at).toLocaleString()}
+        </p>
+      )}
+      {status?.needs_refresh && (
+        <p className="error" style={{ fontSize: "0.9rem" }}>
+          Refresh recommended
+          {status.refresh_reason ? `: ${status.refresh_reason}` : "."} Export a fresh{" "}
+          <code>cookies.txt</code> from a logged-in browser and save it below.
         </p>
       )}
       {status?.env_override && (
@@ -806,7 +874,15 @@ function YtdlpCookiesPanel({
           disabled={loading || !cookiesText.trim()}
           onClick={onSave}
         >
-          {loading ? "Saving…" : "Save cookies"}
+          {loading ? "Working…" : "Save cookies"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={loading || (!status?.active && !status?.browser_fallback)}
+          onClick={onValidate}
+        >
+          Check validity
         </button>
         <button
           type="button"

@@ -1,5 +1,6 @@
 """Tests for yt-dlp cookie auth helpers and managed cookies storage."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -167,8 +168,11 @@ def test_save_and_clear_cookies(tmp_path: Path):
         from app.services.cookie_crypto import _fernet_from_seed
 
         _fernet_from_seed.cache_clear()
+        far = int(datetime.now(UTC).timestamp()) + 86400 * 30
         status = save_cookies_text(
-            "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tFALSE\t0\tSID\tvalue\n"
+            "# Netscape HTTP Cookie File\n"
+            f".youtube.com\tTRUE\t/\tFALSE\t{far}\tSID\tvalue\n"
+            f".google.com\tTRUE\t/\tTRUE\t{far}\t__Secure-1PSID\tabc\n"
         )
         assert status["present"] is True
         assert managed.is_file()
@@ -176,11 +180,106 @@ def test_save_and_clear_cookies(tmp_path: Path):
         assert Path(str(managed) + ".enc").is_file()
         assert cookies_status()["size_bytes"] > 0
         assert status["encrypted_at_rest"] is True
+        assert status["auth_cookie_count"] >= 2
+        assert status["expired"] is False
+        assert status["expiry_known"] is True
 
         cleared = clear_cookies()
         assert cleared["present"] is False
         assert not managed.exists()
         assert not Path(str(managed) + ".enc").exists()
+
+
+def test_analyze_cookies_detects_expired(tmp_path: Path):
+    from app.services.ytdlp_cookies import analyze_cookies_file
+
+    path = tmp_path / "cookies.txt"
+    past = int(datetime.now(UTC).timestamp()) - 3600
+    path.write_text(
+        "# Netscape HTTP Cookie File\n"
+        f".youtube.com\tTRUE\t/\tFALSE\t{past}\tSID\told\n",
+        encoding="utf-8",
+    )
+    analysis = analyze_cookies_file(path)
+    assert analysis["expired"] is True
+    assert analysis["needs_refresh"] is True
+    assert analysis["auth_cookie_count"] == 1
+
+
+def test_analyze_cookies_flags_missing_auth(tmp_path: Path):
+    from app.services.ytdlp_cookies import analyze_cookies_file
+
+    path = tmp_path / "cookies.txt"
+    path.write_text(
+        "# Netscape HTTP Cookie File\n"
+        ".youtube.com\tTRUE\t/\tFALSE\t0\tPREF\tf1=1\n",
+        encoding="utf-8",
+    )
+    analysis = analyze_cookies_file(path)
+    assert analysis["needs_refresh"] is True
+    assert analysis["auth_cookie_count"] == 0
+
+
+def test_probe_cookies_live_success(tmp_path: Path, monkeypatch):
+    from app.services import ytdlp_cookies as yc
+
+    managed = tmp_path / "cookies.txt"
+    far = int(datetime.now(UTC).timestamp()) + 86400 * 10
+    managed.write_text(
+        "# Netscape HTTP Cookie File\n"
+        f".youtube.com\tTRUE\t/\tFALSE\t{far}\tSID\tok\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(yc, "get_settings", lambda: _settings(managed=str(managed)))
+
+    def fake_run(cmd, **kwargs):
+        class Result:
+            returncode = 0
+            stdout = '{"id": "jNQXAC9IVRw", "title": "Me at the zoo"}'
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(yc.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.ytdlp_auth.ytdlp_common_args",
+        lambda **_kwargs: ["--cookies", str(managed)],
+    )
+
+    status = yc.probe_cookies_live()
+    assert status["last_validation_ok"] is True
+    assert status["needs_refresh"] is False
+
+
+def test_probe_cookies_live_bot_check(tmp_path: Path, monkeypatch):
+    from app.services import ytdlp_cookies as yc
+
+    managed = tmp_path / "cookies.txt"
+    far = int(datetime.now(UTC).timestamp()) + 86400 * 10
+    managed.write_text(
+        "# Netscape HTTP Cookie File\n"
+        f".youtube.com\tTRUE\t/\tFALSE\t{far}\tSID\tok\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(yc, "get_settings", lambda: _settings(managed=str(managed)))
+
+    def fake_run(cmd, **kwargs):
+        class Result:
+            returncode = 1
+            stdout = ""
+            stderr = "ERROR: Sign in to confirm you’re not a bot"
+
+        return Result()
+
+    monkeypatch.setattr(yc.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        "app.services.ytdlp_auth.ytdlp_common_args",
+        lambda **_kwargs: ["--cookies", str(managed)],
+    )
+
+    status = yc.probe_cookies_live()
+    assert status["last_validation_ok"] is False
+    assert status["needs_refresh"] is True
 
 
 def test_validate_cookies_rejects_garbage():
