@@ -128,6 +128,19 @@ DOMAIN_ALIASES="$(grep '^DOMAIN_ALIASES=' .env 2>/dev/null | cut -d= -f2- || tru
 CADDY_TLS_MODE="$(grep '^CADDY_TLS_MODE=' .env 2>/dev/null | cut -d= -f2- || true)"
 CADDY_TLS_MODE="${CADDY_TLS_MODE:-auto}"
 mkdir -p data/caddy/certs
+# Public site wants Origin CA, but Caddy crash-loops if the files are missing.
+# Fall back to HTTP-only until scripts/setup-cloudflare-domain.sh installs them.
+if [[ "$CADDY_TLS_MODE" == "origin" ]]; then
+  if [[ ! -s data/caddy/certs/origin.crt || ! -s data/caddy/certs/origin.key ]]; then
+    echo "WARN: Origin CA not found at data/caddy/certs/origin.{crt,key}"
+    echo "      Generating HTTP-only Caddyfile so the stack can start."
+    echo "      Next: create Cloudflare Origin CA cert, then run:"
+    echo "        GCP_PROJECT_ID=commercialbrainz-public \\"
+    echo "        ORIGIN_CERT=/path/to/origin.crt ORIGIN_KEY=/path/to/origin.key \\"
+    echo "          ./scripts/setup-cloudflare-domain.sh"
+    CADDY_TLS_MODE="http"
+  fi
+fi
 bash infra/gcloud/generate-caddyfile.sh \
   infra/caddy/Caddyfile.runtime \
   "${DOMAIN}" \

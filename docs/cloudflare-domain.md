@@ -41,6 +41,8 @@ Create project **`commercialbrainz-public`**, WIF, and deploy SA:
 
 Then set GitHub variables `GCP_*_CLOUDFLARE` from the script output ([public-gcp-project.md](public-gcp-project.md)).
 
+Deploy can start the stack **before** Origin CA exists (Caddy falls back to HTTP-only). For public HTTPS with Cloudflare **Full (strict)**, you still must install Origin CA (step 2 below / `setup-cloudflare-domain.sh`).
+
 ### 1. Create the public VM (once)
 
 **Option A — GitHub Actions (no local gcloud):**
