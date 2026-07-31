@@ -1,29 +1,37 @@
-# Auto-deploy CommercialBrainz to the GCE VM after CI succeeds on main.
+# Auto-deploy CommercialBrainz to the GCE VM after CI succeeds.
 #
-# CI pushes api/web images to GHCR; this workflow pulls them on the VM
-# (no on-VM docker build in the common path).
+# Branches:
+#   google     — testing site (DuckDNS); default PR base
+#   cloudflare — public site (commercialbrainz.org)
+#
+# CI pushes images to GHCR; this workflow pulls them on the VM.
+# See docs/branches.md
 #
 # Auth: Workload Identity Federation (no JSON key secret).
-# GCP setup (one-time, already applied for this project):
-#   SA: github-deploy@commercialbrainz.iam.gserviceaccount.com
-#   Pool/provider: github-actions / github
-#
 # Optional repository variables:
 #   GCP_PROJECT_ID  — default commercialbrainz
 #   VM_NAME         — default commercialbrainz-vm
 #
-# Manual run: Actions → Deploy → Run workflow
 name: Deploy
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [main]
+    branches: [google, cloudflare]
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy (google or cloudflare)"
+        required: true
+        default: google
+        type: choice
+        options:
+          - google
+          - cloudflare
 
 concurrency:
-  group: deploy-production
+  group: deploy-gce-vm
   cancel-in-progress: false
 
 jobs:
@@ -31,7 +39,9 @@ jobs:
     name: Deploy to GCE VM
     if: >
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.head_branch == 'google' ||
+        github.event.workflow_run.head_branch == 'cloudflare'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -39,11 +49,22 @@ jobs:
       id-token: write
 
     steps:
+      - name: Resolve branch and commit
+        id: target
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "branch=${{ inputs.branch }}" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Deploy the commit CI validated (not necessarily latest main tip).
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ steps.target.outputs.sha }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -58,10 +79,11 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'commercialbrainz' }}
           VM_NAME: ${{ vars.VM_NAME || 'commercialbrainz-vm' }}
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+          IMAGE_TAG: ${{ steps.target.outputs.sha }}
+          APP_BRANCH: ${{ steps.target.outputs.branch }}
           CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           set -euo pipefail
           chmod +x scripts/deploy-gcloud-vm.sh
-          echo "Deploying IMAGE_TAG=${IMAGE_TAG}"
+          echo "Deploying APP_BRANCH=${APP_BRANCH} IMAGE_TAG=${IMAGE_TAG}"
           ./scripts/deploy-gcloud-vm.sh

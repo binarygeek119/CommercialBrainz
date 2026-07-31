@@ -4,16 +4,17 @@
 # VM and pulls those images (no on-VM docker build in the common path).
 #
 # Usage:
-#   GCP_PROJECT_ID=commercialbrainz ./scripts/deploy-gcloud-vm.sh
-#   IMAGE_TAG=<git-sha> GCP_PROJECT_ID=commercialbrainz ./scripts/deploy-gcloud-vm.sh
+#   GCP_PROJECT_ID=commercialbrainz APP_BRANCH=google ./scripts/deploy-gcloud-vm.sh
+#   IMAGE_TAG=<git-sha> APP_BRANCH=cloudflare GCP_PROJECT_ID=commercialbrainz ./scripts/deploy-gcloud-vm.sh
 #
-# GitHub Actions (.github/workflows/deploy.yml) calls this after CI on main.
+# Branches: google (testing), cloudflare (public). See docs/branches.md
 #
 set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-}"
 VM_NAME="${VM_NAME:-commercialbrainz-vm}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
+APP_BRANCH="${APP_BRANCH:-google}"
 
 if [[ -z "$PROJECT_ID" ]]; then
   if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" ]]; then
@@ -33,10 +34,10 @@ if [[ -z "$ZONE" ]]; then
   exit 1
 fi
 
-echo "==> Deploying to $VM_NAME ($ZONE) IMAGE_TAG=${IMAGE_TAG}..."
+echo "==> Deploying to $VM_NAME ($ZONE) APP_BRANCH=${APP_BRANCH} IMAGE_TAG=${IMAGE_TAG}..."
 
-# Quote IMAGE_TAG safely for the remote shell.
 REMOTE_TAG=$(printf '%q' "$IMAGE_TAG")
+REMOTE_BRANCH=$(printf '%q' "$APP_BRANCH")
 
 gcloud compute ssh "$VM_NAME" \
   --zone="$ZONE" \
@@ -47,7 +48,8 @@ gcloud compute ssh "$VM_NAME" \
   set -euo pipefail
   cd /opt/commercialbrainz
   export IMAGE_TAG=${REMOTE_TAG}
-  sudo --preserve-env=IMAGE_TAG bash scripts/fix-gcloud-vm.sh
+  export APP_BRANCH=${REMOTE_BRANCH}
+  sudo --preserve-env=IMAGE_TAG,APP_BRANCH bash scripts/fix-gcloud-vm.sh
 "
 
 echo ""

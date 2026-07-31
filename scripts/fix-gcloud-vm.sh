@@ -9,6 +9,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
+APP_BRANCH="${APP_BRANCH:-google}"
 cd "$APP_DIR"
 
 # Narrow env for compose interpolation (IMAGE_TAG/DOMAIN/ACME_EMAIL only).
@@ -27,27 +28,29 @@ fi
 # Sync first, then re-exec so the remainder of this run uses the new script
 # inode (bash keeps reading the old file after `git reset` replaces it).
 if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
-  echo "==> Sync to origin/main (discard local tracked changes; keep .env)"
+  echo "==> Sync to origin/${APP_BRANCH} (discard local tracked changes; keep .env)"
   if [[ "$(id -u)" -eq 0 ]]; then
     git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    git fetch origin main
-    git reset --hard origin/main
+    git fetch origin "$APP_BRANCH"
+    git checkout -B "$APP_BRANCH" "origin/$APP_BRANCH"
+    git reset --hard "origin/$APP_BRANCH"
     git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
     git rev-parse --short HEAD
   else
     sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    sudo git fetch origin main
-    sudo git reset --hard origin/main
+    sudo git fetch origin "$APP_BRANCH"
+    sudo git checkout -B "$APP_BRANCH" "origin/$APP_BRANCH"
+    sudo git reset --hard "origin/$APP_BRANCH"
     sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
     sudo git rev-parse --short HEAD
   fi
   export CB_REPO_SYNCED=1
   echo "==> Re-executing deploy script from synced tree"
   if [[ "$(id -u)" -eq 0 ]]; then
-    exec env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
+    exec env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
   else
-    exec sudo --preserve-env=IMAGE_TAG,CB_REPO_SYNCED \
-      env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" \
+    exec sudo --preserve-env=IMAGE_TAG,CB_REPO_SYNCED,APP_BRANCH \
+      env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" \
       bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
   fi
 fi

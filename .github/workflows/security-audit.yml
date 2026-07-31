@@ -4,9 +4,9 @@ name: Security audit
 
 on:
   push:
-    branches: [main]
+    branches: [google, cloudflare]
   pull_request:
-    branches: [main]
+    branches: [google, cloudflare]
   schedule:
     - cron: "27 8 * * 1"
 

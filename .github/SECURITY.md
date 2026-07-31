@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are applied to the latest code on `main` (the deployed site).
+Security fixes are applied on **`google`** (testing) first, then promoted to **`cloudflare`** (public site). See [docs/branches.md](../docs/branches.md).
 
 ## Reporting a vulnerability
 
