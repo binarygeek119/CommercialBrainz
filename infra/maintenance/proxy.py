@@ -102,6 +102,7 @@ def _poll_loop() -> None:
 
 
 def _current_gate(*, force_refresh: bool = False):
+    global _cached_status, _status_fetch_ok
     flag = deploy_flag_active(FLAGS_DIR)
     with _state_lock:
         status = _cached_status
