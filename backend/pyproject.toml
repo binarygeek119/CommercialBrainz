@@ -1,10 +1,6 @@
 [project]
 name = "commercialbrainz"
-<<<<<<< HEAD
 version = "1.0.3"
-=======
-version = "1.0.0-alpha"
->>>>>>> origin/google
 description = "CommercialBrainz — open commercial video database"
 readme = "README.md"
 requires-python = ">=3.12"
