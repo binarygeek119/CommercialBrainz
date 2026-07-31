@@ -11,10 +11,17 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
 cd "$APP_DIR"
 
+# Narrow env for compose interpolation (IMAGE_TAG/DOMAIN/ACME_EMAIL only).
+# Prevents Compose from expanding "$" inside secrets in .env.
+write_compose_env() {
+  bash "$APP_DIR/infra/gcloud/write-compose-env.sh" "$APP_DIR"
+}
+write_compose_env
+
 if [[ "$(id -u)" -eq 0 ]]; then
-  COMPOSE="docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
+  COMPOSE="docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 else
-  COMPOSE="sudo docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
+  COMPOSE="sudo docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 fi
 
 # Sync first, then re-exec so the remainder of this run uses the new script
@@ -25,13 +32,13 @@ if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
     git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
     git fetch origin main
     git reset --hard origin/main
-    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e data/maintenance
+    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance
     git rev-parse --short HEAD
   else
     sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
     sudo git fetch origin main
     sudo git reset --hard origin/main
-    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e data/maintenance
+    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance
     sudo git rev-parse --short HEAD
   fi
   export CB_REPO_SYNCED=1
@@ -46,6 +53,7 @@ if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
 fi
 
 echo "==> Full stack status"
+write_compose_env
 $COMPOSE ps -a
 
 echo ""
@@ -66,7 +74,9 @@ if [[ -f .env ]]; then
   : "${_DEPLOY_IMAGE_TAG:=$(_env_val IMAGE_TAG)}"
 fi
 export IMAGE_TAG="${_DEPLOY_IMAGE_TAG:-latest}"
+export DOMAIN ACME_EMAIL
 echo "==> App images IMAGE_TAG=${IMAGE_TAG}"
+write_compose_env
 
 if [[ -n "${GHCR_TOKEN:-}" ]]; then
   echo "==> docker login ghcr.io"
