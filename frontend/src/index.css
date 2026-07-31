@@ -1059,6 +1059,13 @@ code, .mono {
   font-family: var(--mono);
   font-size: 0.72rem;
   letter-spacing: 0.02em;
-  pointer-events: none;
+  text-decoration: none;
   user-select: none;
+}
+
+.version-box:hover,
+.version-box:focus-visible {
+  color: var(--text);
+  border-color: var(--text-muted);
+  outline: none;
 }

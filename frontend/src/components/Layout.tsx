@@ -70,6 +70,13 @@ export default function Layout() {
             >
               Discord
             </a>
+            <a
+              href="https://github.com/binarygeek119/CommercialBrainz"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              GitHub
+            </a>
             <NavLink to="/terms">Terms</NavLink>
             <NavLink to="/dmca">DMCA</NavLink>
             {isMod(user) && <NavLink to="/mod" className="nav-mod">Mod</NavLink>}
@@ -124,9 +131,16 @@ export default function Layout() {
       <main className="container">
         <Outlet />
       </main>
-      <div className="version-box" aria-label={`CommercialBrainz version ${APP_VERSION}`}>
+      <a
+        className="version-box"
+        href="https://github.com/binarygeek119/CommercialBrainz"
+        target="_blank"
+        rel="noreferrer noopener"
+        aria-label={`CommercialBrainz version ${APP_VERSION} — view source on GitHub`}
+        title="View source on GitHub"
+      >
         v{APP_VERSION}
-      </div>
+      </a>
     </>
   );
 }
