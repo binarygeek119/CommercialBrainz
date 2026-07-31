@@ -2,40 +2,28 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { api } from "../api";
 
-type ModalKind = "domain" | "vm" | "cookies" | null;
+type ModalKind = "cookies" | null;
 
-function DummyDonateModal({
-  title,
-  body,
-  onClose,
-}: {
-  title: string;
-  body: ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div className="report-overlay" role="dialog" aria-modal="true" aria-labelledby="donate-modal-title">
-      <div className="report-dialog-card" style={{ maxWidth: 420 }}>
-        <h2 id="donate-modal-title" className="report-dialog-title">
-          {title}
-        </h2>
-        <div style={{ marginBottom: "1rem" }}>
-          {body}
-        </div>
-        <div className="report-dialog-actions">
-          <button type="button" className="btn btn-primary" disabled title="Coming soon">
-            Donate (coming soon)
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.85rem" }}>
-          Payment checkout is a placeholder for now — thanks for your interest.
-        </p>
-      </div>
-    </div>
-  );
+const BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/binarygeekq";
+
+const DOMAIN_MESSAGE = "Donation for the CommercialBrainz domain";
+const VM_MESSAGE = "Donation for the CommercialBrainz cloud VM";
+
+function buyMeACoffeeUrl(message: string): string {
+  const url = new URL(BUY_ME_A_COFFEE_URL);
+  // BMC's page has a "Say something nice..." field. `message` is the common
+  // query key; we also copy to the clipboard as a reliable fallback.
+  url.searchParams.set("message", message);
+  return url.toString();
+}
+
+async function openBuyMeACoffee(message: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(message);
+  } catch {
+    // Clipboard may be blocked; still open the donation page.
+  }
+  window.open(buyMeACoffeeUrl(message), "_blank", "noopener,noreferrer");
 }
 
 function CookieDonateModal({
@@ -152,6 +140,14 @@ function CookieDonateModal({
   );
 }
 
+function CoffeeHint({ children }: { children: ReactNode }) {
+  return (
+    <p className="muted" style={{ marginBottom: 0, marginTop: "0.75rem", fontSize: "0.85rem" }}>
+      {children}
+    </p>
+  );
+}
+
 export default function DonatePage() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -164,12 +160,25 @@ export default function DonatePage() {
       .catch(() => setPendingCookies(null));
   }, [flash]);
 
+  const handleMoneyDonate = (kind: "domain" | "vm") => {
+    const message = kind === "domain" ? DOMAIN_MESSAGE : VM_MESSAGE;
+    void openBuyMeACoffee(message).then(() => {
+      setFlash(
+        `Opened Buy Me a Coffee. Suggested note (also copied): “${message}” — paste into “Say something nice…” if it isn’t filled in.`
+      );
+    });
+  };
+
   return (
     <div style={{ maxWidth: 760 }}>
       <h1 className="page-title">Donate</h1>
       <p className="muted" style={{ marginBottom: "1.5rem" }}>
         CommercialBrainz is a volunteer project. Money, spare YouTube cookies, and your time all
-        help keep the archive online and growing.
+        help keep the archive online and growing. Cash donations go through{" "}
+        <a href={BUY_ME_A_COFFEE_URL} target="_blank" rel="noreferrer noopener">
+          Buy Me a Coffee
+        </a>
+        .
       </p>
 
       {flash && (
@@ -183,9 +192,12 @@ export default function DonatePage() {
         <p>
           Help cover domain registration and DNS so the site name stays ours year after year.
         </p>
-        <button type="button" className="btn btn-primary" onClick={() => setModal("domain")}>
+        <button type="button" className="btn btn-primary" onClick={() => handleMoneyDonate("domain")}>
           Donate toward the domain
         </button>
+        <CoffeeHint>
+          Opens Buy Me a Coffee with a note for the domain donation.
+        </CoffeeHint>
       </section>
 
       <section className="card" style={{ marginBottom: "1.25rem" }}>
@@ -194,9 +206,12 @@ export default function DonatePage() {
           Donate toward the cloud virtual machine that runs the site — API, workers, database, and
           storage for hashes and thumbnails.
         </p>
-        <button type="button" className="btn btn-primary" onClick={() => setModal("vm")}>
+        <button type="button" className="btn btn-primary" onClick={() => handleMoneyDonate("vm")}>
           Donate toward the VM
         </button>
+        <CoffeeHint>
+          Opens Buy Me a Coffee with a note for the cloud VM donation.
+        </CoffeeHint>
       </section>
 
       <section className="card" style={{ marginBottom: "1.25rem" }}>
@@ -259,28 +274,6 @@ export default function DonatePage() {
         </p>
       </section>
 
-      {modal === "domain" && (
-        <DummyDonateModal
-          title="Domain donation"
-          body={
-            <p style={{ margin: 0 }}>
-              This would go toward renewing the CommercialBrainz domain and related DNS costs.
-            </p>
-          }
-          onClose={() => setModal(null)}
-        />
-      )}
-      {modal === "vm" && (
-        <DummyDonateModal
-          title="Cloud VM donation"
-          body={
-            <p style={{ margin: 0 }}>
-              This would go toward the cloud VM that keeps the site, workers, and database running.
-            </p>
-          }
-          onClose={() => setModal(null)}
-        />
-      )}
       {modal === "cookies" && (
         <CookieDonateModal
           onClose={() => setModal(null)}
