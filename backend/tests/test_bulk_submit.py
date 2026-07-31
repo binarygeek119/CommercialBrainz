@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -421,3 +421,303 @@ async def test_cancel_bulk_batch_missing_returns_none(monkeypatch):
     monkeypatch.setattr(bs, "get_owner_batch", fake_get_owner_batch)
     assert await bs.cancel_bulk_batch(db, uuid4(), uuid4()) is None
     db.delete.assert_not_called()
+
+
+def test_item_metadata_attempted_tracks_success_and_failure():
+    from app.services.bulk_submit import item_metadata_attempted, item_metadata_ready
+
+    assert not item_metadata_attempted({"title": "Playlist only"})
+    assert item_metadata_attempted({"meta_fetched": True})
+    assert item_metadata_attempted({"meta_fetched": False, "meta_error": "boom"})
+    assert not item_metadata_ready({"meta_fetched": False, "meta_error": "boom"})
+
+
+@pytest.mark.asyncio
+async def test_next_bulk_item_needing_metadata_prefers_staging(monkeypatch):
+    from app.models import BulkSubmissionItemStatus
+    from app.services import bulk_submit as bs
+
+    batch_id = uuid4()
+    queued = SimpleNamespace(
+        id=uuid4(),
+        status=BulkSubmissionItemStatus.QUEUED,
+        extra_data={"title": "Later"},
+        position=5,
+    )
+    staging = SimpleNamespace(
+        id=uuid4(),
+        status=BulkSubmissionItemStatus.HASHING,
+        extra_data={"title": "Window"},
+        position=1,
+    )
+
+    class Scalars:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def all(self):
+            return self._rows
+
+    class ExecResult:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def scalars(self):
+            return Scalars(self._rows)
+
+    calls: list[tuple] = []
+
+    async def fake_execute(query):
+        # First query is staging statuses; second would be queued.
+        calls.append(True)
+        if len(calls) == 1:
+            return ExecResult([staging])
+        return ExecResult([queued])
+
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=fake_execute)
+
+    item = await bs.next_bulk_item_needing_metadata(db, batch_id)
+    assert item is staging
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_next_bulk_item_needing_metadata_skips_attempted():
+    from app.models import BulkSubmissionItemStatus
+    from app.services import bulk_submit as bs
+
+    attempted = SimpleNamespace(
+        id=uuid4(),
+        status=BulkSubmissionItemStatus.HASHING,
+        extra_data={"meta_fetched": False, "meta_error": "nope"},
+        position=1,
+    )
+    needed = SimpleNamespace(
+        id=uuid4(),
+        status=BulkSubmissionItemStatus.READY,
+        extra_data={"title": "Need fetch"},
+        position=2,
+    )
+
+    class Scalars:
+        def all(self):
+            return [attempted, needed]
+
+    class ExecResult:
+        def scalars(self):
+            return Scalars()
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=ExecResult())
+
+    item = await bs.next_bulk_item_needing_metadata(db, uuid4())
+    assert item is needed
+
+
+@pytest.mark.asyncio
+async def test_enrich_bulk_item_metadata_allows_queued(monkeypatch):
+    from app.models import BulkSubmissionItemStatus
+    from app.services import bulk_submit as bs
+
+    item_id = uuid4()
+    item = SimpleNamespace(
+        id=item_id,
+        youtube_id="abcdefghijk",
+        status=BulkSubmissionItemStatus.QUEUED,
+        extra_data={"title": "From playlist"},
+        updated_at=None,
+    )
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, _model, _id):
+            return item
+
+        async def commit(self):
+            return None
+
+        async def scalar(self, _query):
+            return None
+
+    monkeypatch.setattr(
+        "app.database.async_session_factory",
+        lambda: FakeSession(),
+    )
+
+    async def fake_apply(db, target):
+        target.extra_data = {
+            "title": "From playlist",
+            "channel_name": "ESPN",
+            "meta_fetched": True,
+        }
+        return {"ok": True, "item_id": str(target.id)}
+
+    monkeypatch.setattr(bs, "_apply_youtube_metadata", fake_apply)
+
+    result = await bs.enrich_bulk_item_metadata(item_id)
+    assert result["ok"] is True
+    assert item.extra_data["meta_fetched"] is True
+
+
+@pytest.mark.asyncio
+async def test_stage_item_preserves_prefetched_metadata(monkeypatch):
+    from app.models import BulkSubmissionItemStatus
+    from app.services import bulk_submit as bs
+
+    item = SimpleNamespace(
+        id=uuid4(),
+        youtube_id="abcdefghijk",
+        status=BulkSubmissionItemStatus.QUEUED,
+        extra_data={
+            "title": "Spot",
+            "channel_name": "ESPN",
+            "duration_ms": 30000,
+            "meta_fetched": True,
+        },
+        fingerprint_id=None,
+        error_message=None,
+        updated_at=None,
+        extra_data_set=None,
+    )
+
+    added = []
+
+    class FakeDB:
+        def add(self, obj):
+            added.append(obj)
+            obj.id = uuid4()
+
+        async def flush(self):
+            return None
+
+    fp_id = await bs._stage_item(FakeDB(), item)
+    assert fp_id is not None
+    assert item.status == BulkSubmissionItemStatus.HASHING
+    assert item.extra_data.get("meta_fetched") is True
+    assert item.extra_data.get("channel_name") == "ESPN"
+
+
+@pytest.mark.asyncio
+async def test_schedule_bulk_metadata_and_hashes_orders_enrich_before_hash(monkeypatch):
+    from app.services import bulk_submit as bs
+
+    order: list[str] = []
+    batch_id = uuid4()
+    staged = [uuid4(), uuid4()]
+    fps = [uuid4()]
+
+    async def fake_enrich(item_id):
+        order.append(f"enrich:{item_id}")
+
+    async def fake_backfill(bid):
+        order.append(f"backfill:{bid}")
+
+    async def fake_hash(fp_id):
+        order.append(f"hash:{fp_id}")
+
+    monkeypatch.setattr(bs, "enqueue_bulk_item_enrich", fake_enrich)
+    monkeypatch.setattr(bs, "enqueue_bulk_batch_metadata_backfill", fake_backfill)
+    monkeypatch.setattr(bs, "enqueue_hash_job", fake_hash)
+
+    await bs.schedule_bulk_metadata_and_hashes(
+        batch_id=batch_id,
+        staged_item_ids=staged,
+        fingerprint_ids=fps,
+    )
+
+    assert order == [
+        f"enrich:{staged[0]}",
+        f"enrich:{staged[1]}",
+        f"backfill:{batch_id}",
+        f"hash:{fps[0]}",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_backfill_bulk_batch_metadata_continues_until_done(monkeypatch):
+    from app.models import BulkSubmissionBatchStatus
+    from app.services import bulk_submit as bs
+
+    batch_id = uuid4()
+    item = SimpleNamespace(id=uuid4(), youtube_id="abcdefghijk")
+    batch = SimpleNamespace(id=batch_id, status=BulkSubmissionBatchStatus.READY)
+    continued: list[UUID] = []
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, model, _id):
+            name = getattr(model, "__name__", str(model))
+            if "Batch" in name:
+                return batch
+            return None
+
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr("app.database.async_session_factory", lambda: FakeSession())
+
+    async def fake_next(_db, _batch_id):
+        return item
+
+    async def fake_apply(_db, _item):
+        return {"ok": True, "item_id": str(item.id)}
+
+    async def fake_enqueue(bid):
+        continued.append(bid)
+
+    monkeypatch.setattr(bs, "next_bulk_item_needing_metadata", fake_next)
+    monkeypatch.setattr(bs, "_apply_youtube_metadata", fake_apply)
+    monkeypatch.setattr(bs, "enqueue_bulk_batch_metadata_backfill", fake_enqueue)
+
+    result = await bs.backfill_bulk_batch_metadata(batch_id)
+    assert result["continued"] is True
+    assert continued == [batch_id]
+
+
+@pytest.mark.asyncio
+async def test_backfill_bulk_batch_metadata_stops_when_full(monkeypatch):
+    from app.models import BulkSubmissionBatchStatus
+    from app.services import bulk_submit as bs
+
+    batch_id = uuid4()
+    batch = SimpleNamespace(id=batch_id, status=BulkSubmissionBatchStatus.READY)
+    continued: list[UUID] = []
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, model, _id):
+            return batch
+
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr("app.database.async_session_factory", lambda: FakeSession())
+
+    async def fake_next(_db, _batch_id):
+        return None
+
+    async def fake_enqueue(bid):
+        continued.append(bid)
+
+    monkeypatch.setattr(bs, "next_bulk_item_needing_metadata", fake_next)
+    monkeypatch.setattr(bs, "enqueue_bulk_batch_metadata_backfill", fake_enqueue)
+
+    result = await bs.backfill_bulk_batch_metadata(batch_id)
+    assert result.get("done") is True
+    assert continued == []

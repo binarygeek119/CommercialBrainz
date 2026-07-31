@@ -452,8 +452,9 @@ export default function BulkSubmitPage() {
           )}
           {importable > 0 && (
             <p className="muted" style={{ marginBottom: "0.75rem" }}>
-              Import stores all {importable} link{importable === 1 ? "" : "s"}, then hashes the first{" "}
-              {Math.min(importable, check.staging_window ?? 10)} for review.
+              Import stores all {importable} link{importable === 1 ? "" : "s"}, then fills YouTube
+              metadata for the first {Math.min(importable, check.staging_window ?? 10)} review slots
+              (and continues down the playlist in the background).
             </p>
           )}
           {importable < 1 && (

@@ -75,9 +75,10 @@ export default function BulkSubmitQueuePage() {
         </Link>
       </div>
       <p className="muted">
-        Up to 10 videos are shown for review. YouTube metadata and hashing run in the background so
-        Review can open ready. Submit creates the edit immediately; the next waiting link then enters
-        the window.
+        Up to 10 videos are shown for review. YouTube metadata fills those slots first in the
+        background, then continues down the playlist; hashing also runs in the background. Review
+        can open once metadata is ready. Submit creates the edit immediately; the next waiting link
+        then enters the window.
       </p>
 
       {batches && batches.length > 0 && (

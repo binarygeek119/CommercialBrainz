@@ -291,8 +291,9 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
       };
     }
 
-    // Metadata is fetched in the background when the item enters the 10-slot window.
-    // Poll briefly, then fall back to a live fetch if enrich is still pending.
+    // Metadata is fetched in the background: review-window URLs first, then the
+    // rest of the playlist. Poll until ready; only fall back to a live fetch if
+    // the worker is still behind after a longer wait.
     let attempts = 0;
     const poll = async () => {
       if (cancelled || fetchGen.current !== gen) return;
@@ -313,7 +314,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
       } catch {
         /* ignore transient poll errors */
       }
-      if (attempts >= 15) {
+      if (attempts >= 45) {
         await liveFetch();
         return;
       }
@@ -512,7 +513,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
               </p>
               <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
                 Status: <span className="badge badge-submitted">{item.status}</span>
-                {ytLoading && " · Waiting for prefetched metadata…"}
+                {ytLoading && " · Fetching YouTube metadata…"}
                 {metaReady && " · Metadata ready"}
                 {metaReady &&
                   (defaults.commercial_type || defaults.advertiser_name || defaults.decade) &&
@@ -788,9 +789,10 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
         >
           <div className="wait-overlay-card">
             <p className="wait-overlay-title">Please wait</p>
-            <p className="muted">Waiting for prefetched YouTube metadata…</p>
+            <p className="muted">Fetching YouTube metadata…</p>
             <p className="muted" style={{ marginBottom: 0, fontSize: "0.85rem" }}>
-              Metadata is fetched in the background when a video enters the review window.
+              Metadata loads in the background for the review window first, then
+              continues down the playlist.
             </p>
           </div>
         </div>

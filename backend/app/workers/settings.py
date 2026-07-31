@@ -72,6 +72,16 @@ async def enrich_bulk_item_metadata(ctx, item_id: str):
     return result
 
 
+async def backfill_bulk_batch_metadata(ctx, batch_id: str):
+    from uuid import UUID
+
+    from app.services.bulk_submit import backfill_bulk_batch_metadata as run_backfill
+
+    result = await run_backfill(UUID(batch_id))
+    logger.info("Bulk batch metadata backfill step finished: %s", result)
+    return result
+
+
 async def startup(ctx):
     logger.info("CommercialBrainz worker started")
 
@@ -91,6 +101,7 @@ class WorkerSettings:
         check_public_youtube_links,
         import_bulk_playlist,
         enrich_bulk_item_metadata,
+        backfill_bulk_batch_metadata,
     ]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),
