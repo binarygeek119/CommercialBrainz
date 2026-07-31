@@ -121,16 +121,20 @@ def _format_attempts() -> list[tuple[str | None, int | None, str | None]]:
 def _extractor_attempts() -> list[str | None]:
     """
     Player-client variants. None means "use settings.ytdlp_extractor_args".
-    Empty string omits --extractor-args (yt-dlp defaults).
+    Empty string omits --extractor-args (yt-dlp current defaults).
     """
     configured = (settings.ytdlp_extractor_args or "").strip()
     attempts: list[str | None] = [None]
     for candidate in (
+        "",  # yt-dlp defaults (android_vr / web_safari, or authed clients with cookies)
+        "youtube:player_client=android_vr,web_safari",
+        "youtube:player_client=tv_downgraded,web_safari",
+        "youtube:player_client=android_vr",
+        "youtube:player_client=ios,web_safari",
+        "youtube:player_client=tv,mweb",
+        "youtube:player_client=web_safari",
+        # Legacy combo kept last for environments that still need it.
         "youtube:player_client=android,web,mweb",
-        "youtube:player_client=android",
-        "youtube:player_client=tv_embedded,web",
-        "youtube:player_client=mweb,web",
-        "",
     ):
         if candidate == configured:
             continue
@@ -140,9 +144,11 @@ def _extractor_attempts() -> list[str | None]:
 
 
 def _recovery_format_attempts() -> list[tuple[str | None, int | None, str | None]]:
-    """Shorter ladder used when switching player clients after format-unavailable."""
+    """Format ladder used when switching player clients after format-unavailable."""
     return [
-        ("18/22/best", None, None),
+        ("18/22/best[height<=480]/best", None, None),
+        ("bv*[height<=480]+ba/b[height<=480]/b", None, "mp4"),
+        ("bestvideo+bestaudio/best", None, "mp4"),
         ("best", None, None),
         ("b", None, None),
         (None, None, None),
@@ -187,6 +193,17 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
                     youtube_id,
                     last_error.splitlines()[-1] if last_error else "",
                 )
+                # Bail early to another player client when this one has no streams.
+                lowered = last_error.lower()
+                if "only images are available" in lowered:
+                    return None
+                if "format is not available" in lowered and fmt in {
+                    None,
+                    "best",
+                    "b",
+                    "worst",
+                }:
+                    return None
                 continue
 
             files = [p for p in dest_dir.iterdir() if p.is_file()]
@@ -201,15 +218,21 @@ def download_youtube(youtube_id: str, dest_dir: Path) -> Path:
             last_error = "yt-dlp produced no output file"
         return None
 
-    # Pass 1: full format ladder with configured extractor args.
-    path = _try_batch(_format_attempts(), None)
+    extractors = _extractor_attempts()
+
+    # Pass 1: full format ladder with configured / default extractor args.
+    path = _try_batch(_format_attempts(), extractors[0])
     if path is not None:
         return path
 
-    # Pass 2: if formats were unavailable, retry other player clients with a short ladder.
+    # Pass 2: if formats were unavailable, retry other player clients.
     lowered = last_error.lower()
-    if "format is not available" in lowered or "only images are available" in lowered:
-        for extractor_args in _extractor_attempts()[1:]:
+    if (
+        "format is not available" in lowered
+        or "only images are available" in lowered
+        or "sign in to confirm" in lowered
+    ):
+        for extractor_args in extractors[1:]:
             path = _try_batch(_recovery_format_attempts(), extractor_args)
             if path is not None:
                 return path

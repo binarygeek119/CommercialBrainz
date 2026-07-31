@@ -39,12 +39,11 @@ def test_download_youtube_retries_extractor_on_format_unavailable(tmp_path):
             extractor_args_seen.append(cmd[cmd.index("--extractor-args") + 1])
         else:
             extractor_args_seen.append("")
-        # Succeed only after switching player client in recovery pass.
+        # Succeed after switching to a modern player client in recovery pass.
         if (
-            "youtube:player_client=android" in extractor_args_seen
-            and extractor_args_seen[-1] == "youtube:player_client=android"
+            extractor_args_seen[-1] == "youtube:player_client=android_vr,web_safari"
             and "-f" in cmd
-            and cmd[cmd.index("-f") + 1] == "18/22/best"
+            and cmd[cmd.index("-f") + 1] == "18/22/best[height<=480]/best"
         ):
             (tmp_path / "5uaYHYs4ubw.mp4").write_bytes(b"ok")
             return MagicMock(returncode=0, stdout="", stderr="")
@@ -58,7 +57,7 @@ def test_download_youtube_retries_extractor_on_format_unavailable(tmp_path):
         patch.object(
             media_hash.settings,
             "ytdlp_extractor_args",
-            "youtube:player_client=android,web,mweb",
+            "",
         ),
         patch("app.services.media_hash.subprocess.run", side_effect=fake_run),
         patch("app.services.media_hash._ytdlp_version", return_value="2026.07.04"),
@@ -67,18 +66,34 @@ def test_download_youtube_retries_extractor_on_format_unavailable(tmp_path):
             side_effect=lambda extractor_args=None: (
                 ["--extractor-args", extractor_args]
                 if extractor_args is not None and extractor_args != ""
-                else (
-                    ["--extractor-args", "youtube:player_client=android,web,mweb"]
-                    if extractor_args is None
-                    else []
-                )
+                else []
             ),
         ),
     ):
         path = media_hash.download_youtube("5uaYHYs4ubw", tmp_path)
 
     assert path.name == "5uaYHYs4ubw.mp4"
-    assert "youtube:player_client=android" in extractor_args_seen
+    assert "youtube:player_client=android_vr,web_safari" in extractor_args_seen
+
+
+def test_extractor_attempts_prefer_modern_clients():
+    with patch.object(media_hash.settings, "ytdlp_extractor_args", ""):
+        attempts = media_hash._extractor_attempts()
+    # None uses settings (empty → yt-dlp defaults); "" is omitted as a duplicate.
+    assert attempts[0] is None
+    assert "youtube:player_client=android_vr,web_safari" in attempts
+    assert "youtube:player_client=tv_downgraded,web_safari" in attempts
+    assert "youtube:player_client=android,web,mweb" in attempts
+
+    with patch.object(
+        media_hash.settings,
+        "ytdlp_extractor_args",
+        "youtube:player_client=android,web,mweb",
+    ):
+        forced = media_hash._extractor_attempts()
+    assert forced[0] is None
+    assert "" in forced  # explicit yt-dlp defaults as recovery
+    assert "youtube:player_client=android_vr,web_safari" in forced
 
 
 def test_download_youtube_raises_after_all_formats_fail(tmp_path):

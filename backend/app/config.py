@@ -60,9 +60,11 @@ class Settings(BaseSettings):
     ytdlp_format: str = (
         "bv*[height<=480]+ba/b[height<=480]/bv*+ba/b"
     )
-    # Prefer android/web clients; empty string uses yt-dlp defaults.
-    # Override with YTDLP_EXTRACTOR_ARGS if YouTube blocks a client on your IP.
-    ytdlp_extractor_args: str = "youtube:player_client=android,web,mweb"
+    # Leave empty so yt-dlp picks current YouTube defaults (android_vr/web_safari
+    # logged-out; tv_downgraded/web_safari with cookies). Forcing legacy
+    # android,web,mweb often yields "Requested format is not available" under SABR.
+    # Override with YTDLP_EXTRACTOR_ARGS only if you need a specific client.
+    ytdlp_extractor_args: str = ""
     # Optional YouTube auth for yt-dlp bot / age-gate blocks.
     # Admin panel writes the managed path; env override wins when that file exists.
     ytdlp_cookies_managed_path: str = "/data/ytdlp/cookies.txt"
