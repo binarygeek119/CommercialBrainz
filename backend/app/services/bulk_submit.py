@@ -222,14 +222,16 @@ async def _stage_item(db: AsyncSession, item: BulkSubmissionItem) -> UUID | None
     """
     Promote one queued item into the review window and start hashing.
 
-    YouTube metadata is enriched asynchronously after staging so the review form
-    can open with prefetched data without blocking this step.
+    Prefetched YouTube metadata (from playlist backfill) is preserved so the
+    review form can open immediately when available.
     Returns fingerprint id to enqueue after commit, or None on failure.
     """
     try:
+        # Keep any previously backfilled metadata; only clear a hard meta_error
+        # when the item was never successfully fetched.
         prior = dict(item.extra_data or {})
-        prior.pop("meta_fetched", None)
-        prior.pop("meta_error", None)
+        if not item_metadata_ready(prior):
+            prior.pop("meta_error", None)
         item.extra_data = prior
         item.status = BulkSubmissionItemStatus.HASHING
         fp = MediaFingerprint(
@@ -265,6 +267,22 @@ def item_metadata_ready(extra: dict[str, Any] | None) -> bool:
     )
 
 
+def item_metadata_attempted(extra: dict[str, Any] | None) -> bool:
+    """True when a background fetch already succeeded or failed for this item."""
+    data = extra or {}
+    return "meta_fetched" in data or item_metadata_ready(data)
+
+
+# Statuses that may receive background YouTube metadata enrichment.
+_ENRICHABLE_STATUSES = (
+    BulkSubmissionItemStatus.QUEUED,
+    BulkSubmissionItemStatus.PENDING_META,
+    BulkSubmissionItemStatus.HASHING,
+    BulkSubmissionItemStatus.READY,
+    BulkSubmissionItemStatus.FAILED,
+)
+
+
 async def enqueue_bulk_item_enrich(item_id: UUID) -> None:
     pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     try:
@@ -273,48 +291,133 @@ async def enqueue_bulk_item_enrich(item_id: UUID) -> None:
         await pool.aclose()
 
 
+async def enqueue_bulk_batch_metadata_backfill(batch_id: UUID) -> None:
+    """Kick off (or continue) playlist-wide metadata backfill for a batch."""
+    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    try:
+        await pool.enqueue_job("backfill_bulk_batch_metadata", str(batch_id))
+    finally:
+        await pool.aclose()
+
+
+async def schedule_bulk_metadata_and_hashes(
+    *,
+    batch_id: UUID,
+    staged_item_ids: list[UUID],
+    fingerprint_ids: list[UUID],
+) -> None:
+    """
+    Enqueue background work with review UX priority:
+
+    1. Enrich metadata for staged review-window items first
+    2. Continue walking the playlist (QUEUED) one URL at a time
+    3. Hash fingerprints after metadata jobs are queued
+    """
+    for item_id in staged_item_ids:
+        await enqueue_bulk_item_enrich(item_id)
+    await enqueue_bulk_batch_metadata_backfill(batch_id)
+    for fp_id in fingerprint_ids:
+        await enqueue_hash_job(fp_id)
+
+
+async def _apply_youtube_metadata(
+    db: AsyncSession, item: BulkSubmissionItem
+) -> dict[str, Any]:
+    """Fetch and persist YouTube metadata onto a bulk item. Caller commits."""
+    prior = dict(item.extra_data or {})
+    try:
+        meta = await asyncio.to_thread(fetch_youtube_metadata, item.youtube_id)
+        if not meta.get("title") and not meta.get("youtube_title") and prior.get("title"):
+            meta = {**meta, "title": prior["title"]}
+        existing = await db.scalar(
+            select(Video.sbid).where(Video.youtube_id == item.youtube_id)
+        )
+        if existing:
+            meta["existing_video_sbid"] = str(existing)
+        meta["meta_fetched"] = True
+        meta.pop("meta_error", None)
+        item.extra_data = meta
+        item.updated_at = datetime.now(UTC)
+        return {"ok": True, "item_id": str(item.id)}
+    except Exception as exc:  # noqa: BLE001
+        prior["meta_error"] = str(exc)[:500]
+        prior["meta_fetched"] = False
+        item.extra_data = prior
+        item.updated_at = datetime.now(UTC)
+        logger.warning("Bulk item metadata enrich failed for %s: %s", item.id, exc)
+        return {"ok": False, "error": str(exc)[:500], "item_id": str(item.id)}
+
+
 async def enrich_bulk_item_metadata(item_id: UUID) -> dict[str, Any]:
-    """Worker: fetch YouTube metadata for a staged review item in the background."""
+    """Worker: fetch YouTube metadata for one playlist item in the background."""
     from app.database import async_session_factory
 
     async with async_session_factory() as db:
         item = await db.get(BulkSubmissionItem, item_id)
         if not item:
             return {"ok": False, "error": "item not found"}
-        if item.status in {
-            BulkSubmissionItemStatus.QUEUED,
-            BulkSubmissionItemStatus.SUBMITTED,
-            BulkSubmissionItemStatus.SKIPPED,
-            BulkSubmissionItemStatus.DUPLICATE,
-        }:
+        if item.status not in _ENRICHABLE_STATUSES:
             return {"ok": False, "error": f"item status {item.status.value}"}
         if item_metadata_ready(item.extra_data):
             return {"ok": True, "skipped": True, "item_id": str(item_id)}
 
-        prior = dict(item.extra_data or {})
-        try:
-            meta = await asyncio.to_thread(fetch_youtube_metadata, item.youtube_id)
-            if not meta.get("title") and not meta.get("youtube_title") and prior.get("title"):
-                meta = {**meta, "title": prior["title"]}
-            existing = await db.scalar(
-                select(Video.sbid).where(Video.youtube_id == item.youtube_id)
+        result = await _apply_youtube_metadata(db, item)
+        await db.commit()
+        return result
+
+
+async def next_bulk_item_needing_metadata(
+    db: AsyncSession, batch_id: UUID
+) -> BulkSubmissionItem | None:
+    """
+    Next playlist item still needing YouTube metadata.
+
+    Priority: active review-window items first (by position), then remaining
+    QUEUED links further down the playlist.
+    """
+    for statuses in (_STAGING_STATUSES, (BulkSubmissionItemStatus.QUEUED,)):
+        result = await db.execute(
+            select(BulkSubmissionItem)
+            .where(
+                BulkSubmissionItem.batch_id == batch_id,
+                BulkSubmissionItem.status.in_(statuses),
             )
-            if existing:
-                meta["existing_video_sbid"] = str(existing)
-            meta["meta_fetched"] = True
-            meta.pop("meta_error", None)
-            item.extra_data = meta
-            item.updated_at = datetime.now(UTC)
-            await db.commit()
-            return {"ok": True, "item_id": str(item_id)}
-        except Exception as exc:  # noqa: BLE001
-            prior["meta_error"] = str(exc)[:500]
-            prior["meta_fetched"] = False
-            item.extra_data = prior
-            item.updated_at = datetime.now(UTC)
-            await db.commit()
-            logger.warning("Bulk item metadata enrich failed for %s: %s", item_id, exc)
-            return {"ok": False, "error": str(exc)[:500], "item_id": str(item_id)}
+            .order_by(BulkSubmissionItem.position.asc(), BulkSubmissionItem.created_at.asc())
+        )
+        for item in result.scalars().all():
+            if not item_metadata_attempted(item.extra_data):
+                return item
+    return None
+
+
+async def backfill_bulk_batch_metadata(batch_id: UUID) -> dict[str, Any]:
+    """
+    Worker: enrich the next playlist URL that still needs metadata, then
+    re-enqueue until the whole batch is filled.
+
+    Review-window items are preferred so all ~10 staged URLs fill first;
+    then backfill walks remaining QUEUED links in playlist order.
+    """
+    from app.database import async_session_factory
+
+    async with async_session_factory() as db:
+        batch = await db.get(BulkSubmissionBatch, batch_id)
+        if not batch:
+            return {"ok": False, "error": "batch not found"}
+        if batch.status == BulkSubmissionBatchStatus.FAILED:
+            return {"ok": False, "error": f"batch status {batch.status.value}"}
+
+        item = await next_bulk_item_needing_metadata(db, batch_id)
+        if not item:
+            return {"ok": True, "done": True, "batch_id": str(batch_id)}
+
+        item_id = item.id
+        result = await _apply_youtube_metadata(db, item)
+        await db.commit()
+
+    # Continue walking the playlist one URL at a time in the background.
+    await enqueue_bulk_batch_metadata_backfill(batch_id)
+    return {**result, "batch_id": str(batch_id), "continued": True, "item_id": str(item_id)}
 
 
 async def stage_next_bulk_items(
@@ -327,7 +430,7 @@ async def stage_next_bulk_items(
     Fill the per-batch staging window from QUEUED playlist links.
 
     Hashing starts when an item is promoted into the window. YouTube metadata is
-    enriched in the background afterward.
+    enriched in the background (window first, then the rest of the playlist).
     Returns (fingerprint ids to enqueue, staged item ids to enrich).
     """
     window = max(1, int(settings.bulk_submit_staging_window))
@@ -359,7 +462,7 @@ async def stage_next_bulk_items(
 
 
 async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
-    """Worker entry: store full playlist link list, stage the review window, enqueue hashes."""
+    """Worker entry: store full playlist link list, stage the review window, enqueue work."""
     from app.database import async_session_factory
 
     async with async_session_factory() as db:
@@ -420,10 +523,12 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
         batch.updated_at = datetime.now(UTC)
         await db.commit()
 
-    for fp_id in fingerprint_ids:
-        await enqueue_hash_job(fp_id)
-    for item_id in staged_item_ids:
-        await enqueue_bulk_item_enrich(item_id)
+    # Metadata for the review window first, then playlist backfill, then hashes.
+    await schedule_bulk_metadata_and_hashes(
+        batch_id=batch_id,
+        staged_item_ids=staged_item_ids,
+        fingerprint_ids=fingerprint_ids,
+    )
 
     async with async_session_factory() as db:
         await refresh_item_hash_statuses(db, batch_id)

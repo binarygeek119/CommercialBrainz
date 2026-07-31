@@ -25,7 +25,7 @@ from app.services.bulk_submit import (
     batch_to_dict,
     cancel_bulk_batch,
     create_bulk_batch,
-    enqueue_bulk_item_enrich,
+    schedule_bulk_metadata_and_hashes,
     enqueue_bulk_playlist_import,
     finalize_bulk_item,
     get_owner_item,
@@ -37,7 +37,6 @@ from app.services.bulk_submit import (
     skip_item,
 )
 from app.services.edit_response import build_edit_public
-from app.services.hash_queue import enqueue_hash_job
 from app.services.power_user_terms import (
     get_active_power_user_terms,
     power_user_terms_to_dict,
@@ -200,12 +199,24 @@ async def submit_item(
             MediaFingerprint.status == FingerprintStatus.PENDING,
         )
     )
-    for (fp_id,) in result.all():
-        background_tasks.add_task(enqueue_hash_job, fp_id)
-    for fp_id in refill_fps:
-        background_tasks.add_task(enqueue_hash_job, fp_id)
-    for item_id_enrich in enrich_ids:
-        background_tasks.add_task(enqueue_bulk_item_enrich, item_id_enrich)
+    pending_fps = [fp_id for (fp_id,) in result.all()]
+    # Dedupe fingerprint work while preserving order: edit/pending first, then refill.
+    seen_fps: set[UUID] = set()
+    fingerprint_ids: list[UUID] = []
+    for fp_id in [*pending_fps, *refill_fps]:
+        if fp_id in seen_fps:
+            continue
+        seen_fps.add(fp_id)
+        fingerprint_ids.append(fp_id)
+
+    async def _schedule_after_submit() -> None:
+        await schedule_bulk_metadata_and_hashes(
+            batch_id=item.batch_id,
+            staged_item_ids=enrich_ids,
+            fingerprint_ids=fingerprint_ids,
+        )
+
+    background_tasks.add_task(_schedule_after_submit)
 
     return await build_edit_public(db, edit, editor_username=user.username)
 
@@ -225,10 +236,15 @@ async def skip_bulk_item(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await db.commit()
-    for fp_id in refill_fps:
-        background_tasks.add_task(enqueue_hash_job, fp_id)
-    for item_id_enrich in enrich_ids:
-        background_tasks.add_task(enqueue_bulk_item_enrich, item_id_enrich)
+
+    async def _schedule_after_skip() -> None:
+        await schedule_bulk_metadata_and_hashes(
+            batch_id=item.batch_id,
+            staged_item_ids=enrich_ids,
+            fingerprint_ids=refill_fps,
+        )
+
+    background_tasks.add_task(_schedule_after_skip)
     return BulkSubmissionItemPublic(**item_to_dict(item))
 
 
