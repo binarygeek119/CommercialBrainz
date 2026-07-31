@@ -61,6 +61,7 @@ gcloud compute ssh "$VM_NAME" \
   --zone="$ZONE" \
   --quiet \
   --ssh-flag="-o StrictHostKeyChecking=accept-new" \
+  --ssh-flag="-o IdentitiesOnly=yes" \
   --ssh-flag="-o LogLevel=ERROR" \
   --command="
   set -euo pipefail

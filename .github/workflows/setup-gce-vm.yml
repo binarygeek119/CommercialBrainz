@@ -164,9 +164,10 @@ jobs:
             --zone="$ZONE" \
             --keys=block-project-ssh-keys \
             --quiet 2>/dev/null || true
+          # Actions uses metadata SSH as user "runner"; OS Login breaks that path.
           gcloud compute instances add-metadata "$VM_NAME" \
             --zone="$ZONE" \
-            --metadata=enable-oslogin=TRUE \
+            --metadata=enable-oslogin=FALSE \
             --quiet || true
           echo ""
           echo "==> Next steps"
