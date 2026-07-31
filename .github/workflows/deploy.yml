@@ -13,7 +13,7 @@
 #     VM_NAME_GOOGLE (or legacy VM_NAME) — default commercialbrainz-vm
 #   Public (cloudflare) — separate GCP project:
 #     GCP_PROJECT_ID_CLOUDFLARE   — default commercialbrainz-public
-#     GCP_WIF_PROVIDER_CLOUDFLARE — required once public project WIF exists
+#     GCP_WIF_PROVIDER_CLOUDFLARE — default projects/227542386250/.../providers/github
 #     GCP_SA_EMAIL_CLOUDFLARE     — default github-deploy@commercialbrainz-public…
 #     VM_NAME_CLOUDFLARE          — default commercialbrainz-public
 #   See docs/public-gcp-project.md
@@ -78,13 +78,9 @@ jobs:
             project="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
             project="${project:-commercialbrainz-public}"
             wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            wif="${wif:-projects/227542386250/locations/global/workloadIdentityPools/github-actions/providers/github}"
             sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
             sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
-            if [[ -z "$wif" ]]; then
-              echo "ERROR: Set repo variable GCP_WIF_PROVIDER_CLOUDFLARE"
-              echo "  (run scripts/setup-public-gcp-project.sh — see docs/public-gcp-project.md)"
-              exit 1
-            fi
           else
             name="${{ vars.VM_NAME_GOOGLE }}"
             if [[ -z "$name" ]]; then

@@ -65,14 +65,10 @@ jobs:
             PROJECT_ID="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
             PROJECT_ID="${PROJECT_ID:-commercialbrainz-public}"
             wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            wif="${wif:-projects/227542386250/locations/global/workloadIdentityPools/github-actions/providers/github}"
             sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
             sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
             script=scripts/setup-cloudflare-vm.sh
-            if [[ -z "$wif" ]]; then
-              echo "ERROR: Set repo variable GCP_WIF_PROVIDER_CLOUDFLARE"
-              echo "  (run scripts/setup-public-gcp-project.sh — see docs/public-gcp-project.md)"
-              exit 1
-            fi
           else
             name="${{ vars.VM_NAME_GOOGLE }}"
             if [[ -z "$name" ]]; then
