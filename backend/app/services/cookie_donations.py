@@ -12,7 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CookieDonation, CookieDonationStatus, User
 from app.services.cookie_crypto import decrypt_cookies, encrypt_cookies
-from app.services.ytdlp_cookies import resolve_cookies_path, save_cookies_text, validate_cookies_text
+from app.services.ytdlp_cookies import (
+    resolve_cookies_path,
+    save_cookies_text,
+    validate_cookies_text,
+)
 
 logger = logging.getLogger(__name__)
 

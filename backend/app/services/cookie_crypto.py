@@ -6,10 +6,10 @@ file are stored encrypted. A short-lived plaintext file is materialized only for
 to read.
 """
 
-from functools import lru_cache
 import base64
 import hashlib
 import logging
+from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
