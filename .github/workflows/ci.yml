@@ -174,16 +174,52 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Docker tags cannot contain "/" (PR refs are like "95/merge").
+      - name: Resolve image tags
+        id: tags
+        run: |
+          set -euo pipefail
+          SHA="${GITHUB_SHA}"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            EXTRA="pr-${{ github.event.number }}"
+            write_tags() {
+              local name="$1"
+              cat <<EOF
+          ghcr.io/binarygeek119/${name}:${SHA}
+          ghcr.io/binarygeek119/${name}:${EXTRA}
+          EOF
+            }
+          else
+            EXTRA="${GITHUB_REF_NAME//\//-}"
+            write_tags() {
+              local name="$1"
+              cat <<EOF
+          ghcr.io/binarygeek119/${name}:${SHA}
+          ghcr.io/binarygeek119/${name}:${EXTRA}
+          ghcr.io/binarygeek119/${name}:latest
+          EOF
+            }
+          fi
+          {
+            echo "api<<EOF"
+            write_tags commercialbrainz-api
+            echo "EOF"
+            echo "web<<EOF"
+            write_tags commercialbrainz-web
+            echo "EOF"
+            echo "maintenance<<EOF"
+            write_tags commercialbrainz-maintenance
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved tags (extra=${EXTRA})"
+
       - name: Build and push API image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: infra/Dockerfile.api
           push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/google' || github.ref == 'refs/heads/cloudflare') }}
-          tags: |
-            ghcr.io/binarygeek119/commercialbrainz-api:${{ github.sha }}
-            ghcr.io/binarygeek119/commercialbrainz-api:${{ github.ref_name }}
-            ghcr.io/binarygeek119/commercialbrainz-api:latest
+          tags: ${{ steps.tags.outputs.api }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
@@ -193,10 +229,7 @@ jobs:
           context: .
           file: infra/Dockerfile.web
           push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/google' || github.ref == 'refs/heads/cloudflare') }}
-          tags: |
-            ghcr.io/binarygeek119/commercialbrainz-web:${{ github.sha }}
-            ghcr.io/binarygeek119/commercialbrainz-web:${{ github.ref_name }}
-            ghcr.io/binarygeek119/commercialbrainz-web:latest
+          tags: ${{ steps.tags.outputs.web }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
@@ -206,10 +239,7 @@ jobs:
           context: .
           file: infra/Dockerfile.maintenance
           push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/google' || github.ref == 'refs/heads/cloudflare') }}
-          tags: |
-            ghcr.io/binarygeek119/commercialbrainz-maintenance:${{ github.sha }}
-            ghcr.io/binarygeek119/commercialbrainz-maintenance:${{ github.ref_name }}
-            ghcr.io/binarygeek119/commercialbrainz-maintenance:latest
+          tags: ${{ steps.tags.outputs.maintenance }}
           cache-from: type=gha,scope=maintenance
           cache-to: type=gha,mode=max,scope=maintenance
 
