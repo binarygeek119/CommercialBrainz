@@ -931,6 +931,9 @@ class YtdlpCookiesStatus(BaseModel):
 
     present: bool = False
     path: str
+    encrypted_path: str | None = None
+    encrypted_at_rest: bool = False
+    encryption_configured: bool = False
     size_bytes: int = 0
     updated_at: str | None = None
     active: bool = False

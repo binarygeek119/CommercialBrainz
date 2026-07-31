@@ -731,6 +731,27 @@ function YtdlpCookiesPanel({
       {status?.path && (
         <p className="muted" style={{ fontSize: "0.9rem" }}>
           Path: <code>{status.path}</code>
+          {status.encrypted_path && (
+            <>
+              {" "}
+              · encrypted: <code>{status.encrypted_path}</code>
+            </>
+          )}
+        </p>
+      )}
+      <p className="muted" style={{ fontSize: "0.9rem" }}>
+        At-rest encryption:{" "}
+        <span
+          className={`badge badge-${status?.encryption_configured ? "applied" : "rejected"}`}
+        >
+          {status?.encryption_configured ? "COOKIE_ENCRYPTION_SEED set" : "seed missing"}
+        </span>
+        {status?.encrypted_at_rest && <> · jar encrypted on disk</>}
+      </p>
+      {!status?.encryption_configured && (
+        <p className="error" style={{ fontSize: "0.9rem" }}>
+          Set <code>COOKIE_ENCRYPTION_SEED</code> (12+ character passphrase you choose) in the
+          server environment before saving cookies. Donated cookies also require this seed.
         </p>
       )}
       {status?.present && (

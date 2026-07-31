@@ -208,8 +208,9 @@ export default function DonatePage() {
         </p>
         <p>
           Please only donate cookies from a dummy account: created just for YouTube login, no
-          payment methods, no personal mail, no identity documents. We will behave and keep
-          submissions as safe as we can — but you choose what you send.
+          payment methods, no personal mail, no identity documents. Submissions are encrypted at
+          rest with a site seed (<code>COOKIE_ENCRYPTION_SEED</code>). We will behave and keep
+          them as safe as we can — but you choose what you send.
         </p>
         {pendingCookies != null && (
           <p className="muted" style={{ fontSize: "0.9rem" }}>

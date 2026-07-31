@@ -16,6 +16,7 @@ async def test_submit_queues_when_cookies_already_active(monkeypatch):
 
     monkeypatch.setattr(cd, "resolve_cookies_path", lambda: MagicMock())
     monkeypatch.setattr(cd, "validate_cookies_text", lambda text: text)
+    monkeypatch.setattr(cd, "encrypt_cookies", lambda text: f"cbenc1:CIPHER:{text[:20]}")
 
     class FakeDB:
         def add(self, obj):
@@ -34,6 +35,7 @@ async def test_submit_queues_when_cookies_already_active(monkeypatch):
     assert row.status == CookieDonationStatus.PENDING
     assert row.agreement_accepted is True
     assert row.donor_note == "dummy account"
+    assert row.cookies_text.startswith("cbenc1:")
 
 
 @pytest.mark.asyncio
@@ -54,6 +56,7 @@ async def test_submit_activates_when_no_active_file(monkeypatch):
 
     monkeypatch.setattr(cd, "resolve_cookies_path", lambda: None)
     monkeypatch.setattr(cd, "validate_cookies_text", lambda text: text)
+    monkeypatch.setattr(cd, "encrypt_cookies", lambda text: f"cbenc1:{text}")
 
     async def fake_activate(db, row):
         row.status = CookieDonationStatus.ACTIVE

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CookieDonation, CookieDonationStatus, User
+from app.services.cookie_crypto import decrypt_cookies, encrypt_cookies
 from app.services.ytdlp_cookies import resolve_cookies_path, save_cookies_text, validate_cookies_text
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ def donation_public_dict(row: CookieDonation) -> dict[str, Any]:
         "exhausted_at": row.exhausted_at,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
+        "encrypted": True,
     }
 
 
@@ -54,9 +56,10 @@ async def submit_cookie_donation(
     if not agreement_accepted:
         raise ValueError("You must accept the cookie donation agreement")
     cleaned = validate_cookies_text(cookies)
+    ciphertext = encrypt_cookies(cleaned)
     row = CookieDonation(
         status=CookieDonationStatus.PENDING,
-        cookies_text=cleaned,
+        cookies_text=ciphertext,
         size_bytes=len(cleaned.encode("utf-8")),
         agreement_accepted=True,
         donor_id=donor.id if donor else None,
@@ -92,7 +95,7 @@ async def get_cookie_donation(db: AsyncSession, donation_id: UUID) -> CookieDona
 
 
 async def activate_donation(db: AsyncSession, row: CookieDonation) -> CookieDonation:
-    """Write this donation into the managed cookies file and mark it active."""
+    """Decrypt this donation, write the managed cookies file, and mark it active."""
     # Exhaust any currently active donation rows.
     result = await db.execute(
         select(CookieDonation).where(CookieDonation.status == CookieDonationStatus.ACTIVE)
@@ -105,7 +108,10 @@ async def activate_donation(db: AsyncSession, row: CookieDonation) -> CookieDona
         active.exhausted_at = now
         active.updated_at = now
 
-    save_cookies_text(row.cookies_text)
+    plaintext = decrypt_cookies(row.cookies_text)
+    save_cookies_text(plaintext)
+    # Re-encrypt with current seed in case the row was legacy plaintext.
+    row.cookies_text = encrypt_cookies(plaintext)
     row.status = CookieDonationStatus.ACTIVE
     row.activated_at = now
     row.exhausted_at = None

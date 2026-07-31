@@ -440,6 +440,9 @@ export interface ArchiveExportStatus {
 export interface YtdlpCookiesStatus {
   present: boolean;
   path: string;
+  encrypted_path?: string | null;
+  encrypted_at_rest?: boolean;
+  encryption_configured?: boolean;
   size_bytes: number;
   updated_at?: string | null;
   active: boolean;
