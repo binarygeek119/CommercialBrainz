@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import type { Video } from "../api";
 import { commercialUrl } from "../utils/commercialUrls";
-import { videoThumbnailUrl } from "../utils/videoThumbnail";
+import { nextYoutubeThumbnailFallback, videoThumbnailUrl } from "../utils/videoThumbnail";
 import { formatDurationMs } from "../utils/youtube";
 import {
   VIDEO_DETAIL_FIELDS,
@@ -54,7 +55,7 @@ export default function CommercialVideoEntry({
   selected = false,
   onSelect,
 }: Props) {
-  const thumb = videoThumbnailUrl(video);
+  const [thumb, setThumb] = useState<string | null>(() => videoThumbnailUrl(video));
   const title = videoDisplayTitle(video);
   const duration = formatDurationMs(video.duration_ms);
   const rows = VIDEO_DETAIL_FIELDS.filter(({ key }) => videoHasFieldValue(video, key));
@@ -84,7 +85,15 @@ export default function CommercialVideoEntry({
         }}
       >
         {thumb ? (
-          <img src={thumb} alt="" loading="lazy" />
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            onError={() => {
+              const next = nextYoutubeThumbnailFallback(thumb, video.youtube_id);
+              setThumb(next);
+            }}
+          />
         ) : (
           <div className="video-card-thumb-placeholder" aria-hidden />
         )}

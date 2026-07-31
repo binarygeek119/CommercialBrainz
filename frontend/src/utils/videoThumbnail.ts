@@ -6,6 +6,8 @@ type ThumbnailSource = {
   metadata?: Record<string, unknown> | null;
 };
 
+const YT_CDN_QUALITIES = ["maxresdefault", "sddefault", "hqdefault", "mqdefault", "default"] as const;
+
 export function videoThumbnailUrl(video: ThumbnailSource): string | null {
   if (video.thumbnail_url) return video.thumbnail_url;
   const fromMeta = video.metadata?.youtube_thumbnail;
@@ -18,4 +20,19 @@ export function videoThumbnailUrl(video: ThumbnailSource): string | null {
 
 export function youtubeIdThumbnail(youtubeId: string, quality = "hqdefault"): string {
   return `https://i.ytimg.com/vi/${youtubeId}/${quality}.jpg`;
+}
+
+/** Next YouTube CDN quality URL after a load failure, or null when exhausted. */
+export function nextYoutubeThumbnailFallback(
+  failedUrl: string,
+  youtubeId: string | null | undefined,
+): string | null {
+  if (!youtubeId) return null;
+  const current = YT_CDN_QUALITIES.findIndex((q) => failedUrl.includes(`/${q}.jpg`));
+  const start = current >= 0 ? current + 1 : 0;
+  for (let i = start; i < YT_CDN_QUALITIES.length; i++) {
+    const next = youtubeIdThumbnail(youtubeId, YT_CDN_QUALITIES[i]);
+    if (next !== failedUrl) return next;
+  }
+  return null;
 }
