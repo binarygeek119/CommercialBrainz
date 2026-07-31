@@ -2,7 +2,7 @@
 #
 # Branches / sites / VMs:
 #   google     — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
-#   cloudflare — https://commercialbrainz.org/            → commercialbrainz-org
+#   cloudflare — https://commercialbrainz.org/            → commercialbrainz-public
 #
 # CI pushes images to GHCR; this workflow pulls them on the target VM.
 # See docs/branches.md
@@ -10,7 +10,7 @@
 # Optional repository variables:
 #   GCP_PROJECT_ID       — default commercialbrainz
 #   VM_NAME_GOOGLE       — default commercialbrainz-vm
-#   VM_NAME_CLOUDFLARE   — default commercialbrainz-org
+#   VM_NAME_CLOUDFLARE   — default commercialbrainz-public
 #   VM_NAME              — legacy alias for the google/testing VM
 #
 name: Deploy
@@ -69,7 +69,7 @@ jobs:
           branch="${{ steps.target.outputs.branch }}"
           if [[ "$branch" == "cloudflare" ]]; then
             name="${{ vars.VM_NAME_CLOUDFLARE }}"
-            name="${name:-commercialbrainz-org}"
+            name="${name:-commercialbrainz-public}"
           else
             name="${{ vars.VM_NAME_GOOGLE }}"
             if [[ -z "$name" ]]; then

@@ -3,7 +3,7 @@
 # Uses the same github-deploy SA as Deploy. Run from Actions → Setup GCE VM.
 #
 # Targets:
-#   cloudflare — commercialbrainz-org (public, static IP, no DuckDNS)
+#   cloudflare — commercialbrainz-public (public, static IP, no DuckDNS)
 #   google     — commercialbrainz-vm  (testing; needs DuckDNS secrets)
 #
 # Optional secrets:
@@ -70,7 +70,7 @@ jobs:
           PROJECT_ID="${PROJECT_ID:-commercialbrainz}"
           if [[ "$TARGET" == "cloudflare" ]]; then
             name="${{ vars.VM_NAME_CLOUDFLARE }}"
-            name="${name:-commercialbrainz-org}"
+            name="${name:-commercialbrainz-public}"
             script=scripts/setup-cloudflare-vm.sh
           else
             name="${{ vars.VM_NAME_GOOGLE }}"

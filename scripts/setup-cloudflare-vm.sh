@@ -4,7 +4,7 @@
 # This is separate from the testing VM (commercialbrainz-vm / DuckDNS).
 #
 #   google branch     → commercialbrainz-vm   → https://commercialbrainz.duckdns.org/
-#   cloudflare branch → commercialbrainz-org  → https://commercialbrainz.org/
+#   cloudflare branch → commercialbrainz-public  → https://commercialbrainz.org/
 #
 # Note: GCP Always Free includes only ONE e2-micro. A second VM is billed
 # (still cheap on e2-micro). Prefer CREATE_STATIC_IP=1 so Cloudflare A records
@@ -27,7 +27,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
-export VM_NAME="${VM_NAME:-commercialbrainz-org}"
+export VM_NAME="${VM_NAME:-commercialbrainz-public}"
 export REPO_BRANCH="${REPO_BRANCH:-cloudflare}"
 export CREATE_STATIC_IP="${CREATE_STATIC_IP:-1}"
 export MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"

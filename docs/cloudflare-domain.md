@@ -3,7 +3,7 @@
 Serve **https://commercialbrainz.org** with:
 
 - Cloudflare **Free** (edge HTTPS, CDN, DDoS)
-- Dedicated GCE VM **`commercialbrainz-org`** as origin
+- Dedicated GCE VM **`commercialbrainz-public`** as origin
 - **Cloudflare Origin CA** cert on Caddy (also free)
 
 Testing stays on **`commercialbrainz-vm`** + DuckDNS. See [branches.md](branches.md).
@@ -16,13 +16,13 @@ Testing stays on **`commercialbrainz-vm`** + DuckDNS. See [branches.md](branches
 | Cloudflare Origin CA | $0 |
 | Domain `commercialbrainz.org` | whatever you paid |
 | Testing VM `commercialbrainz-vm` (e2-micro free tier) | $0 in free-tier regions |
-| Public VM `commercialbrainz-org` (second e2-micro) | **billed** (Always Free = one e2-micro only) |
+| Public VM `commercialbrainz-public` (second e2-micro) | **billed** (Always Free = one e2-micro only) |
 | Static IP on public VM | small monthly charge (recommended) |
 
 ## Architecture
 
 ```
-Browser --HTTPS--> Cloudflare (Free SSL) --HTTPS--> Caddy on commercialbrainz-org (Origin CA) --> api/web
+Browser --HTTPS--> Cloudflare (Free SSL) --HTTPS--> Caddy on commercialbrainz-public (Origin CA) --> api/web
 ```
 
 SSL/TLS mode on Cloudflare: **Full (strict)**.  
@@ -52,7 +52,7 @@ ADMIN_PASSWORD='…' \
 
 This wraps `setup-gcloud-vm.sh` with:
 
-- `VM_NAME=commercialbrainz-org`
+- `VM_NAME=commercialbrainz-public`
 - `REPO_BRANCH=cloudflare`
 - `CREATE_STATIC_IP=1`
 - DuckDNS **unset** (testing VM keeps DuckDNS)
@@ -60,7 +60,7 @@ This wraps `setup-gcloud-vm.sh` with:
 Note the printed **External IP** (static). Wait until startup finishes (~10–20 min):
 
 ```bash
-gcloud compute ssh commercialbrainz-org --zone=ZONE \
+gcloud compute ssh commercialbrainz-public --zone=ZONE \
   --command='sudo tail -f /var/log/commercialbrainz-startup.log'
 ```
 
@@ -70,7 +70,7 @@ The Actions workflow already grants `github-deploy` OS Login on the new instance
 PROJECT_ID=commercialbrainz
 ZONE=us-central1-a   # whatever zone the VM landed in
 
-gcloud compute instances add-iam-policy-binding commercialbrainz-org \
+gcloud compute instances add-iam-policy-binding commercialbrainz-public \
   --zone="$ZONE" \
   --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/compute.osAdminLogin"
@@ -84,11 +84,11 @@ gcloud compute instances add-iam-policy-binding commercialbrainz-org \
 
    | Type | Name | Content | Proxy |
    |------|------|---------|-------|
-   | A | `@` | **commercialbrainz-org** external IP | Proxied |
+   | A | `@` | **commercialbrainz-public** external IP | Proxied |
    | A | `www` | same IP | Proxied |
 
    ```bash
-   gcloud compute instances describe commercialbrainz-org \
+   gcloud compute instances describe commercialbrainz-public \
      --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
    ```
 
@@ -113,17 +113,17 @@ DOMAIN=commercialbrainz.org \
 ACME_EMAIL=you@example.com \
 ORIGIN_CERT=$HOME/cb-origin.crt \
 ORIGIN_KEY=$HOME/cb-origin.key \
-VM_NAME=commercialbrainz-org \
+VM_NAME=commercialbrainz-public \
   ./scripts/setup-cloudflare-domain.sh
 ```
 
-Defaults: `VM_NAME=commercialbrainz-org`, `KEEP_DUCKDNS=0` (DuckDNS stays on the testing VM only).
+Defaults: `VM_NAME=commercialbrainz-public`, `KEEP_DUCKDNS=0` (DuckDNS stays on the testing VM only).
 
 This uploads Origin CA files, sets `.env` (`DOMAIN`, CORS, public URLs, `CADDY_TLS_MODE=origin`), regenerates Caddy, and probes `https://commercialbrainz.org/health`.
 
 ### 4. App env (what the script sets)
 
-On **`commercialbrainz-org`** `/opt/commercialbrainz/.env`:
+On **`commercialbrainz-public`** `/opt/commercialbrainz/.env`:
 
 ```env
 DOMAIN=commercialbrainz.org
@@ -143,7 +143,7 @@ Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounte
 | Branch | VM | URL |
 |--------|-----|-----|
 | `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
-| `cloudflare` | `commercialbrainz-org` | https://commercialbrainz.org/ |
+| `cloudflare` | `commercialbrainz-public` | https://commercialbrainz.org/ |
 
 After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) picks the VM from the branch. Optional repo variables: `VM_NAME_GOOGLE`, `VM_NAME_CLOUDFLARE`.
 
@@ -153,10 +153,10 @@ After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) pick
 
 ## Troubleshooting
 
-- **526 Invalid SSL certificate:** Origin CA missing/expired, or SSL mode not Full (strict); check `data/caddy/certs/` on **commercialbrainz-org**.
+- **526 Invalid SSL certificate:** Origin CA missing/expired, or SSL mode not Full (strict); check `data/caddy/certs/` on **commercialbrainz-public**.
 - **522 / 523:** firewall or VM down — ports **80** and **443** must allow Cloudflare; confirm A records use the **org** VM IP.
-- **Wrong IP:** update Cloudflare A records to the static IP on `commercialbrainz-org-ip`.
-- **Deploy can’t SSH:** grant `github-deploy` `roles/compute.osAdminLogin` on **commercialbrainz-org** (step 1).
+- **Wrong IP:** update Cloudflare A records to the static IP on `commercialbrainz-public-ip`.
+- **Deploy can’t SSH:** grant `github-deploy` `roles/compute.osAdminLogin` on **commercialbrainz-public** (step 1).
 - **Caddy logs:**  
   `sudo docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml logs caddy --tail=80`
 - **Renew Origin CA:** recreate in the dashboard and re-run `setup-cloudflare-domain.sh` before expiry.
