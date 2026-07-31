@@ -32,10 +32,17 @@ DNS: **Proxied** (orange cloud) — Cloudflare terminates visitor SSL.
 
 ### 1. Create the public VM (once)
 
-From your laptop (`gcloud` authenticated, billing on):
+**Option A — GitHub Actions (no local gcloud):**
+
+1. Repo → **Actions** → **Setup GCE VM** → **Run workflow**
+2. Target: **`cloudflare`**
+3. Optional secrets (Settings → Secrets): `VM_ADMIN_EMAIL`, `VM_ADMIN_USERNAME`, `VM_ADMIN_PASSWORD`, `ACME_EMAIL`
+4. When the job finishes, copy the printed **External IP** from the log
+
+**Option B — laptop** (`gcloud` authenticated, billing on):
 
 ```bash
-GCP_PROJECT_ID=your-project \
+GCP_PROJECT_ID=commercialbrainz \
 ACME_EMAIL=you@example.com \
 ADMIN_EMAIL=you@example.com \
 ADMIN_USERNAME=admin \
@@ -57,10 +64,10 @@ gcloud compute ssh commercialbrainz-org --zone=ZONE \
   --command='sudo tail -f /var/log/commercialbrainz-startup.log'
 ```
 
-Grant GitHub Actions deploy access on the **new** instance (same SA as testing):
+The Actions workflow already grants `github-deploy` OS Login on the new instance. From a laptop, do it once:
 
 ```bash
-PROJECT_ID=your-project
+PROJECT_ID=commercialbrainz
 ZONE=us-central1-a   # whatever zone the VM landed in
 
 gcloud compute instances add-iam-policy-binding commercialbrainz-org \
