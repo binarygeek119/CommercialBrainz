@@ -91,7 +91,10 @@ def test_extractor_attempts_prefer_modern_clients():
 
     with (
         patch.object(media_hash.settings, "ytdlp_extractor_args", ""),
-        patch("app.services.media_hash.resolve_cookies_path", return_value=Path("/tmp/cookies.txt")),
+        patch(
+            "app.services.media_hash.resolve_cookies_path",
+            return_value=Path("/tmp/cookies.txt"),
+        ),
     ):
         with_cookies = media_hash._extractor_attempts()
     assert "youtube:player_client=android,web,mweb" not in with_cookies
