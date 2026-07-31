@@ -48,7 +48,7 @@ Deploy can start the stack **before** Origin CA exists (Caddy falls back to HTTP
 **Option A — GitHub Actions (no local gcloud):**
 
 1. Repo → **Actions** → **Setup GCE VM** → **Run workflow**
-2. Target: **`cloudflare`**
+2. Target: **`public`**
 3. Optional secrets (Settings → Secrets): `VM_ADMIN_EMAIL`, `VM_ADMIN_USERNAME`, `VM_ADMIN_PASSWORD`, `ACME_EMAIL`
 4. When the job finishes, copy the printed **External IP** from the log
 
@@ -66,7 +66,7 @@ ADMIN_PASSWORD='…' \
 This wraps `setup-gcloud-vm.sh` with:
 
 - `VM_NAME=commercialbrainz-public`
-- `REPO_BRANCH=cloudflare`
+- `REPO_BRANCH=public`
 - `CREATE_STATIC_IP=1`
 - DuckDNS **unset** (testing VM keeps DuckDNS)
 
@@ -158,9 +158,9 @@ Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounte
 | Branch | VM | URL |
 |--------|-----|-----|
 | `testing` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
-| `cloudflare` | `commercialbrainz-public` | https://commercialbrainz.org/ |
+| `public` | `commercialbrainz-public` | https://commercialbrainz.org/ |
 
-After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) picks the VM from the branch. Optional repo variables: `VM_NAME_TESTING` (legacy `VM_NAME_GOOGLE`), `VM_NAME_CLOUDFLARE`.
+After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) picks the VM from the branch. Optional repo variables: `VM_NAME_TESTING` (legacy `VM_NAME_GOOGLE`), `VM_NAME_PUBLIC` (legacy `VM_NAME_CLOUDFLARE`).
 
 ## Why not Flexible SSL?
 

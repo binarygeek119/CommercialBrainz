@@ -1,10 +1,10 @@
-# After each merge/push to cloudflare (public site), bump major.minor.bug
+# After each merge/push to public (production site), bump major.minor.bug
 # (default: bug/patch +1) and tag. Skips its own bump commits.
-name: Bump cloudflare version
+name: Bump public version
 
 on:
   push:
-    branches: [cloudflare]
+    branches: [public]
   workflow_dispatch:
     inputs:
       bump:
@@ -18,7 +18,7 @@ on:
           - major
 
 concurrency:
-  group: bump-cloudflare-version
+  group: bump-public-version
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,8 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
-       github.ref == 'refs/heads/cloudflare' &&
+       github.ref == 'refs/heads/public' &&
+       !startsWith(github.event.head_commit.message, 'chore(public): bump version') &&
        !startsWith(github.event.head_commit.message, 'chore(cloudflare): bump version'))
     permissions:
       contents: write
@@ -37,7 +38,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: cloudflare
+          ref: public
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bump version files
@@ -65,12 +66,12 @@ jobs:
           if git diff --cached --quiet; then
             echo "No version file changes (already at ${VERSION}?); ensuring tag exists"
           else
-            git commit -m "chore(cloudflare): bump version to ${VERSION}"
+            git commit -m "chore(public): bump version to ${VERSION}"
           fi
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "Tag ${TAG} already exists"
           else
-            git tag -a "${TAG}" -m "CommercialBrainz ${TAG} (cloudflare)"
+            git tag -a "${TAG}" -m "CommercialBrainz ${TAG} (public)"
           fi
-          git push origin cloudflare
+          git push origin public
           git push origin "${TAG}"

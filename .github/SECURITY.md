@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are applied on **`testing`** first, then promoted to **`cloudflare`** (public site). See [docs/branches.md](../docs/branches.md).
+Security fixes are applied on **`testing`** first, then promoted to **`public`**. See [docs/branches.md](../docs/branches.md).
 
 ## Reporting a vulnerability
 

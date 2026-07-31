@@ -15,8 +15,8 @@
 #   BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX CREATE_VM=1 ./scripts/setup-public-gcp-project.sh
 #
 # After this finishes, set GitHub repo variables (printed at the end), then:
-#   Actions → Setup GCE VM → cloudflare   # if CREATE_VM=0
-#   Actions → Deploy → cloudflare
+#   Actions → Setup GCE VM → public   # if CREATE_VM=0
+#   Actions → Deploy → public
 #
 # See docs/public-gcp-project.md
 #
@@ -203,7 +203,7 @@ if [[ "$CREATE_VM" == "1" || "$CREATE_VM" == "true" ]]; then
   echo "==> Creating public VM ${VM_NAME} in ${PROJECT_ID}..."
   export GCP_PROJECT_ID="$PROJECT_ID"
   export VM_NAME
-  export REPO_BRANCH="${REPO_BRANCH:-cloudflare}"
+  export REPO_BRANCH="${REPO_BRANCH:-public}"
   export CREATE_STATIC_IP="${CREATE_STATIC_IP:-1}"
   export MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
   export DISK_SIZE="${DISK_SIZE:-30GB}"
@@ -222,10 +222,11 @@ Done. Public GCP project is ready.
 
 GitHub → Settings → Variables → Actions — set these for the public site:
 
-  GCP_PROJECT_ID_CLOUDFLARE     = ${PROJECT_ID}
-  GCP_WIF_PROVIDER_CLOUDFLARE   = ${WIF_PROVIDER_RESOURCE}
-  GCP_SA_EMAIL_CLOUDFLARE       = ${SA_EMAIL}
-  VM_NAME_CLOUDFLARE            = ${VM_NAME}
+  GCP_PROJECT_ID_PUBLIC         = ${PROJECT_ID}
+  GCP_WIF_PROVIDER_PUBLIC       = ${WIF_PROVIDER_RESOURCE}
+  GCP_SA_EMAIL_PUBLIC           = ${SA_EMAIL}
+  VM_NAME_PUBLIC                = ${VM_NAME}
+  # (legacy aliases still accepted: *_CLOUDFLARE)
 
 Keep testing on the existing project (defaults / existing vars):
 
@@ -236,14 +237,14 @@ Keep testing on the existing project (defaults / existing vars):
   # (legacy alias still accepted: VM_NAME_GOOGLE)
 
 Next:
-  1. Set the *_CLOUDFLARE variables above in the repo.
+  1. Set the *_PUBLIC variables above in the repo.
   2. Create VM (if CREATE_VM=0):
-       Actions → Setup GCE VM → target cloudflare
+       Actions → Setup GCE VM → target public
      or:
        GCP_PROJECT_ID=${PROJECT_ID} CREATE_STATIC_IP=1 ./scripts/setup-cloudflare-vm.sh
   3. Point Cloudflare A @ / www at the VM static IP.
   4. Origin CA + scripts/setup-cloudflare-domain.sh (docs/cloudflare-domain.md)
-  5. Actions → Deploy → branch cloudflare
+  5. Actions → Deploy → branch public
 
 One-liner reminder (re-print WIF resource):
   echo projects/\$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')/locations/global/workloadIdentityPools/${WIF_POOL}/providers/${WIF_PROVIDER}

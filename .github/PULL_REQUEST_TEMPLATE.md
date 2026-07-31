@@ -9,5 +9,5 @@
 <!-- Screenshots, migration/deploy notes, follow-ups -->
 
 Base branch should be **`testing`** → https://commercialbrainz.duckdns.org/  
-Promote to **`cloudflare`** → https://commercialbrainz.org/ — see [docs/branches.md](../docs/branches.md).
+Promote to **`public`** → https://commercialbrainz.org/ — see [docs/branches.md](../docs/branches.md).
 

@@ -21,7 +21,7 @@
 #   VM_NAME           Instance name, default commercialbrainz-vm
 #                     (public site: commercialbrainz-public via setup-cloudflare-vm.sh)
 #   REPO_URL          Git repo to clone on VM
-#   REPO_BRANCH       Branch to deploy, default testing (public: cloudflare)
+#   REPO_BRANCH       Branch to deploy, default testing (public: public)
 #   ADMIN_EMAIL       Seed admin on first boot (via instance metadata)
 #   ADMIN_USERNAME
 #   ADMIN_PASSWORD
@@ -78,6 +78,9 @@ REPO_BRANCH="${REPO_BRANCH:-testing}"
 if [[ "$REPO_BRANCH" == "main" || "$REPO_BRANCH" == "google" ]]; then
   echo "WARN: REPO_BRANCH=${REPO_BRANCH} is retired; using testing"
   REPO_BRANCH=testing
+elif [[ "$REPO_BRANCH" == "cloudflare" ]]; then
+  echo "WARN: REPO_BRANCH=cloudflare is retired; using public"
+  REPO_BRANCH=public
 fi
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
 DISK_SIZE="${DISK_SIZE:-40GB}"
@@ -352,7 +355,7 @@ if [[ -n "${DUCKDNS_DOMAIN:-}" ]]; then
     echo "    HTTPS:        https://${DUCKDNS_DOMAIN}.duckdns.org/"
     echo "    HTTPS docs:   https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
   fi
-elif [[ "$VM_NAME" == "commercialbrainz-public" || "$REPO_BRANCH" == "cloudflare" ]]; then
+elif [[ "$VM_NAME" == "commercialbrainz-public" || "$REPO_BRANCH" == "public" ]]; then
   echo ""
   echo "    Next (public / Cloudflare):"
   echo "      1. Point Cloudflare A @ and www (Proxied) at ${EXTERNAL_IP}"

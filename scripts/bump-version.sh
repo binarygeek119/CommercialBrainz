@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bump CommercialBrainz public (cloudflare) app version.
+# Bump CommercialBrainz public site app version.
 #
 # Scheme: major.minor.bug  ("bug" is the patch number)
 # Prefers the latest git tag (v…) so merges from testing cannot rewind the
