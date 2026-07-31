@@ -103,12 +103,47 @@ trap clear_maint_flag EXIT
 if $DOCKER pull "$API_IMAGE" && $DOCKER pull "$WEB_IMAGE" && $DOCKER pull "$MAINT_IMAGE"; then
   echo "==> Starting stack from pulled images (no on-VM build)"
   $COMPOSE up -d postgres redis
-  $COMPOSE up -d --pull missing --force-recreate --no-build api worker web maintenance
+  # Bring maintenance up first so Caddy forward_auth can serve the update page
+  # while api/web are recreated.
+  $COMPOSE up -d --pull missing --force-recreate --no-build maintenance
+  echo "==> Waiting for maintenance gate..."
+  for i in $(seq 1 30); do
+    if $COMPOSE exec -T maintenance \
+      wget -q -O /dev/null http://127.0.0.1:8080/_maintenance/alive 2>/dev/null; then
+      echo "Maintenance gate healthy"
+      break
+    fi
+    if [[ $i -eq 30 ]]; then
+      echo "ERROR: maintenance did not become healthy"
+      $COMPOSE logs maintenance --tail=40
+      exit 1
+    fi
+    sleep 2
+  done
+  $COMPOSE up -d --pull missing --force-recreate --no-build --no-deps caddy
+  sleep 3
+  echo "==> Expect maintenance page while flag is set"
+  _code="$(curl -s -o /tmp/cb-maint.html -w '%{http_code}' http://127.0.0.1/ || true)"
+  echo "GET / -> HTTP ${_code}"
+  if [[ "${_code}" != "503" ]]; then
+    echo "WARN: expected 503 maintenance page during update (got ${_code})"
+    head -c 400 /tmp/cb-maint.html 2>/dev/null || true
+    echo ""
+  else
+    grep -qi 'update\|maintenance\|come back' /tmp/cb-maint.html \
+      && echo "OK: maintenance HTML served during update" \
+      || echo "WARN: 503 without expected maintenance copy"
+  fi
+  $COMPOSE up -d --pull missing --force-recreate --no-build api worker web
 else
   echo "WARN: GHCR pull failed — falling back to on-VM compose build"
   $COMPOSE build api worker web maintenance
   $COMPOSE up -d postgres redis
-  $COMPOSE up -d --force-recreate api worker web maintenance
+  $COMPOSE up -d --force-recreate maintenance
+  sleep 5
+  $COMPOSE up -d --force-recreate --no-deps caddy
+  sleep 3
+  $COMPOSE up -d --force-recreate api worker web
 fi
 
 echo ""
@@ -133,7 +168,7 @@ clear_maint_flag
 trap - EXIT
 
 echo ""
-echo "==> Recreate Caddy (refresh Docker DNS to maintenance)"
+echo "==> Recreate Caddy (refresh Docker DNS / forward_auth)"
 $COMPOSE up -d --force-recreate --no-deps caddy
 sleep 5
 
@@ -181,8 +216,12 @@ curl -sf -o /dev/null http://127.0.0.1/ && echo "OK: / web UI via Caddy" || {
   echo "FAIL: / web UI via Caddy"
   $COMPOSE logs web --tail=20
   $COMPOSE logs caddy --tail=20
+  $COMPOSE logs maintenance --tail=20
   exit 1
 }
+# Confirm gate is open (auth 200) after flag cleared.
+_auth="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/_maintenance/auth || true)"
+echo "GET /_maintenance/auth -> HTTP ${_auth} (expect 200 when open)"
 
 echo ""
 echo "==> Done"

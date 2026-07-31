@@ -10,8 +10,6 @@ ENV LISTEN_HOST=0.0.0.0 \
     LISTEN_PORT=8080 \
     FLAGS_DIR=/var/maintenance/flags \
     STATUS_URL=http://api:8000/api/v1/site-status \
-    API_UPSTREAM=http://api:8000 \
-    WEB_UPSTREAM=http://web:80 \
     TEMPLATE_PATH=/app/index.html \
     POLL_INTERVAL_SEC=15
 

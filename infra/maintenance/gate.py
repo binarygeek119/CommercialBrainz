@@ -17,6 +17,8 @@ ALWAYS_PASS_PREFIXES = (
 
 # Local liveness for the maintenance container itself (not proxied).
 LOCAL_ALIVE_PATH = "/_maintenance/alive"
+# Caddy forward_auth URI — 2xx allows the request; otherwise body is returned.
+LOCAL_AUTH_PATH = "/_maintenance/auth"
 
 
 @dataclass(frozen=True)
