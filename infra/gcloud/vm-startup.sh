@@ -105,10 +105,12 @@ bash "$APP_DIR/infra/gcloud/generate-caddyfile.sh" \
   "${DUCKDNS_DOMAIN:+$DUCKDNS_DOMAIN.duckdns.org}" \
   "${ACME_EMAIL:-}"
 
+mkdir -p "$APP_DIR/data/maintenance"
+
 echo "==> Starting containers (pull prebuilt GHCR images; build only if pull fails)..."
 export IMAGE_TAG="${IMAGE_TAG:-latest}"
 COMPOSE="docker compose -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
-if $COMPOSE pull api worker web; then
+if $COMPOSE pull api worker web maintenance; then
   $COMPOSE up -d --pull missing --no-build
 else
   echo "WARN: GHCR pull failed — building on VM (slow on e2-micro)"

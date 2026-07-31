@@ -958,6 +958,70 @@ class YtdlpCookiesUpdate(BaseModel):
     cookies: str = Field(..., min_length=1, max_length=2 * 1024 * 1024)
 
 
+class MaintenanceWindowPublic(BaseModel):
+    id: str
+    starts_at: str
+    ends_at: str
+    message: str
+
+
+class MaintenanceWindowCreate(BaseModel):
+    starts_at: str = Field(..., min_length=8, max_length=64)
+    ends_at: str = Field(..., min_length=8, max_length=64)
+    message: str = Field(default="", max_length=2000)
+
+
+class MaintenanceScheduleUpdate(BaseModel):
+    windows: list[MaintenanceWindowCreate] = Field(default_factory=list)
+
+
+class MaintenanceManualUpdate(BaseModel):
+    enabled: bool
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class LoginAnnouncementUpdate(BaseModel):
+    enabled: bool
+    title: str = Field(default="Announcement", max_length=200)
+    body: str = Field(default="", max_length=8000)
+
+
+class LoginAnnouncementPublic(BaseModel):
+    id: str | None = None
+    title: str = "Announcement"
+    body: str = ""
+
+
+class LoginAnnouncementAdmin(LoginAnnouncementPublic):
+    enabled: bool = False
+    updated_at: str | None = None
+
+
+class MaintenanceStatePublic(BaseModel):
+    active: bool = False
+    reason: str | None = None
+    message: str | None = None
+    window: MaintenanceWindowPublic | None = None
+    upcoming: list[MaintenanceWindowPublic] = Field(default_factory=list)
+
+
+class SiteStatusPublic(BaseModel):
+    maintenance: MaintenanceStatePublic
+    announcement: LoginAnnouncementPublic | None = None
+
+
+class MaintenanceAdminPublic(BaseModel):
+    announcement: LoginAnnouncementAdmin
+    manual: MaintenanceManualUpdate
+    windows: list[MaintenanceWindowPublic] = Field(default_factory=list)
+    maintenance: MaintenanceStatePublic
+
+
+class AnnouncementAckResponse(BaseModel):
+    acked: bool = True
+    announcement_id: str
+
+
 class CookieDonationSubmit(BaseModel):
     cookies: str = Field(..., min_length=1, max_length=2 * 1024 * 1024)
     agreement_accepted: bool = False

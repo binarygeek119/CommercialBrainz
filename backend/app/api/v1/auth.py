@@ -20,12 +20,14 @@ from app.models import User, UserAccess, UserRole
 from app.schemas import (
     AccountDeletionRequestCreate,
     AccountDeletionRequestPublic,
+    AnnouncementAckResponse,
     ApiTokenCreate,
     ApiTokenCreated,
     ApiTokenPublic,
     ChangeEmailRequest,
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    LoginAnnouncementPublic,
     MessageResponse,
     QuizAnswerSubmit,
     QuizGradeResult,
@@ -50,6 +52,10 @@ from app.services.email_verification import (
     resend_verification_email,
     send_verification_email_for_user,
     verify_email_with_token,
+)
+from app.services.maintenance import (
+    ack_announcement_for_user,
+    get_pending_announcement_for_user,
 )
 from app.services.password_reset import request_password_reset, reset_password_with_token
 from app.services.registration_invites import (
@@ -201,6 +207,31 @@ async def me(
     user: User = Depends(get_current_user),
 ):
     return await user_to_public(db, user)
+
+
+@router.get("/me/announcement", response_model=LoginAnnouncementPublic | None)
+async def me_announcement(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return the active login announcement if this user has not dismissed it."""
+    pending = await get_pending_announcement_for_user(db, user.id)
+    if pending is None:
+        return None
+    return LoginAnnouncementPublic(**pending)
+
+
+@router.post("/me/announcement/ack", response_model=AnnouncementAckResponse)
+async def me_announcement_ack(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        result = await ack_announcement_for_user(db, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    await db.commit()
+    return AnnouncementAckResponse(**result)
 
 
 @router.get("/submission-terms", response_model=SubmissionTermsPublic)

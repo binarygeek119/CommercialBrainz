@@ -405,6 +405,41 @@ export interface RegistrationSettings {
   invite_only: boolean;
 }
 
+export interface MaintenanceWindow {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  message: string;
+}
+
+export interface LoginAnnouncement {
+  id?: string | null;
+  title: string;
+  body: string;
+  enabled?: boolean;
+  updated_at?: string | null;
+}
+
+export interface MaintenanceState {
+  active: boolean;
+  reason?: string | null;
+  message?: string | null;
+  window?: MaintenanceWindow | null;
+  upcoming: MaintenanceWindow[];
+}
+
+export interface SiteStatus {
+  maintenance: MaintenanceState;
+  announcement?: LoginAnnouncement | null;
+}
+
+export interface MaintenanceAdmin {
+  announcement: LoginAnnouncement;
+  manual: { enabled: boolean; message?: string | null };
+  windows: MaintenanceWindow[];
+  maintenance: MaintenanceState;
+}
+
 export interface RegistrationInvite {
   id: string;
   code: string;
@@ -1340,6 +1375,44 @@ export const api = {
 
   adminClearYtdlpCookies: () =>
     request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", { method: "DELETE" }),
+
+  siteStatus: () => request<SiteStatus>("/site-status"),
+
+  myAnnouncement: () => request<LoginAnnouncement | null>("/auth/me/announcement"),
+
+  ackAnnouncement: () =>
+    request<{ acked: boolean; announcement_id: string }>("/auth/me/announcement/ack", {
+      method: "POST",
+    }),
+
+  adminMaintenance: () => request<MaintenanceAdmin>("/admin/maintenance"),
+
+  adminSetAnnouncement: (data: { enabled: boolean; title: string; body: string }) =>
+    request<MaintenanceAdmin>("/admin/maintenance/announcement", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  adminSetManualMaintenance: (data: { enabled: boolean; message?: string | null }) =>
+    request<MaintenanceAdmin>("/admin/maintenance/manual", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  adminAddMaintenanceWindow: (data: {
+    starts_at: string;
+    ends_at: string;
+    message?: string;
+  }) =>
+    request<MaintenanceAdmin>("/admin/maintenance/schedule/windows", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  adminRemoveMaintenanceWindow: (windowId: string) =>
+    request<MaintenanceAdmin>(`/admin/maintenance/schedule/windows/${windowId}`, {
+      method: "DELETE",
+    }),
 
   donateCookieBacklogStats: () => request<CookieBacklogStats>("/donate/cookie-backlog/stats"),
 

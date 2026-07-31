@@ -1,29 +1,16 @@
 # Caddy — automatic HTTPS via Let's Encrypt (HTTP-01 challenge)
 # Requires DOMAIN and ACME_EMAIL in environment (.env)
 # https://caddyserver.com/docs/automatic-https
+#
+# All app traffic goes through the maintenance gate (api/web path split lives there).
 
 {
 	email {$ACME_EMAIL}
 }
 
 (commercialbrainz_proxy) {
-	handle /api/* {
-		reverse_proxy http://api:8000
-	}
-	handle /docs* {
-		reverse_proxy http://api:8000
-	}
-	handle /redoc* {
-		reverse_proxy http://api:8000
-	}
-	handle /openapi.json {
-		reverse_proxy http://api:8000
-	}
-	handle /health {
-		reverse_proxy http://api:8000
-	}
 	handle {
-		reverse_proxy http://web:80
+		reverse_proxy http://maintenance:8080
 	}
 }
 

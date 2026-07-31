@@ -1,4 +1,4 @@
-# VM override: Caddy TLS on 80/443, internal web/api only
+# VM override: Caddy TLS on 80/443 → maintenance gate → api/web
 services:
   postgres:
     ports: !reset []
@@ -11,6 +11,28 @@ services:
 
   api:
     ports: !reset []
+
+  maintenance:
+    image: ghcr.io/binarygeek119/commercialbrainz-maintenance:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.maintenance
+    restart: unless-stopped
+    environment:
+      LISTEN_HOST: "0.0.0.0"
+      LISTEN_PORT: "8080"
+      FLAGS_DIR: /var/maintenance/flags
+      STATUS_URL: http://api:8000/api/v1/site-status
+      API_UPSTREAM: http://api:8000
+      WEB_UPSTREAM: http://web:80
+      POLL_INTERVAL_SEC: "15"
+    volumes:
+      - ../data/maintenance:/var/maintenance/flags
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_started
 
   caddy:
     image: caddy:2-alpine
@@ -27,6 +49,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
+      maintenance:
+        condition: service_started
       api:
         condition: service_healthy
       web:

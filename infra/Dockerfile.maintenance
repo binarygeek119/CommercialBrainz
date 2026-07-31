@@ -1,0 +1,23 @@
+FROM python:3.12-alpine
+
+WORKDIR /app
+
+COPY infra/maintenance/gate.py infra/maintenance/proxy.py infra/maintenance/index.html /app/
+
+RUN mkdir -p /var/maintenance/flags
+
+ENV LISTEN_HOST=0.0.0.0 \
+    LISTEN_PORT=8080 \
+    FLAGS_DIR=/var/maintenance/flags \
+    STATUS_URL=http://api:8000/api/v1/site-status \
+    API_UPSTREAM=http://api:8000 \
+    WEB_UPSTREAM=http://web:80 \
+    TEMPLATE_PATH=/app/index.html \
+    POLL_INTERVAL_SEC=15
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=5s \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/_maintenance/alive || exit 1
+
+CMD ["python", "-u", "/app/proxy.py"]

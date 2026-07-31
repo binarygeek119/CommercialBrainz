@@ -47,3 +47,6 @@ infra/caddy/Caddyfile.runtime
 data/ytdlp/cookies.txt
 data/ytdlp/*.txt
 !data/ytdlp/README.md
+data/maintenance/*
+!data/maintenance/.gitkeep
+!data/maintenance/README.md
