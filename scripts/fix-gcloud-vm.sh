@@ -10,6 +10,11 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
 APP_BRANCH="${APP_BRANCH:-google}"
+# main was removed; map any leftover callers/metadata to google.
+if [[ "$APP_BRANCH" == "main" ]]; then
+  echo "WARN: APP_BRANCH=main is retired; using google"
+  APP_BRANCH=google
+fi
 cd "$APP_DIR"
 
 # Narrow env for compose interpolation (IMAGE_TAG/DOMAIN/ACME_EMAIL only).
@@ -49,8 +54,7 @@ if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
   if [[ "$(id -u)" -eq 0 ]]; then
     exec env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
   else
-    exec sudo --preserve-env=IMAGE_TAG,CB_REPO_SYNCED,APP_BRANCH \
-      env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" \
+    exec sudo env CB_REPO_SYNCED=1 IMAGE_TAG="${IMAGE_TAG:-}" APP_BRANCH="${APP_BRANCH}" \
       bash "$APP_DIR/scripts/fix-gcloud-vm.sh"
   fi
 fi
