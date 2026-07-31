@@ -62,6 +62,16 @@ async def import_bulk_playlist(ctx, batch_id: str):
     return result
 
 
+async def enrich_bulk_item_metadata(ctx, item_id: str):
+    from uuid import UUID
+
+    from app.services.bulk_submit import enrich_bulk_item_metadata as run_enrich
+
+    result = await run_enrich(UUID(item_id))
+    logger.info("Bulk item metadata enrich finished: %s", result)
+    return result
+
+
 async def startup(ctx):
     logger.info("CommercialBrainz worker started")
 
@@ -80,6 +90,7 @@ class WorkerSettings:
         process_pending_queue,
         check_public_youtube_links,
         import_bulk_playlist,
+        enrich_bulk_item_metadata,
     ]
     cron_jobs = [
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),

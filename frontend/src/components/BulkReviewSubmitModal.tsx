@@ -121,6 +121,58 @@ async function suggestAdvertiserFromChannel(channel: string): Promise<Advertiser
   return { advertiser_name: trimmed };
 }
 
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stagedMetadataReady(item: BulkSubmissionItem): boolean {
+  if (item.metadata_ready) return true;
+  const m = item.metadata || {};
+  if (m.meta_fetched === true) return true;
+  return Boolean(
+    asString(m.channel_name) ||
+      asNumber(m.duration_ms) != null ||
+      asString(m.thumbnail_url) ||
+      (m.metadata &&
+        typeof m.metadata === "object" &&
+        asString((m.metadata as Record<string, unknown>).youtube_title))
+  );
+}
+
+function previewFromStagedItem(item: BulkSubmissionItem): YouTubeMetadataPreview | null {
+  if (!stagedMetadataReady(item)) return null;
+  const m = item.metadata || {};
+  const nested =
+    m.metadata && typeof m.metadata === "object"
+      ? (m.metadata as Record<string, unknown>)
+      : {};
+  const tags = Array.isArray(m.tags)
+    ? m.tags.filter((t): t is string => typeof t === "string" && Boolean(t.trim()))
+    : [];
+  return {
+    youtube_id: item.youtube_id,
+    youtube_url: item.youtube_url,
+    title: asString(m.title) || item.title || null,
+    channel_name: asString(m.channel_name),
+    upload_date: asString(m.upload_date),
+    duration_ms: asNumber(m.duration_ms),
+    aspect_ratio: asString(m.aspect_ratio),
+    resolution: asString(m.resolution),
+    language: asString(m.language),
+    tags,
+    transcript: asString(m.transcript),
+    is_short: Boolean(m.is_short),
+    suggested_comment: asString(m.suggested_comment),
+    thumbnail_url: asString(m.thumbnail_url),
+    metadata: nested,
+    existing_video_sbid: asString(m.existing_video_sbid),
+  };
+}
+
 interface Props {
   item: BulkSubmissionItem;
   onClose: () => void;
@@ -163,6 +215,38 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
   const uploadDate = ytMeta?.upload_date || "";
   const displayTitle = ytMeta?.title || item.title || item.youtube_id;
 
+  const applyMeta = async (meta: YouTubeMetadataPreview, gen: number) => {
+    if (fetchGen.current !== gen) return;
+    setYtMeta(meta);
+    setForm(formFromYouTubeMeta(meta, item.batch_defaults));
+    setRegionSelection(regionFromDefaults(item.batch_defaults));
+    setYtError(null);
+
+    const defaultAdvertiser = advertiserFromDefaults(item.batch_defaults);
+    if (defaultAdvertiser.advertiser_id || defaultAdvertiser.advertiser_name) {
+      setAdvertiser(defaultAdvertiser);
+      advertiserTouched.current = true;
+    } else if (meta.channel_name) {
+      setGenres((prev) =>
+        prev.target_channel.trim()
+          ? prev
+          : { ...prev, target_channel: meta.channel_name ?? "" }
+      );
+      const suggestion = await suggestAdvertiserFromChannel(meta.channel_name);
+      if (fetchGen.current === gen && !advertiserTouched.current) {
+        setAdvertiser(suggestion);
+      }
+    }
+
+    if (meta.channel_name) {
+      setGenres((prev) =>
+        prev.target_channel.trim()
+          ? prev
+          : { ...prev, target_channel: meta.channel_name ?? "" }
+      );
+    }
+  };
+
   useEffect(() => {
     advertiserTouched.current = false;
     setYtMeta(null);
@@ -177,48 +261,73 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
     setError(null);
 
     const gen = ++fetchGen.current;
-    const url = item.youtube_url || `https://www.youtube.com/watch?v=${item.youtube_id}`;
+    let cancelled = false;
+    let timer: number | undefined;
 
-    api
-      .fetchYouTubeMetadata(url)
-      .then(async (meta) => {
-        if (fetchGen.current !== gen) return;
-        setYtMeta(meta);
-        setForm(formFromYouTubeMeta(meta, item.batch_defaults));
-        setRegionSelection(regionFromDefaults(item.batch_defaults));
+    const finishLoading = () => {
+      if (fetchGen.current === gen) setYtLoading(false);
+    };
 
-        const defaultAdvertiser = advertiserFromDefaults(item.batch_defaults);
-        if (defaultAdvertiser.advertiser_id || defaultAdvertiser.advertiser_name) {
-          setAdvertiser(defaultAdvertiser);
-          advertiserTouched.current = true;
-        } else if (meta.channel_name) {
-          setGenres((prev) =>
-            prev.target_channel.trim()
-              ? prev
-              : { ...prev, target_channel: meta.channel_name ?? "" }
-          );
-          const suggestion = await suggestAdvertiserFromChannel(meta.channel_name);
-          if (fetchGen.current === gen && !advertiserTouched.current) {
-            setAdvertiser(suggestion);
-          }
-        }
-
-        if (meta.channel_name) {
-          setGenres((prev) =>
-            prev.target_channel.trim()
-              ? prev
-              : { ...prev, target_channel: meta.channel_name ?? "" }
-          );
-        }
-      })
-      .catch((err) => {
-        if (fetchGen.current !== gen) return;
+    const liveFetch = async () => {
+      const url = item.youtube_url || `https://www.youtube.com/watch?v=${item.youtube_id}`;
+      try {
+        const meta = await api.fetchYouTubeMetadata(url);
+        if (cancelled || fetchGen.current !== gen) return;
+        await applyMeta(meta, gen);
+      } catch (err) {
+        if (cancelled || fetchGen.current !== gen) return;
         setYtMeta(null);
         setYtError(err instanceof Error ? err.message : "Failed to fetch YouTube metadata");
-      })
-      .finally(() => {
-        if (fetchGen.current === gen) setYtLoading(false);
-      });
+      } finally {
+        finishLoading();
+      }
+    };
+
+    const staged = previewFromStagedItem(item);
+    if (staged) {
+      void applyMeta(staged, gen).finally(finishLoading);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // Metadata is fetched in the background when the item enters the 10-slot window.
+    // Poll briefly, then fall back to a live fetch if enrich is still pending.
+    let attempts = 0;
+    const poll = async () => {
+      if (cancelled || fetchGen.current !== gen) return;
+      attempts += 1;
+      try {
+        const latest = await api.bulkSubmitItem(item.id);
+        if (cancelled || fetchGen.current !== gen) return;
+        const ready = previewFromStagedItem(latest);
+        if (ready) {
+          await applyMeta(ready, gen);
+          finishLoading();
+          return;
+        }
+        const metaError = asString(latest.metadata?.meta_error);
+        if (metaError && attempts >= 2) {
+          setYtError(metaError);
+        }
+      } catch {
+        /* ignore transient poll errors */
+      }
+      if (attempts >= 15) {
+        await liveFetch();
+        return;
+      }
+      timer = window.setTimeout(() => {
+        void poll();
+      }, 2000);
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, [item, ytFetchKey]);
 
   useEffect(() => {
@@ -345,9 +454,9 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
 
         <div className="add-link-dialog-body">
           <p className="muted" style={{ marginTop: 0 }}>
-            YouTube metadata is fetched before the form unlocks. Shared playlist defaults (type,
-            brand, decade, etc.) are applied afterward and can still be edited. Prefetched hash stays
-            attached.
+            YouTube metadata is prefetched in the background for the review window. Shared playlist
+            defaults (type, brand, decade, etc.) are applied afterward and can still be edited.
+            Submit does not wait for hashing — any prefetched hash continues in the background.
           </p>
 
           <div style={{ marginBottom: "1rem" }}>
@@ -403,7 +512,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
               </p>
               <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
                 Status: <span className="badge badge-submitted">{item.status}</span>
-                {ytLoading && " · Fetching YouTube metadata…"}
+                {ytLoading && " · Waiting for prefetched metadata…"}
                 {metaReady && " · Metadata ready"}
                 {metaReady &&
                   (defaults.commercial_type || defaults.advertiser_name || defaults.decade) &&
@@ -679,9 +788,9 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
         >
           <div className="wait-overlay-card">
             <p className="wait-overlay-title">Please wait</p>
-            <p className="muted">Fetching YouTube metadata…</p>
+            <p className="muted">Waiting for prefetched YouTube metadata…</p>
             <p className="muted" style={{ marginBottom: 0, fontSize: "0.85rem" }}>
-              The form unlocks after metadata loads.
+              Metadata is fetched in the background when a video enters the review window.
             </p>
           </div>
         </div>

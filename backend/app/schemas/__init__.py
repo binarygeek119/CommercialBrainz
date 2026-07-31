@@ -313,6 +313,7 @@ class BulkSubmissionItemPublic(ORMModel):
     status: str
     title: str | None = None
     metadata: dict = Field(default_factory=dict)
+    metadata_ready: bool = False
     batch_defaults: dict = Field(default_factory=dict)
     fingerprint_id: UUID | None = None
     edit_id: UUID | None = None

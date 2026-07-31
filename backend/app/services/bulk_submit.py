@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -219,18 +220,17 @@ async def _count_batch_status(
 
 async def _stage_item(db: AsyncSession, item: BulkSubmissionItem) -> UUID | None:
     """
-    Promote one queued item into the review window: fetch metadata and start hashing.
+    Promote one queued item into the review window and start hashing.
 
+    YouTube metadata is enriched asynchronously after staging so the review form
+    can open with prefetched data without blocking this step.
     Returns fingerprint id to enqueue after commit, or None on failure.
     """
     try:
-        meta = fetch_youtube_metadata(item.youtube_id)
-        # Preserve playlist title if metadata has none.
-        if not meta.get("title") and not meta.get("youtube_title"):
-            prior = dict(item.extra_data or {})
-            if prior.get("title"):
-                meta = {**meta, "title": prior["title"]}
-        item.extra_data = meta
+        prior = dict(item.extra_data or {})
+        prior.pop("meta_fetched", None)
+        prior.pop("meta_error", None)
+        item.extra_data = prior
         item.status = BulkSubmissionItemStatus.HASHING
         fp = MediaFingerprint(
             edit_id=None,
@@ -251,17 +251,84 @@ async def _stage_item(db: AsyncSession, item: BulkSubmissionItem) -> UUID | None
         return None
 
 
+def item_metadata_ready(extra: dict[str, Any] | None) -> bool:
+    """True when staged item has review-ready YouTube metadata."""
+    data = extra or {}
+    if data.get("meta_fetched"):
+        return True
+    # Legacy sync staging stored a full fetch_youtube_metadata payload.
+    return bool(
+        data.get("channel_name")
+        or data.get("duration_ms")
+        or data.get("thumbnail_url")
+        or (isinstance(data.get("metadata"), dict) and data["metadata"].get("youtube_title"))
+    )
+
+
+async def enqueue_bulk_item_enrich(item_id: UUID) -> None:
+    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    try:
+        await pool.enqueue_job("enrich_bulk_item_metadata", str(item_id))
+    finally:
+        await pool.aclose()
+
+
+async def enrich_bulk_item_metadata(item_id: UUID) -> dict[str, Any]:
+    """Worker: fetch YouTube metadata for a staged review item in the background."""
+    from app.database import async_session_factory
+
+    async with async_session_factory() as db:
+        item = await db.get(BulkSubmissionItem, item_id)
+        if not item:
+            return {"ok": False, "error": "item not found"}
+        if item.status in {
+            BulkSubmissionItemStatus.QUEUED,
+            BulkSubmissionItemStatus.SUBMITTED,
+            BulkSubmissionItemStatus.SKIPPED,
+            BulkSubmissionItemStatus.DUPLICATE,
+        }:
+            return {"ok": False, "error": f"item status {item.status.value}"}
+        if item_metadata_ready(item.extra_data):
+            return {"ok": True, "skipped": True, "item_id": str(item_id)}
+
+        prior = dict(item.extra_data or {})
+        try:
+            meta = await asyncio.to_thread(fetch_youtube_metadata, item.youtube_id)
+            if not meta.get("title") and not meta.get("youtube_title") and prior.get("title"):
+                meta = {**meta, "title": prior["title"]}
+            existing = await db.scalar(
+                select(Video.sbid).where(Video.youtube_id == item.youtube_id)
+            )
+            if existing:
+                meta["existing_video_sbid"] = str(existing)
+            meta["meta_fetched"] = True
+            meta.pop("meta_error", None)
+            item.extra_data = meta
+            item.updated_at = datetime.now(UTC)
+            await db.commit()
+            return {"ok": True, "item_id": str(item_id)}
+        except Exception as exc:  # noqa: BLE001
+            prior["meta_error"] = str(exc)[:500]
+            prior["meta_fetched"] = False
+            item.extra_data = prior
+            item.updated_at = datetime.now(UTC)
+            await db.commit()
+            logger.warning("Bulk item metadata enrich failed for %s: %s", item_id, exc)
+            return {"ok": False, "error": str(exc)[:500], "item_id": str(item_id)}
+
+
 async def stage_next_bulk_items(
     db: AsyncSession,
     batch_id: UUID,
     *,
     limit: int | None = None,
-) -> list[UUID]:
+) -> tuple[list[UUID], list[UUID]]:
     """
     Fill the per-batch staging window from QUEUED playlist links.
 
-    Hashing starts only when an item is promoted into the window.
-    Returns fingerprint ids that should be enqueued after commit.
+    Hashing starts when an item is promoted into the window. YouTube metadata is
+    enriched in the background afterward.
+    Returns (fingerprint ids to enqueue, staged item ids to enrich).
     """
     window = max(1, int(settings.bulk_submit_staging_window))
     active = await _count_batch_status(db, batch_id, _STAGING_STATUSES)
@@ -269,7 +336,7 @@ async def stage_next_bulk_items(
     if limit is not None:
         slots = min(slots, max(0, int(limit)))
     if slots == 0:
-        return []
+        return [], []
 
     result = await db.execute(
         select(BulkSubmissionItem)
@@ -282,11 +349,13 @@ async def stage_next_bulk_items(
         .with_for_update(skip_locked=True)
     )
     fingerprint_ids: list[UUID] = []
+    staged_item_ids: list[UUID] = []
     for item in result.scalars().all():
         fp_id = await _stage_item(db, item)
+        staged_item_ids.append(item.id)
         if fp_id is not None:
             fingerprint_ids.append(fp_id)
-    return fingerprint_ids
+    return fingerprint_ids, staged_item_ids
 
 
 async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
@@ -346,13 +415,15 @@ async def import_bulk_playlist(batch_id: UUID) -> dict[str, Any]:
                     extra["existing_video_sbid"] = row["existing_video_sbid"]
                 item.extra_data = extra
 
-        fingerprint_ids = await stage_next_bulk_items(db, batch.id)
+        fingerprint_ids, staged_item_ids = await stage_next_bulk_items(db, batch.id)
         batch.status = BulkSubmissionBatchStatus.READY
         batch.updated_at = datetime.now(UTC)
         await db.commit()
 
     for fp_id in fingerprint_ids:
         await enqueue_hash_job(fp_id)
+    for item_id in staged_item_ids:
+        await enqueue_bulk_item_enrich(item_id)
 
     async with async_session_factory() as db:
         await refresh_item_hash_statuses(db, batch_id)
@@ -492,6 +563,7 @@ def item_to_dict(item: BulkSubmissionItem) -> dict[str, Any]:
         "status": item.status.value,
         "title": meta.get("title") or meta.get("youtube_title"),
         "metadata": meta,
+        "metadata_ready": item_metadata_ready(meta),
         "batch_defaults": batch_defaults,
         "fingerprint_id": item.fingerprint_id,
         "edit_id": item.edit_id,
@@ -529,8 +601,11 @@ def batch_to_dict(
     }
 
 
-async def skip_item(db: AsyncSession, item: BulkSubmissionItem) -> list[UUID]:
-    """Skip an item and refill the staging window. Returns fingerprint ids to enqueue."""
+async def skip_item(db: AsyncSession, item: BulkSubmissionItem) -> tuple[list[UUID], list[UUID]]:
+    """Skip an item and refill the staging window.
+
+    Returns (fingerprint ids to enqueue, staged item ids to enrich).
+    """
     if item.status == BulkSubmissionItemStatus.SUBMITTED:
         raise ValueError("Item already submitted")
     if item.status == BulkSubmissionItemStatus.QUEUED:
@@ -570,11 +645,13 @@ async def finalize_bulk_item(
     user: User,
     item: BulkSubmissionItem,
     submit_payload: dict[str, Any],
-) -> tuple[Edit, list[UUID]]:
+) -> tuple[Edit, list[UUID], list[UUID]]:
     """
-    Create a normal CREATE_VIDEO edit from a ready staging item.
+    Create a normal CREATE_VIDEO edit from a staging item.
 
-    Returns the edit and fingerprint ids for newly staged refill items.
+    Hashing is not required to finish first: any in-flight preview fingerprint is
+    attached to the edit (and video when auto-applied) and continues in the background.
+    Returns (edit, fingerprint ids to enqueue, staged item ids to enrich).
     """
     from app.services import EditService
     from app.services.advertisers import resolve_commercial_advertiser
@@ -587,18 +664,22 @@ async def finalize_bulk_item(
     }:
         raise ValueError(f"Item cannot be submitted in status {item.status.value}")
 
-    # Allow submit when hash still pending only if fingerprint completed meanwhile.
     await refresh_item_hash_statuses(db)
     await db.refresh(item)
-    if item.status != BulkSubmissionItemStatus.READY:
-        # Still allow if fingerprint completed
-        if item.fingerprint_id:
-            fp = await db.get(MediaFingerprint, item.fingerprint_id)
-            if not fp or fp.status != FingerprintStatus.COMPLETED:
-                raise ValueError("Item fingerprint is not ready yet")
-            item.status = BulkSubmissionItemStatus.READY
-        else:
-            raise ValueError("Item is not ready")
+
+    # Ensure a fingerprint exists so hashing can continue (or start) in the background.
+    enqueue_fps: list[UUID] = []
+    if not item.fingerprint_id:
+        fp = MediaFingerprint(
+            edit_id=None,
+            youtube_id=item.youtube_id,
+            phase=FingerprintPhase.PREVIEW,
+            status=FingerprintStatus.PENDING,
+        )
+        db.add(fp)
+        await db.flush()
+        item.fingerprint_id = fp.id
+        enqueue_fps.append(fp.id)
 
     terms_agreed = bool(submit_payload.get("terms_agreed"))
     await validate_and_record_terms_acceptance(db, user, terms_agreed)
@@ -667,7 +748,7 @@ async def finalize_bulk_item(
         if catalog_edits:
             after_state["catalog_edit_ids"] = [str(e.id) for e in catalog_edits]
 
-    # Attach fingerprint to upcoming edit before create when possible.
+    # Create the edit immediately; hashing continues asynchronously.
     edit = await EditService.create_edit(
         db,
         user,
@@ -680,20 +761,57 @@ async def finalize_bulk_item(
 
     if item.fingerprint_id:
         fp = await db.get(MediaFingerprint, item.fingerprint_id)
-        if fp:
+        if fp and fp.status == FingerprintStatus.FAILED:
+            applied = edit.status in {
+                EditStatus.APPLIED,
+                EditStatus.AUTOMATICALLY_APPLIED,
+            }
+            # Auto-apply already creates a FINAL fingerprint when the preview failed.
+            # For open edits, start a fresh background hash on the edit.
+            if not applied:
+                new_fp = MediaFingerprint(
+                    edit_id=edit.id,
+                    youtube_id=item.youtube_id,
+                    phase=FingerprintPhase.PREVIEW,
+                    status=FingerprintStatus.PENDING,
+                )
+                db.add(new_fp)
+                await db.flush()
+                item.fingerprint_id = new_fp.id
+                enqueue_fps.append(new_fp.id)
+        elif fp:
             fp.edit_id = edit.id
             applied = edit.status in {
                 EditStatus.APPLIED,
                 EditStatus.AUTOMATICALLY_APPLIED,
             }
-            if applied and edit.entity_id and fp.status == FingerprintStatus.COMPLETED:
-                await _copy_to_video(db, edit.entity_id, fp)
-                fp.video_id = edit.entity_id
+            if applied and edit.entity_id:
+                if fp.status == FingerprintStatus.COMPLETED:
+                    await _copy_to_video(db, edit.entity_id, fp)
+                    fp.video_id = edit.entity_id
+                elif fp.status in {
+                    FingerprintStatus.PENDING,
+                    FingerprintStatus.PROCESSING,
+                }:
+                    # In-flight hash should land on the video when the worker finishes.
+                    fp.video_id = edit.entity_id
+                    if fp.status == FingerprintStatus.PENDING:
+                        enqueue_fps.append(fp.id)
+            elif fp.status == FingerprintStatus.PENDING:
+                enqueue_fps.append(fp.id)
 
     item.status = BulkSubmissionItemStatus.SUBMITTED
     item.edit_id = edit.id
     item.updated_at = datetime.now(UTC)
 
     # Free a staging slot → pull the next playlist link into review + hashing.
-    refill_fps = await stage_next_bulk_items(db, item.batch_id)
-    return edit, refill_fps
+    refill_fps, enrich_ids = await stage_next_bulk_items(db, item.batch_id)
+    # Dedupe while preserving order.
+    seen: set[UUID] = set()
+    combined: list[UUID] = []
+    for fp_id in [*enqueue_fps, *refill_fps]:
+        if fp_id in seen:
+            continue
+        seen.add(fp_id)
+        combined.append(fp_id)
+    return edit, combined, enrich_ids

@@ -357,7 +357,7 @@ class EditService:
             await recompute_main_video(db, video.commercial_id)
             return None
 
-        # Bulk finalize may have completed fingerprint without edit_id set yet.
+        # Bulk finalize may attach a preview fingerprint that is still hashing.
         bulk_fp_id = state.get("bulk_fingerprint_id")
         if bulk_fp_id:
             from app.services.media_hash import _copy_to_video
@@ -371,6 +371,18 @@ class EditService:
 
                 await recompute_main_video(db, video.commercial_id)
                 return None
+            if fp_bulk and fp_bulk.status in {
+                FingerprintStatus.PENDING,
+                FingerprintStatus.PROCESSING,
+            }:
+                # Reuse the in-flight preview job instead of starting a second download.
+                fp_bulk.edit_id = edit.id
+                fp_bulk.video_id = video.sbid
+                video.hash_status = VideoHashStatus.PENDING
+                from app.services.video_popularity import recompute_main_video
+
+                await recompute_main_video(db, video.commercial_id)
+                return fp_bulk.id if fp_bulk.status == FingerprintStatus.PENDING else None
 
         video.hash_status = VideoHashStatus.PENDING
         fp = MediaFingerprint(

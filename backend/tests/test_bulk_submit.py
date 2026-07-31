@@ -158,9 +158,15 @@ async def test_stage_next_bulk_items_respects_window(monkeypatch):
     monkeypatch.setattr(bs.settings, "bulk_submit_staging_window", 2)
     batch_id = uuid4()
     items = [
-        SimpleNamespace(youtube_id="aaaaaaaaaaa", status=BulkSubmissionItemStatus.QUEUED),
-        SimpleNamespace(youtube_id="bbbbbbbbbbb", status=BulkSubmissionItemStatus.QUEUED),
-        SimpleNamespace(youtube_id="ccccccccccc", status=BulkSubmissionItemStatus.QUEUED),
+        SimpleNamespace(
+            id=uuid4(), youtube_id="aaaaaaaaaaa", status=BulkSubmissionItemStatus.QUEUED
+        ),
+        SimpleNamespace(
+            id=uuid4(), youtube_id="bbbbbbbbbbb", status=BulkSubmissionItemStatus.QUEUED
+        ),
+        SimpleNamespace(
+            id=uuid4(), youtube_id="ccccccccccc", status=BulkSubmissionItemStatus.QUEUED
+        ),
     ]
     staged: list[str] = []
 
@@ -184,9 +190,10 @@ async def test_stage_next_bulk_items_respects_window(monkeypatch):
     monkeypatch.setattr(bs, "_count_batch_status", fake_count)
     monkeypatch.setattr(bs, "_stage_item", fake_stage)
 
-    fps = await bs.stage_next_bulk_items(db, batch_id)
+    fps, staged_ids = await bs.stage_next_bulk_items(db, batch_id)
     assert len(fps) == 2
     assert staged == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+    assert staged_ids == [items[0].id, items[1].id]
 
 
 @pytest.mark.asyncio
@@ -200,9 +207,19 @@ async def test_stage_next_skips_when_window_full(monkeypatch):
 
     db = AsyncMock()
     monkeypatch.setattr(bs, "_count_batch_status", fake_count)
-    fps = await bs.stage_next_bulk_items(db, uuid4())
+    fps, staged_ids = await bs.stage_next_bulk_items(db, uuid4())
     assert fps == []
+    assert staged_ids == []
     db.execute.assert_not_called()
+
+
+def test_item_metadata_ready_detects_fetched_and_legacy():
+    from app.services.bulk_submit import item_metadata_ready
+
+    assert not item_metadata_ready({"title": "Playlist title only"})
+    assert item_metadata_ready({"meta_fetched": True})
+    assert item_metadata_ready({"channel_name": "ESPN"})
+    assert item_metadata_ready({"metadata": {"youtube_title": "Spot"}})
 
 
 def test_open_queue_statuses_include_queued():
@@ -259,6 +276,93 @@ def test_bulk_playlist_defaults_drops_target_channel_when_not_general_ad():
         target_channel="ESPN",
     )
     assert defaults.target_channel is None
+
+
+@pytest.mark.asyncio
+async def test_finalize_bulk_item_allows_pending_hash(monkeypatch):
+    """Submit must not wait for fingerprint completion."""
+    from app.models import BulkSubmissionItemStatus, EditStatus, FingerprintStatus
+    from app.services import bulk_submit as bs
+
+    item = SimpleNamespace(
+        id=uuid4(),
+        batch_id=uuid4(),
+        youtube_id="abcdefghijk",
+        youtube_url="https://www.youtube.com/watch?v=abcdefghijk",
+        status=BulkSubmissionItemStatus.HASHING,
+        fingerprint_id=uuid4(),
+        extra_data={"title": "Spot"},
+        edit_id=None,
+        updated_at=None,
+    )
+    pending_fp = SimpleNamespace(
+        id=item.fingerprint_id,
+        status=FingerprintStatus.PENDING,
+        edit_id=None,
+        video_id=None,
+    )
+    created_edit = SimpleNamespace(
+        id=uuid4(),
+        status=EditStatus.OPEN,
+        entity_id=None,
+    )
+    user = SimpleNamespace(id=uuid4())
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=pending_fp)
+    db.refresh = AsyncMock()
+    db.flush = AsyncMock()
+
+    async def fake_refresh(_db):
+        return 0
+
+    async def fake_terms(_db, _user, _agreed):
+        return None
+
+    async def fake_resolve_advertiser(_db, _user, commercial, brand_comment=None):
+        return SimpleNamespace(commercial=commercial, brand_edit=None)
+
+    async def fake_resolve_catalogs(_db, _user, commercial):
+        return commercial, []
+
+    async def fake_create_edit(*_args, **_kwargs):
+        return created_edit
+
+    async def fake_stage(_db, _batch_id):
+        return [], []
+
+    monkeypatch.setattr(bs, "refresh_item_hash_statuses", fake_refresh)
+    monkeypatch.setattr(
+        "app.services.submission_terms.validate_and_record_terms_acceptance",
+        fake_terms,
+    )
+    monkeypatch.setattr(
+        "app.services.advertisers.resolve_commercial_advertiser",
+        fake_resolve_advertiser,
+    )
+    monkeypatch.setattr(
+        "app.services.catalog.resolve_all_catalogs",
+        fake_resolve_catalogs,
+    )
+    monkeypatch.setattr("app.services.EditService.create_edit", fake_create_edit)
+    monkeypatch.setattr(bs, "stage_next_bulk_items", fake_stage)
+
+    edit, fps, enrich_ids = await bs.finalize_bulk_item(
+        db,
+        user,
+        item,
+        {
+            "terms_agreed": True,
+            "commercial": {"title": "Spot"},
+            "tags": [],
+        },
+    )
+
+    assert edit is created_edit
+    assert item.status == BulkSubmissionItemStatus.SUBMITTED
+    assert item.edit_id == created_edit.id
+    assert pending_fp.edit_id == created_edit.id
+    assert item.fingerprint_id in fps
+    assert enrich_ids == []
 
 
 @pytest.mark.asyncio
