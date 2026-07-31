@@ -1008,6 +1008,8 @@ class MaintenanceStatePublic(BaseModel):
 class SiteStatusPublic(BaseModel):
     maintenance: MaintenanceStatePublic
     announcement: LoginAnnouncementPublic | None = None
+    # When true, SPA must not show the development / test-site disclaimer.
+    public_site: bool = False
 
 
 class MaintenanceAdminPublic(BaseModel):

@@ -431,6 +431,8 @@ export interface MaintenanceState {
 export interface SiteStatus {
   maintenance: MaintenanceState;
   announcement?: LoginAnnouncement | null;
+  /** When true, hide the development / test-site disclaimer (public production). */
+  public_site?: boolean;
 }
 
 export interface MaintenanceAdmin {
