@@ -183,7 +183,7 @@ gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
     '${DOMAIN_ALIASES}' \
     '${CADDY_TLS_MODE}'
 
-  COMPOSE='docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml'
+  COMPOSE='docker compose --project-directory infra --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml'
   sudo \$COMPOSE up -d --force-recreate --no-deps caddy api web
   echo 'Waiting for https://${DOMAIN}/health ...'
   for i in \$(seq 1 36); do

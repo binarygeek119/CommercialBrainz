@@ -150,14 +150,30 @@ def test_gate_scheduled_from_status():
     assert "Scheduled maintenance" in html
 
 
-def test_gate_open_when_status_ok():
-    decision = decide_gate(
-        flag_active=False,
-        status={"maintenance": {"active": False}},
-        status_fetch_ok=True,
-        upstream_reachable=True,
-    )
+def test_proxy_current_gate_reads_cache_without_unbound_local():
+    """Regression: assigning globals in _current_gate must use `global`."""
+    import importlib
+    import sys
+
+    maint_dir = str(MAINT_DIR)
+    if maint_dir not in sys.path:
+        sys.path.insert(0, maint_dir)
+    # Fresh import so module-level TEMPLATE load is fine.
+    sys.modules.pop("proxy", None)
+    sys.modules.pop("gate", None)
+    proxy = importlib.import_module("proxy")
+
+    proxy._cached_status = {"maintenance": {"active": False}}
+    proxy._status_fetch_ok = True
+    decision = proxy._current_gate(force_refresh=False)
     assert decision.gated is False
+
+    # Force the branch that assigns _cached_status / _status_fetch_ok.
+    proxy._status_fetch_ok = False
+    decision = proxy._current_gate(force_refresh=True)
+    # Status URL unreachable in unit test → fail closed or open depending on fetch;
+    # the important part is no UnboundLocalError.
+    assert decision is not None
 
 
 def test_gate_fail_closed_when_status_unreachable():

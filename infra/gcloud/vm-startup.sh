@@ -114,7 +114,8 @@ mkdir -p "$APP_DIR/data/maintenance"
 echo "==> Starting containers (pull prebuilt GHCR images; build only if pull fails)..."
 export IMAGE_TAG="${IMAGE_TAG:-latest}"
 bash "$APP_DIR/infra/gcloud/write-compose-env.sh" "$APP_DIR"
-COMPOSE="docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
+# --project-directory infra: do not interpolate "$" inside repo-root .env secrets
+COMPOSE="docker compose --project-directory infra --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 if $COMPOSE pull api worker web maintenance; then
   $COMPOSE up -d --pull missing --no-build
 else
