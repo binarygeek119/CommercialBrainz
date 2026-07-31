@@ -300,7 +300,11 @@ export default function DonatePage() {
         </ul>
         <p style={{ marginBottom: 0 }}>
           Start by <Link to="/register">registering</Link>, reading the{" "}
-          <Link to="/terms">Terms</Link>, and introducing yourself on an edit or to a moderator.
+          <Link to="/terms">Terms</Link>, and saying hello on{" "}
+          <a href="https://discord.gg/AEhVjqX4Af" target="_blank" rel="noreferrer noopener">
+            Discord
+          </a>
+          .
         </p>
       </section>
 

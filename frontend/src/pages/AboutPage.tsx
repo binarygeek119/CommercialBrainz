@@ -78,6 +78,13 @@ export default function AboutPage() {
             . See <a href="/docs" target="_blank" rel="noreferrer">API docs</a>.
           </p>
           <p style={{ margin: 0 }}>
+            Join the community on{" "}
+            <a href="https://discord.gg/AEhVjqX4Af" target="_blank" rel="noreferrer noopener">
+              Discord
+            </a>
+            .
+          </p>
+          <p style={{ margin: 0 }}>
             Support the project on the <Link to="/donate">Donate</Link> page — domain, cloud VM,
             spare YouTube cookies, or your time.
           </p>

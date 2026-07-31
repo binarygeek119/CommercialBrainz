@@ -63,6 +63,13 @@ export default function Layout() {
             )}
             <NavLink to="/about">About</NavLink>
             <NavLink to="/donate">Donate</NavLink>
+            <a
+              href="https://discord.gg/AEhVjqX4Af"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Discord
+            </a>
             <NavLink to="/terms">Terms</NavLink>
             <NavLink to="/dmca">DMCA</NavLink>
             {isMod(user) && <NavLink to="/mod" className="nav-mod">Mod</NavLink>}
