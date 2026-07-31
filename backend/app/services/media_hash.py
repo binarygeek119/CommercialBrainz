@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.services.media_probe import merge_probe_into_state, probe_media_file, probe_video_fields
 from app.services.phash import compute_phash, phash_to_db
+from app.services.ytdlp_cookies import resolve_cookies_path
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -96,7 +97,8 @@ def _run_ytdlp_download(
         cmd.extend(["--max-filesize", f"{max_filesize_mb}M"])
     if merge_output_format:
         cmd.extend(["--merge-output-format", merge_output_format])
-    cmd.append(url)
+    # "--" so video IDs / URLs starting with "-" are not parsed as flags.
+    cmd.extend(["--", url])
     return subprocess.run(cmd, capture_output=True, text=True, check=False)
 
 
@@ -124,8 +126,9 @@ def _extractor_attempts() -> list[str | None]:
     Empty string omits --extractor-args (yt-dlp current defaults).
     """
     configured = (settings.ytdlp_extractor_args or "").strip()
+    has_cookies = resolve_cookies_path() is not None
     attempts: list[str | None] = [None]
-    for candidate in (
+    candidates = [
         "",  # yt-dlp defaults (android_vr / web_safari, or authed clients with cookies)
         "youtube:player_client=android_vr,web_safari",
         "youtube:player_client=tv_downgraded,web_safari",
@@ -133,9 +136,11 @@ def _extractor_attempts() -> list[str | None]:
         "youtube:player_client=ios,web_safari",
         "youtube:player_client=tv,mweb",
         "youtube:player_client=web_safari",
-        # Legacy combo kept last for environments that still need it.
-        "youtube:player_client=android,web,mweb",
-    ):
+    ]
+    # `android` ignores cookies; only useful as a last resort when unauthenticated.
+    if not has_cookies:
+        candidates.append("youtube:player_client=android,web,mweb")
+    for candidate in candidates:
         if candidate == configured:
             continue
         if candidate not in attempts:

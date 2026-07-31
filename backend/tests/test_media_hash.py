@@ -1,5 +1,6 @@
 """Tests for yt-dlp download format fallback logic."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -77,7 +78,10 @@ def test_download_youtube_retries_extractor_on_format_unavailable(tmp_path):
 
 
 def test_extractor_attempts_prefer_modern_clients():
-    with patch.object(media_hash.settings, "ytdlp_extractor_args", ""):
+    with (
+        patch.object(media_hash.settings, "ytdlp_extractor_args", ""),
+        patch("app.services.media_hash.resolve_cookies_path", return_value=None),
+    ):
         attempts = media_hash._extractor_attempts()
     # None uses settings (empty → yt-dlp defaults); "" is omitted as a duplicate.
     assert attempts[0] is None
@@ -85,10 +89,20 @@ def test_extractor_attempts_prefer_modern_clients():
     assert "youtube:player_client=tv_downgraded,web_safari" in attempts
     assert "youtube:player_client=android,web,mweb" in attempts
 
-    with patch.object(
-        media_hash.settings,
-        "ytdlp_extractor_args",
-        "youtube:player_client=android,web,mweb",
+    with (
+        patch.object(media_hash.settings, "ytdlp_extractor_args", ""),
+        patch("app.services.media_hash.resolve_cookies_path", return_value=Path("/tmp/cookies.txt")),
+    ):
+        with_cookies = media_hash._extractor_attempts()
+    assert "youtube:player_client=android,web,mweb" not in with_cookies
+
+    with (
+        patch.object(
+            media_hash.settings,
+            "ytdlp_extractor_args",
+            "youtube:player_client=android,web,mweb",
+        ),
+        patch("app.services.media_hash.resolve_cookies_path", return_value=None),
     ):
         forced = media_hash._extractor_attempts()
     assert forced[0] is None
