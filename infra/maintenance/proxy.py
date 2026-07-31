@@ -136,6 +136,19 @@ def _pick_upstream(path: str) -> str:
     return WEB_UPSTREAM
 
 
+_HOP_BY_HOP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "proxy-connection",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+}
+
+
 def _proxy(handler: BaseHTTPRequestHandler) -> None:
     parsed_req = urlsplit(handler.path)
     path = parsed_req.path or "/"
@@ -145,13 +158,25 @@ def _proxy(handler: BaseHTTPRequestHandler) -> None:
     headers = {
         k: v
         for k, v in handler.headers.items()
-        if k.lower() not in {"host", "connection", "proxy-connection"}
+        if k.lower() not in _HOP_BY_HOP and k.lower() != "host"
     }
-    headers["Host"] = upstream.netloc
+    # Prefer hostname without default port — some upstreams reject Host: web:80.
+    if upstream.hostname:
+        default_port = 443 if upstream.scheme == "https" else 80
+        port = upstream.port or default_port
+        headers["Host"] = (
+            upstream.hostname
+            if port == default_port
+            else f"{upstream.hostname}:{port}"
+        )
     body = b""
     length = int(handler.headers.get("Content-Length") or 0)
     if length > 0:
         body = handler.rfile.read(length)
+    if body:
+        headers["Content-Length"] = str(len(body))
+    else:
+        headers.pop("Content-Length", None)
 
     conn: HTTPConnection | HTTPSConnection
     if upstream.scheme == "https":
@@ -164,20 +189,28 @@ def _proxy(handler: BaseHTTPRequestHandler) -> None:
         resp_body = resp.read()
         handler.send_response(resp.status)
         for key, value in resp.getheaders():
-            if key.lower() in {"transfer-encoding", "connection"}:
+            if key.lower() in _HOP_BY_HOP or key.lower() == "content-length":
                 continue
             handler.send_header(key, value)
+        # Always set Content-Length after buffering. Upstream may have used
+        # Transfer-Encoding: chunked; without a length, HTTP/1.1 keep-alive
+        # responses confuse Caddy into returning 502.
+        handler.send_header("Content-Length", str(len(resp_body)))
+        handler.send_header("Connection", "close")
         handler.end_headers()
         if handler.command != "HEAD":
             handler.wfile.write(resp_body)
-    except OSError as exc:
+    except Exception as exc:
         logger.warning("upstream proxy error: %s", exc)
-        decision = decide_gate(
-            flag_active=True,
-            status=None,
-            status_fetch_ok=False,
-        )
-        _serve_maintenance(handler, decision)
+        try:
+            decision = decide_gate(
+                flag_active=True,
+                status=None,
+                status_fetch_ok=False,
+            )
+            _serve_maintenance(handler, decision)
+        except Exception as inner:
+            logger.exception("failed to serve maintenance fallback: %s", inner)
     finally:
         conn.close()
 
@@ -189,6 +222,7 @@ def _serve_maintenance(handler: BaseHTTPRequestHandler, decision) -> None:
     handler.send_header("Content-Length", str(len(html)))
     handler.send_header("Cache-Control", "no-store")
     handler.send_header("Retry-After", "30")
+    handler.send_header("Connection", "close")
     handler.end_headers()
     if handler.command != "HEAD":
         handler.wfile.write(html)
