@@ -161,14 +161,20 @@ Use a **second** GCE VM for production (testing stays on DuckDNS):
 
 **Create the public VM once** (static IP; no DuckDNS):
 
+- **GitHub Actions:** Actions → **Setup GCE VM** → target `cloudflare` → Run workflow  
+  (uses Workload Identity; grants deploy OS Login; prints the IP in the log)
+- **Laptop:**
+
 ```bash
-GCP_PROJECT_ID=your-project \
+GCP_PROJECT_ID=commercialbrainz \
 ACME_EMAIL=you@example.com \
 ADMIN_EMAIL=you@example.com \
 ADMIN_USERNAME=admin \
 ADMIN_PASSWORD='…' \
   ./scripts/setup-cloudflare-vm.sh
 ```
+
+Optional Action secrets: `VM_ADMIN_EMAIL`, `VM_ADMIN_USERNAME`, `VM_ADMIN_PASSWORD`, `ACME_EMAIL`.
 
 Then Cloudflare Free + Origin CA (Full strict). See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)**:
 
