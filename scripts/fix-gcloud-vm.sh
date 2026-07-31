@@ -60,7 +60,12 @@ echo ""
 echo "==> Regenerate Caddyfile"
 DOMAIN="$(grep '^DOMAIN=' .env 2>/dev/null | cut -d= -f2- || true)"
 ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
-bash infra/gcloud/generate-caddyfile.sh infra/caddy/Caddyfile.runtime "${DOMAIN}" "${ACME_EMAIL}"
+DOMAIN_ALIASES="$(grep '^DOMAIN_ALIASES=' .env 2>/dev/null | cut -d= -f2- || true)"
+bash infra/gcloud/generate-caddyfile.sh \
+  infra/caddy/Caddyfile.runtime \
+  "${DOMAIN}" \
+  "${ACME_EMAIL}" \
+  "${DOMAIN_ALIASES}"
 
 echo ""
 # Prefer images prebuilt+pushed by GitHub Actions (GHCR). Fall back to on-VM

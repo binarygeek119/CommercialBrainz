@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Generate Caddyfile with optional Let's Encrypt for DOMAIN.
-# Usage: generate-caddyfile.sh <output-path> [domain] [acme-email]
+# Generate Caddyfile with optional Let's Encrypt for one or more hostnames.
+# Usage:
+#   generate-caddyfile.sh <output-path> [primary-domain] [acme-email] [aliases-csv]
+#
+# aliases-csv example: www.commercialbrainz.org,commercialbrainz.duckdns.org
+# www.<primary> gets a permanent redirect to https://<primary>{uri}.
+# Other aliases share the same site block (useful while migrating off DuckDNS).
 set -euo pipefail
 
 OUT="${1:?output path required}"
 DOMAIN="${2:-}"
 ACME_EMAIL="${3:-admin@localhost}"
+ALIASES_CSV="${4:-}"
 
 cat > "$OUT" <<EOF
 {
@@ -47,9 +53,36 @@ cat > "$OUT" <<EOF
 EOF
 
 if [[ -n "$DOMAIN" && -n "$ACME_EMAIL" && "$ACME_EMAIL" != "admin@localhost" ]]; then
+  www_host=""
+  extra_hosts=()
+  IFS=',' read -ra _aliases <<< "$ALIASES_CSV"
+  for raw in "${_aliases[@]+"${_aliases[@]}"}"; do
+    host="$(echo "$raw" | xargs)"
+    [[ -z "$host" || "$host" == "$DOMAIN" ]] && continue
+    if [[ "$host" == "www.${DOMAIN}" ]]; then
+      www_host="$host"
+    else
+      extra_hosts+=("$host")
+    fi
+  done
+
+  if [[ -n "$www_host" ]]; then
+    cat >> "$OUT" <<EOF
+
+${www_host} {
+	redir https://${DOMAIN}{uri} permanent
+}
+EOF
+  fi
+
+  site_hosts="$DOMAIN"
+  for host in "${extra_hosts[@]+"${extra_hosts[@]}"}"; do
+    site_hosts="${site_hosts}, ${host}"
+  done
+
   cat >> "$OUT" <<EOF
 
-${DOMAIN} {
+${site_hosts} {
 	import commercialbrainz_proxy
 }
 EOF
@@ -62,4 +95,4 @@ cat >> "$OUT" <<'EOF'
 }
 EOF
 
-echo "Generated Caddyfile at $OUT (domain=${DOMAIN:-none})"
+echo "Generated Caddyfile at $OUT (domain=${DOMAIN:-none} aliases=${ALIASES_CSV:-none})"

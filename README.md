@@ -142,6 +142,21 @@ Caddy obtains and renews certificates automatically (HTTP-01 challenge on port 8
 
 **Troubleshooting:** run `GCP_PROJECT_ID=your-project ./scripts/diagnose-gcloud-vm.sh`
 
+### Custom domain on Cloudflare Free (`commercialbrainz.org`)
+
+Cheapest public hostname: **Cloudflare Free** DNS (+ optional orange-cloud proxy) in front of the same free-tier VM. No paid Cloudflare features required.
+
+See **[docs/cloudflare-domain.md](docs/cloudflare-domain.md)** for the full checklist, then:
+
+```bash
+GCP_PROJECT_ID=your-project \
+DOMAIN=commercialbrainz.org \
+ACME_EMAIL=you@example.com \
+  ./scripts/setup-cloudflare-domain.sh
+```
+
+Use **DNS only (grey cloud)** until Let's Encrypt succeeds, then optionally enable **Proxied** + SSL **Full (strict)**.
+
 ### Auto-deploy on push to `main`
 
 GitHub Actions workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) deploys to the GCE VM after **CI** succeeds on `main` (also runnable manually from the Actions tab).
