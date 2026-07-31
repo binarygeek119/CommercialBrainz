@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CommercialBrainz — Maintenance</title>
+    <style>
+      :root {
+        --bg0: #0f1419;
+        --bg1: #1a2332;
+        --ink: #e8eef6;
+        --muted: #9aabbd;
+        --accent: #3d9cf0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(ellipse 80% 50% at 20% 0%, #1e3a5f 0%, transparent 55%),
+          radial-gradient(ellipse 60% 40% at 90% 100%, #243447 0%, transparent 50%),
+          linear-gradient(160deg, var(--bg0), var(--bg1));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      main {
+        max-width: 32rem;
+        text-align: center;
+      }
+      .brand {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        margin: 0 0 1.5rem;
+      }
+      .brand span {
+        color: var(--accent);
+      }
+      h1 {
+        font-size: 1.35rem;
+        font-weight: 600;
+        margin: 0 0 0.75rem;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0 0 0.75rem;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+      .detail {
+        margin-top: 1.25rem;
+        padding: 1rem 1.15rem;
+        border: 1px solid rgba(61, 156, 240, 0.35);
+        border-radius: 8px;
+        background: rgba(15, 20, 25, 0.45);
+        color: var(--ink);
+        font-size: 0.95rem;
+      }
+      .hint {
+        margin-top: 1.75rem;
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">Commercial<span>Brainz</span></p>
+      <h1><!--TITLE-->Site update in progress<!--/TITLE--></h1>
+      <p><!--MESSAGE-->We're deploying changes right now. Please come back in a few minutes.<!--/MESSAGE--></p>
+      <!--DETAIL-->
+      <p class="hint">This page refreshes automatically when the site is back.</p>
+    </main>
+    <script>
+      setTimeout(function () {
+        location.reload();
+      }, 30000);
+    </script>
+  </body>
+</html>

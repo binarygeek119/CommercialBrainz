@@ -585,6 +585,18 @@ a:hover {
   font-size: 0.95rem;
 }
 
+.maintenance-banner {
+  background: rgba(61, 156, 240, 0.12);
+  border-bottom: 1px solid rgba(61, 156, 240, 0.35);
+  padding: 0.65rem 0;
+  color: var(--text);
+}
+
+.maintenance-banner-inner {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
 .advertiser-picker {
   position: relative;
 }

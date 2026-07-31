@@ -16,10 +16,12 @@ from app.api.v1 import (
     mod_panel,
     public,
     reports,
+    site_status,
 )
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
+api_router.include_router(site_status.router)
 api_router.include_router(public.router)
 api_router.include_router(hashes.router)
 api_router.include_router(bulk_submit.router)

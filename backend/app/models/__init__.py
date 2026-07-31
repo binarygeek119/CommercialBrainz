@@ -274,6 +274,9 @@ class User(Base):
     registration_invites_created: Mapped[list["RegistrationInvite"]] = relationship(
         back_populates="created_by", foreign_keys="RegistrationInvite.created_by_id"
     )
+    announcement_acks: Mapped[list["UserAnnouncementAck"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class SiteSetting(Base):
@@ -286,6 +289,28 @@ class SiteSetting(Base):
         timezone=True),
         server_default=func.now(),
          onupdate=func.now())
+
+
+class UserAnnouncementAck(Base):
+    """Per-user dismissal of an admin login announcement (by announcement id)."""
+
+    __tablename__ = "user_announcement_acks"
+    __table_args__ = (
+        UniqueConstraint("user_id", "announcement_id", name="uq_user_announcement_ack"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    announcement_id: Mapped[str] = mapped_column(String(64), index=True)
+    acked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="announcement_acks")
 
 
 class RegistrationInvite(Base):

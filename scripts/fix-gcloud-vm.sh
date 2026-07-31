@@ -25,13 +25,13 @@ if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
     git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
     git fetch origin main
     git reset --hard origin/main
-    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
+    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e data/maintenance
     git rev-parse --short HEAD
   else
     sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
     sudo git fetch origin main
     sudo git reset --hard origin/main
-    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime
+    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e data/maintenance
     sudo git rev-parse --short HEAD
   fi
   export CB_REPO_SYNCED=1
@@ -81,20 +81,34 @@ if [[ -n "${GHCR_TOKEN:-}" ]]; then
   fi
 fi
 
+MAINT_FLAGS_DIR="${APP_DIR}/data/maintenance"
+mkdir -p "$MAINT_FLAGS_DIR"
+MAINT_FLAG="${MAINT_FLAGS_DIR}/UPDATE_IN_PROGRESS"
+
 echo "==> Pull prebuilt images from GHCR"
 # Prefer explicit docker pull so failures are obvious (compose may mask them).
 API_IMAGE="ghcr.io/binarygeek119/commercialbrainz-api:${IMAGE_TAG}"
 WEB_IMAGE="ghcr.io/binarygeek119/commercialbrainz-web:${IMAGE_TAG}"
+MAINT_IMAGE="ghcr.io/binarygeek119/commercialbrainz-maintenance:${IMAGE_TAG}"
 if [[ "$(id -u)" -eq 0 ]]; then DOCKER=docker; else DOCKER="sudo docker"; fi
-if $DOCKER pull "$API_IMAGE" && $DOCKER pull "$WEB_IMAGE"; then
+
+echo "==> Enable maintenance gate (UPDATE_IN_PROGRESS)"
+touch "$MAINT_FLAG"
+
+clear_maint_flag() {
+  rm -f "$MAINT_FLAG" || true
+}
+trap clear_maint_flag EXIT
+
+if $DOCKER pull "$API_IMAGE" && $DOCKER pull "$WEB_IMAGE" && $DOCKER pull "$MAINT_IMAGE"; then
   echo "==> Starting stack from pulled images (no on-VM build)"
   $COMPOSE up -d postgres redis
-  $COMPOSE up -d --pull missing --force-recreate --no-build api worker web
+  $COMPOSE up -d --pull missing --force-recreate --no-build api worker web maintenance
 else
   echo "WARN: GHCR pull failed — falling back to on-VM compose build"
-  $COMPOSE build api worker web
+  $COMPOSE build api worker web maintenance
   $COMPOSE up -d postgres redis
-  $COMPOSE up -d --force-recreate api worker web
+  $COMPOSE up -d --force-recreate api worker web maintenance
 fi
 
 echo ""
@@ -114,13 +128,19 @@ for i in $(seq 1 36); do
 done
 
 echo ""
-echo "==> Recreate Caddy (refresh Docker DNS to api/web)"
+echo "==> Clear maintenance gate"
+clear_maint_flag
+trap - EXIT
+
+echo ""
+echo "==> Recreate Caddy (refresh Docker DNS to maintenance)"
 $COMPOSE up -d --force-recreate --no-deps caddy
 sleep 5
 
 echo ""
 echo "==> Container ages (web/caddy should match api after deploy)"
-$COMPOSE ps -a --format 'table {{.Name}}\t{{.Status}}\t{{.RunningFor}}' api worker web caddy 2>/dev/null || $COMPOSE ps api worker web caddy
+$COMPOSE ps -a --format 'table {{.Name}}\t{{.Status}}\t{{.RunningFor}}' api worker web maintenance caddy 2>/dev/null \
+  || $COMPOSE ps api worker web maintenance caddy
 
 echo ""
 echo "==> Test login endpoint (expect 401 for bad password, not 503)"

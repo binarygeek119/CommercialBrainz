@@ -30,6 +30,13 @@ from app.schemas import (
     AdminUserPublic,
     ArchiveExportStatus,
     FingerprintQueueStatus,
+    LoginAnnouncementAdmin,
+    LoginAnnouncementUpdate,
+    MaintenanceAdminPublic,
+    MaintenanceManualUpdate,
+    MaintenanceScheduleUpdate,
+    MaintenanceWindowCreate,
+    MaintenanceWindowPublic,
     PaginatedResponse,
     RegistrationInviteCreate,
     RegistrationInviteOnlyUpdate,
@@ -46,6 +53,17 @@ from app.services.archive_export_queue import (
 from app.services.archive_org_upload import archive_org_configured
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services.hash_queue import enqueue_hash_job
+from app.services.maintenance import (
+    add_schedule_window,
+    build_maintenance_state,
+    get_announcement,
+    get_manual_maintenance,
+    get_schedule,
+    remove_schedule_window,
+    set_announcement,
+    set_manual_maintenance,
+    set_schedule,
+)
 from app.services.registration_invites import (
     create_registration_invite,
     invite_to_public,
@@ -450,3 +468,111 @@ async def admin_clear_ytdlp_cookies(_admin: User = Depends(require_admin)):
             status_code=500,
             detail=f"Could not clear cookies file: {e}",
         ) from e
+
+
+async def _maintenance_admin_payload(db: AsyncSession) -> MaintenanceAdminPublic:
+    announcement = await get_announcement(db)
+    manual = await get_manual_maintenance(db)
+    schedule = await get_schedule(db)
+    maintenance = build_maintenance_state(
+        manual=manual,
+        windows=schedule["windows"],
+    )
+    return MaintenanceAdminPublic(
+        announcement=LoginAnnouncementAdmin(**announcement),
+        manual=MaintenanceManualUpdate(**manual),
+        windows=[MaintenanceWindowPublic(**w) for w in schedule["windows"]],
+        maintenance=maintenance,
+    )
+
+
+@router.get("/maintenance", response_model=MaintenanceAdminPublic)
+async def admin_get_maintenance(
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    return await _maintenance_admin_payload(db)
+
+
+@router.put("/maintenance/announcement", response_model=MaintenanceAdminPublic)
+async def admin_set_announcement(
+    data: LoginAnnouncementUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    await set_announcement(
+        db,
+        enabled=data.enabled,
+        title=data.title,
+        body=data.body,
+    )
+    await db.commit()
+    return await _maintenance_admin_payload(db)
+
+
+@router.put("/maintenance/manual", response_model=MaintenanceAdminPublic)
+async def admin_set_manual_maintenance(
+    data: MaintenanceManualUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    await set_manual_maintenance(db, enabled=data.enabled, message=data.message)
+    await db.commit()
+    return await _maintenance_admin_payload(db)
+
+
+@router.put("/maintenance/schedule", response_model=MaintenanceAdminPublic)
+async def admin_set_schedule(
+    data: MaintenanceScheduleUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    try:
+        await set_schedule(
+            db,
+            [
+                {
+                    "starts_at": w.starts_at,
+                    "ends_at": w.ends_at,
+                    "message": w.message,
+                }
+                for w in data.windows
+            ],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    await db.commit()
+    return await _maintenance_admin_payload(db)
+
+
+@router.post("/maintenance/schedule/windows", response_model=MaintenanceAdminPublic)
+async def admin_add_schedule_window(
+    data: MaintenanceWindowCreate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    try:
+        await add_schedule_window(
+            db,
+            starts_at=data.starts_at,
+            ends_at=data.ends_at,
+            message=data.message,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    await db.commit()
+    return await _maintenance_admin_payload(db)
+
+
+@router.delete(
+    "/maintenance/schedule/windows/{window_id}",
+    response_model=MaintenanceAdminPublic,
+)
+async def admin_remove_schedule_window(
+    window_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    await remove_schedule_window(db, window_id)
+    await db.commit()
+    return await _maintenance_admin_payload(db)

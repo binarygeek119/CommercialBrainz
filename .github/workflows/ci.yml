@@ -198,6 +198,18 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
+      - name: Build and push maintenance image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/Dockerfile.maintenance
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/binarygeek119/commercialbrainz-maintenance:${{ github.sha }}
+            ghcr.io/binarygeek119/commercialbrainz-maintenance:latest
+          cache-from: type=gha,scope=maintenance
+          cache-to: type=gha,mode=max,scope=maintenance
+
       - name: Make GHCR packages public (anonymous VM pulls)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         continue-on-error: true
@@ -206,7 +218,7 @@ jobs:
         run: |
           set -euo pipefail
           OWNER="${{ github.repository_owner }}"
-          for pkg in commercialbrainz-api commercialbrainz-web; do
+          for pkg in commercialbrainz-api commercialbrainz-web commercialbrainz-maintenance; do
             # Linked packages live under /users/{owner}/packages/...
             if gh api --method PUT \
               -H "Accept: application/vnd.github+json" \

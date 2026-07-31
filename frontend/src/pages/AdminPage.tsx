@@ -4,7 +4,27 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type CookieDonationPublic, type RegistrationInvite, type YtdlpCookiesStatus } from "../api";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
-type Tab = "overview" | "users" | "fingerprints" | "fp-queue" | "registration" | "exports" | "ytdlp";
+type Tab =
+  | "overview"
+  | "users"
+  | "fingerprints"
+  | "fp-queue"
+  | "registration"
+  | "exports"
+  | "ytdlp"
+  | "maintenance";
+
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(local: string): string {
+  const d = new Date(local);
+  return d.toISOString();
+}
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -22,6 +42,16 @@ export default function AdminPage() {
   const [cookiesText, setCookiesText] = useState("");
   const [cookiesError, setCookiesError] = useState("");
   const [cookiesLoading, setCookiesLoading] = useState(false);
+  const [annTitle, setAnnTitle] = useState("Announcement");
+  const [annBody, setAnnBody] = useState("");
+  const [annEnabled, setAnnEnabled] = useState(false);
+  const [manualEnabled, setManualEnabled] = useState(false);
+  const [manualMessage, setManualMessage] = useState("");
+  const [windowStart, setWindowStart] = useState("");
+  const [windowEnd, setWindowEnd] = useState("");
+  const [windowMessage, setWindowMessage] = useState("");
+  const [maintError, setMaintError] = useState("");
+  const [maintLoading, setMaintLoading] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -72,6 +102,20 @@ export default function AdminPage() {
     enabled: tab === "ytdlp",
   });
 
+  const { data: maintenance, refetch: refetchMaintenance } = useQuery({
+    queryKey: ["admin-maintenance"],
+    queryFn: async () => {
+      const data = await api.adminMaintenance();
+      setAnnTitle(data.announcement.title || "Announcement");
+      setAnnBody(data.announcement.body || "");
+      setAnnEnabled(Boolean(data.announcement.enabled));
+      setManualEnabled(Boolean(data.manual.enabled));
+      setManualMessage(data.manual.message || "");
+      return data;
+    },
+    enabled: tab === "maintenance",
+  });
+
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -81,6 +125,8 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
     queryClient.invalidateQueries({ queryKey: ["registration-settings"] });
     queryClient.invalidateQueries({ queryKey: ["admin-ytdlp-cookies"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-maintenance"] });
+    queryClient.invalidateQueries({ queryKey: ["site-status"] });
   };
 
   const handleRole = async (userId: string, role: string) => {
@@ -284,6 +330,77 @@ export default function AdminPage() {
     }
   };
 
+  const handleSaveAnnouncement = async () => {
+    setMaintError("");
+    setMaintLoading(true);
+    try {
+      await api.adminSetAnnouncement({
+        enabled: annEnabled,
+        title: annTitle,
+        body: annBody,
+      });
+      await refetchMaintenance();
+    } catch (err) {
+      setMaintError((err as Error).message);
+    } finally {
+      setMaintLoading(false);
+    }
+  };
+
+  const handleSaveManual = async () => {
+    setMaintError("");
+    setMaintLoading(true);
+    try {
+      await api.adminSetManualMaintenance({
+        enabled: manualEnabled,
+        message: manualMessage || null,
+      });
+      await refetchMaintenance();
+    } catch (err) {
+      setMaintError((err as Error).message);
+    } finally {
+      setMaintLoading(false);
+    }
+  };
+
+  const handleAddWindow = async () => {
+    setMaintError("");
+    if (!windowStart || !windowEnd) {
+      setMaintError("Start and end times are required");
+      return;
+    }
+    setMaintLoading(true);
+    try {
+      await api.adminAddMaintenanceWindow({
+        starts_at: fromDatetimeLocalValue(windowStart),
+        ends_at: fromDatetimeLocalValue(windowEnd),
+        message: windowMessage,
+      });
+      setWindowStart("");
+      setWindowEnd("");
+      setWindowMessage("");
+      await refetchMaintenance();
+    } catch (err) {
+      setMaintError((err as Error).message);
+    } finally {
+      setMaintLoading(false);
+    }
+  };
+
+  const handleRemoveWindow = async (windowId: string) => {
+    if (!confirm("Remove this maintenance window?")) return;
+    setMaintError("");
+    setMaintLoading(true);
+    try {
+      await api.adminRemoveMaintenanceWindow(windowId);
+      await refetchMaintenance();
+    } catch (err) {
+      setMaintError((err as Error).message);
+    } finally {
+      setMaintLoading(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between" style={{ marginBottom: "1.5rem" }}>
@@ -304,6 +421,7 @@ export default function AdminPage() {
             ["fp-queue", "Fingerprint queue"],
             ["registration", "Registration"],
             ["ytdlp", "YouTube cookies"],
+            ["maintenance", "Maintenance"],
             ["exports", "Archive.org export"],
           ] as const
         ).map(([id, label]) => (
@@ -690,6 +808,152 @@ export default function AdminPage() {
                 ))}
               </ul>
             )}
+          </div>
+        </div>
+      )}
+
+      {tab === "maintenance" && (
+        <div className="grid grid-2">
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Login announcement</h2>
+            <p className="muted">
+              Shown as a blocking popup after login until the user clicks OK. Saving creates a
+              new announcement id so users must dismiss again.
+            </p>
+            <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={annEnabled}
+                onChange={(e) => setAnnEnabled(e.target.checked)}
+              />
+              Enabled
+            </label>
+            <label htmlFor="ann-title">Title</label>
+            <input
+              id="ann-title"
+              value={annTitle}
+              onChange={(e) => setAnnTitle(e.target.value)}
+            />
+            <label htmlFor="ann-body">Message</label>
+            <textarea
+              id="ann-body"
+              rows={6}
+              value={annBody}
+              onChange={(e) => setAnnBody(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={maintLoading}
+              onClick={() => void handleSaveAnnouncement()}
+            >
+              Save announcement
+            </button>
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Maintenance gate</h2>
+            <p className="muted">
+              When enabled (or during a scheduled window), the edge maintenance container shows
+              an offline page instead of the site. Deploy updates also set a temporary flag.
+            </p>
+            {maintenance?.maintenance.active && (
+              <p>
+                <strong>Currently gated</strong> ({maintenance.maintenance.reason}):{" "}
+                {maintenance.maintenance.message}
+              </p>
+            )}
+            <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={manualEnabled}
+                onChange={(e) => setManualEnabled(e.target.checked)}
+              />
+              Enable maintenance now
+            </label>
+            <label htmlFor="manual-msg">Maintenance message</label>
+            <textarea
+              id="manual-msg"
+              rows={3}
+              value={manualMessage}
+              onChange={(e) => setManualMessage(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={maintLoading}
+              onClick={() => void handleSaveManual()}
+            >
+              Save maintenance toggle
+            </button>
+          </div>
+
+          <div className="card" style={{ gridColumn: "1 / -1" }}>
+            <h2 style={{ marginTop: 0 }}>Scheduled windows</h2>
+            <p className="muted">
+              Users see an upcoming banner before the window. During the window the site is
+              gated automatically.
+            </p>
+            <div className="grid grid-2">
+              <div>
+                <label htmlFor="win-start">Starts</label>
+                <input
+                  id="win-start"
+                  type="datetime-local"
+                  value={windowStart}
+                  onChange={(e) => setWindowStart(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="win-end">Ends</label>
+                <input
+                  id="win-end"
+                  type="datetime-local"
+                  value={windowEnd}
+                  onChange={(e) => setWindowEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <label htmlFor="win-msg">Message (optional)</label>
+            <input
+              id="win-msg"
+              value={windowMessage}
+              onChange={(e) => setWindowMessage(e.target.value)}
+              placeholder="Why the site will be offline"
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={maintLoading}
+              onClick={() => void handleAddWindow()}
+            >
+              Add window
+            </button>
+            {maintError ? <p className="error">{maintError}</p> : null}
+            <ul style={{ marginTop: "1rem", paddingLeft: "1.2rem" }}>
+              {(maintenance?.windows ?? []).map((w) => (
+                <li key={w.id} style={{ marginBottom: "0.75rem" }}>
+                  <div>
+                    <strong>{toDatetimeLocalValue(w.starts_at).replace("T", " ")}</strong>
+                    {" → "}
+                    <strong>{toDatetimeLocalValue(w.ends_at).replace("T", " ")}</strong>
+                  </div>
+                  <div className="muted">{w.message}</div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ marginTop: "0.35rem" }}
+                    disabled={maintLoading}
+                    onClick={() => void handleRemoveWindow(w.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+              {(maintenance?.windows ?? []).length === 0 && (
+                <li className="muted">No scheduled windows</li>
+              )}
+            </ul>
           </div>
         </div>
       )}

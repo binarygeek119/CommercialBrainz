@@ -1,9 +1,39 @@
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
+import { api, type MaintenanceWindow } from "../api";
 import { useAuth, isMod, isAdmin, isVoteOnly, canSubmit, isEmailVerified } from "../auth";
 import { APP_VERSION } from "../version";
 
+function formatWindowRange(window: MaintenanceWindow): string {
+  const start = new Date(window.starts_at);
+  const end = new Date(window.ends_at);
+  const opts: Intl.DateTimeFormatOptions = {
+    dateStyle: "medium",
+    timeStyle: "short",
+  };
+  return `${start.toLocaleString(undefined, opts)} → ${end.toLocaleString(undefined, opts)}`;
+}
+
 export default function Layout() {
   const { user, logout } = useAuth();
+  const [upcoming, setUpcoming] = useState<MaintenanceWindow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .siteStatus()
+      .then((status) => {
+        if (!cancelled) setUpcoming(status.maintenance.upcoming ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setUpcoming([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const nextWindow = upcoming[0] ?? null;
 
   return (
     <>
@@ -61,6 +91,17 @@ export default function Layout() {
           </div>
         </div>
       </nav>
+      {nextWindow && (
+        <div className="maintenance-banner" role="status">
+          <div className="container maintenance-banner-inner">
+            <span>
+              Scheduled maintenance: the site will be offline{" "}
+              <strong>{formatWindowRange(nextWindow)}</strong>
+              {nextWindow.message ? ` — ${nextWindow.message}` : "."}
+            </span>
+          </div>
+        </div>
+      )}
       {user && !isEmailVerified(user) && (
         <div className="verify-banner">
           <div className="container verify-banner-inner">
