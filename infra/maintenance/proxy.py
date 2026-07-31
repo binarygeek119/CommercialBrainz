@@ -28,6 +28,19 @@ from gate import (
     render_maintenance_html,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [maintenance] %(message)s",
+)
+logger = logging.getLogger("maintenance")
+
+LISTEN_HOST = os.environ.get("LISTEN_HOST", "0.0.0.0")
+LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))
+FLAGS_DIR = os.environ.get("FLAGS_DIR", "/var/maintenance/flags")
+STATUS_URL = os.environ.get("STATUS_URL", "http://api:8000/api/v1/site-status")
+POLL_INTERVAL_SEC = float(os.environ.get("POLL_INTERVAL_SEC", "15"))
+TEMPLATE_PATH = Path(os.environ.get("TEMPLATE_PATH", "/app/index.html"))
+
 _state_lock = threading.Lock()
 _cached_status: dict[str, Any] | None = None
 _status_fetch_ok = False
