@@ -1,11 +1,21 @@
-# After each merge/push to cloudflare (public site), bump v1.0.0-alpha[.N]
-# and tag. Skips its own bump commits so CI/deploy still run once on the
-# versioned tip.
+# After each merge/push to cloudflare (public site), bump major.minor.bug
+# (default: bug/patch +1) and tag. Skips its own bump commits.
 name: Bump cloudflare version
 
 on:
   push:
     branches: [cloudflare]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which number to bump"
+        required: true
+        default: bug
+        type: choice
+        options:
+          - bug
+          - minor
+          - major
 
 concurrency:
   group: bump-cloudflare-version
@@ -15,11 +25,11 @@ jobs:
   bump:
     name: Bump version
     runs-on: ubuntu-latest
-    # Ignore the commit this workflow creates (and manual skip).
     if: >
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/cloudflare' &&
-      !startsWith(github.event.head_commit.message, 'chore(cloudflare): bump version')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/cloudflare' &&
+       !startsWith(github.event.head_commit.message, 'chore(cloudflare): bump version'))
     permissions:
       contents: write
     steps:
@@ -32,11 +42,12 @@ jobs:
 
       - name: Bump version files
         id: bump
+        env:
+          BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || 'bug' }}
         run: |
           set -euo pipefail
           chmod +x scripts/bump-version.sh
-          # Capture NEXT_VERSION / NEXT_TAG from script output.
-          out="$(./scripts/bump-version.sh | tee /tmp/bump.out)"
+          ./scripts/bump-version.sh "$BUMP" | tee /tmp/bump.out
           next="$(grep '^NEXT_VERSION=' /tmp/bump.out | cut -d= -f2)"
           tag="$(grep '^NEXT_TAG=' /tmp/bump.out | cut -d= -f2)"
           echo "version=${next}" >> "$GITHUB_OUTPUT"
