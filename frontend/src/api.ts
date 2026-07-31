@@ -522,6 +522,47 @@ export interface CookieBacklogStats {
   rejected: number;
 }
 
+export interface DonationFundTotals {
+  goal: number;
+  raised: number;
+  spent: number;
+  balance: number;
+}
+
+export interface DonateFundsPublic {
+  domain: DonationFundTotals;
+  cloud_vm: DonationFundTotals;
+  tracking_started_at: string | null;
+  sync_configured: boolean;
+  last_sync_at: string | null;
+}
+
+export interface DonateFundEntryPublic {
+  id: string;
+  fund: string;
+  bmc_support_id: number;
+  amount: number;
+  currency: string;
+  support_note: string | null;
+  supporter_name: string | null;
+  donated_at: string | null;
+}
+
+export interface DonateFundCostPublic {
+  id: string;
+  fund: string;
+  amount: number;
+  note: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+}
+
+export interface DonateFundsAdmin extends DonateFundsPublic {
+  last_sync_error: string | null;
+  entries: DonateFundEntryPublic[];
+  costs: DonateFundCostPublic[];
+}
+
 export interface Edit {
   id: string;
   edit_type: string;
@@ -1415,6 +1456,33 @@ export const api = {
     }),
 
   donateCookieBacklogStats: () => request<CookieBacklogStats>("/donate/cookie-backlog/stats"),
+
+  donateFunds: () => request<DonateFundsPublic>("/donate/funds"),
+
+  adminDonateFunds: () => request<DonateFundsAdmin>("/donate/admin/funds"),
+
+  adminSetDonateFundGoals: (data: { domain_goal: number; cloud_vm_goal: number }) =>
+    request<DonateFundsAdmin>("/donate/admin/funds/goals", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  adminAddDonateFundCost: (data: {
+    fund: "domain" | "cloud_vm";
+    amount: number;
+    note?: string;
+    paid_at?: string;
+  }) =>
+    request<DonateFundsAdmin>("/donate/admin/funds/costs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  adminDeleteDonateFundCost: (id: string) =>
+    request<DonateFundsAdmin>(`/donate/admin/funds/costs/${id}`, { method: "DELETE" }),
+
+  adminSyncDonateFunds: () =>
+    request<DonateFundsAdmin>("/donate/admin/funds/sync", { method: "POST" }),
 
   donateYouTubeCookies: (data: {
     cookies: string;

@@ -1050,6 +1050,59 @@ class CookieDonationReject(BaseModel):
     notes: str | None = Field(None, max_length=1000)
 
 
+class DonationFundTotals(BaseModel):
+    goal: float = 0
+    raised: float = 0
+    spent: float = 0
+    balance: float = 0
+
+
+class DonateFundsPublic(BaseModel):
+    domain: DonationFundTotals
+    cloud_vm: DonationFundTotals
+    tracking_started_at: str | None = None
+    sync_configured: bool = False
+    last_sync_at: str | None = None
+
+
+class DonateFundEntryPublic(BaseModel):
+    id: str
+    fund: str
+    bmc_support_id: int
+    amount: float
+    currency: str
+    support_note: str | None = None
+    supporter_name: str | None = None
+    donated_at: str | None = None
+
+
+class DonateFundCostPublic(BaseModel):
+    id: str
+    fund: str
+    amount: float
+    note: str | None = None
+    paid_at: str | None = None
+    created_at: str | None = None
+
+
+class DonateFundsAdmin(DonateFundsPublic):
+    last_sync_error: str | None = None
+    entries: list[DonateFundEntryPublic] = Field(default_factory=list)
+    costs: list[DonateFundCostPublic] = Field(default_factory=list)
+
+
+class DonateFundsGoalsUpdate(BaseModel):
+    domain_goal: float = Field(..., ge=0)
+    cloud_vm_goal: float = Field(..., ge=0)
+
+
+class DonateFundCostCreate(BaseModel):
+    fund: Literal["domain", "cloud_vm"]
+    amount: float = Field(..., gt=0)
+    note: str | None = Field(None, max_length=1000)
+    paid_at: datetime | None = None
+
+
 class ModStats(BaseModel):
     open_edits: int
     dmca_submitted: int

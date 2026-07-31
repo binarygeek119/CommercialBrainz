@@ -1,39 +1,68 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { api } from "../api";
+import { api, type DonateFundsPublic, type DonationFundTotals } from "../api";
 
-type ModalKind = "domain" | "vm" | "cookies" | null;
+type ModalKind = "cookies" | null;
 
-function DummyDonateModal({
-  title,
-  body,
-  onClose,
-}: {
-  title: string;
-  body: ReactNode;
-  onClose: () => void;
-}) {
+const BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/binarygeekq";
+
+const DOMAIN_MESSAGE = "Donation for the CommercialBrainz domain";
+const VM_MESSAGE = "Donation for the CommercialBrainz cloud VM";
+
+function buyMeACoffeeUrl(message: string): string {
+  const url = new URL(BUY_ME_A_COFFEE_URL);
+  // BMC's page has a "Say something nice..." field. `message` is the common
+  // query key; we also copy to the clipboard as a reliable fallback.
+  url.searchParams.set("message", message);
+  return url.toString();
+}
+
+async function openBuyMeACoffee(message: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(message);
+  } catch {
+    // Clipboard may be blocked; still open the donation page.
+  }
+  window.open(buyMeACoffeeUrl(message), "_blank", "noopener,noreferrer");
+}
+
+function formatMoney(n: number): string {
+  return n.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function FundBar({ label, totals }: { label: string; totals: DonationFundTotals }) {
+  const hasGoal = totals.goal > 0;
+  const pct = hasGoal ? Math.min(100, (totals.balance / totals.goal) * 100) : 0;
   return (
-    <div className="report-overlay" role="dialog" aria-modal="true" aria-labelledby="donate-modal-title">
-      <div className="report-dialog-card" style={{ maxWidth: 420 }}>
-        <h2 id="donate-modal-title" className="report-dialog-title">
-          {title}
-        </h2>
-        <div style={{ marginBottom: "1rem" }}>
-          {body}
-        </div>
-        <div className="report-dialog-actions">
-          <button type="button" className="btn btn-primary" disabled title="Coming soon">
-            Donate (coming soon)
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.85rem" }}>
-          Payment checkout is a placeholder for now — thanks for your interest.
-        </p>
+    <div className="donate-fund-bar">
+      <div className="donate-fund-bar-header">
+        <strong>{label}</strong>
+        <span>
+          {hasGoal
+            ? `${formatMoney(totals.balance)} / ${formatMoney(totals.goal)}`
+            : `${formatMoney(totals.balance)} in fund`}
+        </span>
       </div>
+      <div
+        className="donate-fund-bar-track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={hasGoal ? totals.goal : 100}
+        aria-valuenow={hasGoal ? totals.balance : 0}
+        aria-label={`${label} fund`}
+      >
+        <div className="donate-fund-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="muted donate-fund-bar-meta">
+        {hasGoal
+          ? `${formatMoney(totals.raised)} donated · ${formatMoney(totals.spent)} paid`
+          : "Set a goal in admin"}
+      </p>
     </div>
   );
 }
@@ -90,58 +119,41 @@ function CookieDonateModal({
           <label htmlFor="donate-cookies-text">cookies.txt</label>
           <textarea
             id="donate-cookies-text"
-            required
-            rows={10}
+            rows={8}
             value={cookies}
             onChange={(e) => setCookies(e.target.value)}
-            placeholder="# Netscape HTTP Cookie File&#10;…"
-            disabled={busy}
-            spellCheck={false}
-            style={{ fontFamily: "var(--mono)", fontSize: "0.85rem" }}
+            required
+            placeholder="# Netscape HTTP Cookie File"
+            style={{ fontFamily: "ui-monospace, monospace", fontSize: "0.85rem" }}
           />
         </div>
-
         <div className="form-group">
-          <label htmlFor="donate-cookies-note">Optional note</label>
+          <label htmlFor="donate-cookies-note">Note (optional)</label>
           <input
             id="donate-cookies-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={500}
-            disabled={busy}
-            placeholder="e.g. exported from Chrome, dummy account"
+            placeholder="e.g. dummy account created 2026-07"
           />
         </div>
-
-        <label
-          style={{
-            display: "flex",
-            gap: "0.6rem",
-            alignItems: "flex-start",
-            marginBottom: "1rem",
-            fontSize: "0.9rem",
-          }}
-        >
+        <label style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", marginBottom: "1rem" }}>
           <input
             type="checkbox"
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
-            disabled={busy}
             style={{ marginTop: "0.2rem" }}
           />
           <span>
-            I confirm this is a disposable account with no payment info, addresses, government ID,
-            or important email. I understand CommercialBrainz will try to keep the cookie file safe,
-            but I am responsible for what I submit. Cookies go into a backlog and may become active
-            for YouTube metadata and fingerprint downloads when older cookies expire.
+            I confirm these cookies are from a disposable account with no personal data, and I
+            understand CommercialBrainz will store them encrypted and use them only for YouTube
+            scraping.
           </span>
         </label>
-
         {error && <p className="error">{error}</p>}
-
         <div className="report-dialog-actions">
-          <button type="submit" className="btn btn-primary" disabled={busy || !cookies.trim() || !agreed}>
-            {busy ? "Submitting…" : "Submit to backlog"}
+          <button type="submit" className="btn btn-primary" disabled={busy || !cookies.trim()}>
+            {busy ? "Submitting…" : "Submit cookies"}
           </button>
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
@@ -156,6 +168,7 @@ export default function DonatePage() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [pendingCookies, setPendingCookies] = useState<number | null>(null);
+  const [funds, setFunds] = useState<DonateFundsPublic | null>(null);
 
   useEffect(() => {
     api
@@ -164,6 +177,13 @@ export default function DonatePage() {
       .catch(() => setPendingCookies(null));
   }, [flash]);
 
+  useEffect(() => {
+    api
+      .donateFunds()
+      .then(setFunds)
+      .catch(() => setFunds(null));
+  }, []);
+
   return (
     <div style={{ maxWidth: 760 }}>
       <h1 className="page-title">Donate</h1>
@@ -171,6 +191,13 @@ export default function DonatePage() {
         CommercialBrainz is a volunteer project. Money, spare YouTube cookies, and your time all
         help keep the archive online and growing.
       </p>
+
+      {funds && (
+        <section className="donate-funds" aria-label="Fund progress">
+          <FundBar label="Cloud VM" totals={funds.cloud_vm} />
+          <FundBar label="Domain" totals={funds.domain} />
+        </section>
+      )}
 
       {flash && (
         <div className="card" style={{ marginBottom: "1.25rem", borderColor: "var(--success)" }}>
@@ -183,7 +210,16 @@ export default function DonatePage() {
         <p>
           Help cover domain registration and DNS so the site name stays ours year after year.
         </p>
-        <button type="button" className="btn btn-primary" onClick={() => setModal("domain")}>
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Opens Buy Me a Coffee and copies{" "}
+          <code>{DOMAIN_MESSAGE}</code> so it can go in “Say something nice…” — that tags your gift
+          for the Domain fund bar.
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => void openBuyMeACoffee(DOMAIN_MESSAGE)}
+        >
           Donate toward the domain
         </button>
       </section>
@@ -194,7 +230,16 @@ export default function DonatePage() {
           Donate toward the cloud virtual machine that runs the site — API, workers, database, and
           storage for hashes and thumbnails.
         </p>
-        <button type="button" className="btn btn-primary" onClick={() => setModal("vm")}>
+        <p className="muted" style={{ fontSize: "0.9rem" }}>
+          Opens Buy Me a Coffee and copies{" "}
+          <code>{VM_MESSAGE}</code> so it can go in “Say something nice…” — that tags your gift for
+          the Cloud VM fund bar.
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => void openBuyMeACoffee(VM_MESSAGE)}
+        >
           Donate toward the VM
         </button>
       </section>
@@ -259,28 +304,6 @@ export default function DonatePage() {
         </p>
       </section>
 
-      {modal === "domain" && (
-        <DummyDonateModal
-          title="Domain donation"
-          body={
-            <p style={{ margin: 0 }}>
-              This would go toward renewing the CommercialBrainz domain and related DNS costs.
-            </p>
-          }
-          onClose={() => setModal(null)}
-        />
-      )}
-      {modal === "vm" && (
-        <DummyDonateModal
-          title="Cloud VM donation"
-          body={
-            <p style={{ margin: 0 }}>
-              This would go toward the cloud VM that keeps the site, workers, and database running.
-            </p>
-          }
-          onClose={() => setModal(null)}
-        />
-      )}
       {modal === "cookies" && (
         <CookieDonateModal
           onClose={() => setModal(null)}

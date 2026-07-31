@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type CookieDonationPublic, type RegistrationInvite, type YtdlpCookiesStatus } from "../api";
@@ -12,6 +12,7 @@ type Tab =
   | "registration"
   | "exports"
   | "ytdlp"
+  | "funds"
   | "maintenance";
 
 function toDatetimeLocalValue(iso: string): string {
@@ -52,6 +53,13 @@ export default function AdminPage() {
   const [windowMessage, setWindowMessage] = useState("");
   const [maintError, setMaintError] = useState("");
   const [maintLoading, setMaintLoading] = useState(false);
+  const [domainGoal, setDomainGoal] = useState("");
+  const [vmGoal, setVmGoal] = useState("");
+  const [costFund, setCostFund] = useState<"domain" | "cloud_vm">("cloud_vm");
+  const [costAmount, setCostAmount] = useState("");
+  const [costNote, setCostNote] = useState("");
+  const [fundsError, setFundsError] = useState("");
+  const [fundsLoading, setFundsLoading] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -116,6 +124,18 @@ export default function AdminPage() {
     enabled: tab === "maintenance",
   });
 
+  const { data: donateFunds, refetch: refetchDonateFunds } = useQuery({
+    queryKey: ["admin-donate-funds"],
+    queryFn: () => api.adminDonateFunds(),
+    enabled: tab === "funds",
+  });
+
+  useEffect(() => {
+    if (!donateFunds) return;
+    setDomainGoal(String(donateFunds.domain.goal));
+    setVmGoal(String(donateFunds.cloud_vm.goal));
+  }, [donateFunds]);
+
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -125,6 +145,7 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
     queryClient.invalidateQueries({ queryKey: ["registration-settings"] });
     queryClient.invalidateQueries({ queryKey: ["admin-ytdlp-cookies"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-donate-funds"] });
     queryClient.invalidateQueries({ queryKey: ["admin-maintenance"] });
     queryClient.invalidateQueries({ queryKey: ["site-status"] });
   };
@@ -401,6 +422,76 @@ export default function AdminPage() {
     }
   };
 
+  const handleSaveFundGoals = async () => {
+    setFundsError("");
+    const domain = Number(domainGoal);
+    const vm = Number(vmGoal);
+    if (!Number.isFinite(domain) || !Number.isFinite(vm) || domain < 0 || vm < 0) {
+      setFundsError("Goals must be non-negative numbers");
+      return;
+    }
+    setFundsLoading(true);
+    try {
+      await api.adminSetDonateFundGoals({ domain_goal: domain, cloud_vm_goal: vm });
+      await refetchDonateFunds();
+    } catch (err) {
+      setFundsError((err as Error).message);
+    } finally {
+      setFundsLoading(false);
+    }
+  };
+
+  const handleAddFundCost = async () => {
+    setFundsError("");
+    const amount = Number(costAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setFundsError("Cost amount must be greater than zero");
+      return;
+    }
+    setFundsLoading(true);
+    try {
+      await api.adminAddDonateFundCost({
+        fund: costFund,
+        amount,
+        note: costNote.trim() || undefined,
+      });
+      setCostAmount("");
+      setCostNote("");
+      await refetchDonateFunds();
+    } catch (err) {
+      setFundsError((err as Error).message);
+    } finally {
+      setFundsLoading(false);
+    }
+  };
+
+  const handleDeleteFundCost = async (id: string) => {
+    if (!confirm("Remove this cost entry?")) return;
+    setFundsError("");
+    setFundsLoading(true);
+    try {
+      await api.adminDeleteDonateFundCost(id);
+      await refetchDonateFunds();
+    } catch (err) {
+      setFundsError((err as Error).message);
+    } finally {
+      setFundsLoading(false);
+    }
+  };
+
+  const handleSyncDonateFunds = async () => {
+    setFundsError("");
+    setFundsLoading(true);
+    try {
+      await api.adminSyncDonateFunds();
+      await refetchDonateFunds();
+    } catch (err) {
+      setFundsError((err as Error).message);
+    } finally {
+      setFundsLoading(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between" style={{ marginBottom: "1.5rem" }}>
@@ -421,6 +512,7 @@ export default function AdminPage() {
             ["fp-queue", "Fingerprint queue"],
             ["registration", "Registration"],
             ["ytdlp", "YouTube cookies"],
+            ["funds", "Funds"],
             ["maintenance", "Maintenance"],
             ["exports", "Archive.org export"],
           ] as const
@@ -808,6 +900,179 @@ export default function AdminPage() {
                 ))}
               </ul>
             )}
+          </div>
+        </div>
+      )}
+
+      {tab === "funds" && (
+        <div className="grid grid-2">
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Fund goals</h2>
+            <p className="muted">
+              Goals are the expected Domain / Cloud VM costs the progress bars fill toward.
+              Balance = donations matched by Buy Me a Coffee notes − costs you record when paid.
+            </p>
+            <div className="grid grid-2" style={{ marginBottom: "0.75rem" }}>
+              <div>
+                <div className="muted">Cloud VM</div>
+                <div>
+                  Raised {donateFunds?.cloud_vm.raised ?? 0} · Spent{" "}
+                  {donateFunds?.cloud_vm.spent ?? 0} · Balance{" "}
+                  {donateFunds?.cloud_vm.balance ?? 0}
+                </div>
+              </div>
+              <div>
+                <div className="muted">Domain</div>
+                <div>
+                  Raised {donateFunds?.domain.raised ?? 0} · Spent {donateFunds?.domain.spent ?? 0}{" "}
+                  · Balance {donateFunds?.domain.balance ?? 0}
+                </div>
+              </div>
+            </div>
+            <label htmlFor="vm-goal">Cloud VM goal (USD)</label>
+            <input
+              id="vm-goal"
+              type="number"
+              min={0}
+              step="0.01"
+              value={vmGoal}
+              onChange={(e) => setVmGoal(e.target.value)}
+            />
+            <label htmlFor="domain-goal">Domain goal (USD)</label>
+            <input
+              id="domain-goal"
+              type="number"
+              min={0}
+              step="0.01"
+              value={domainGoal}
+              onChange={(e) => setDomainGoal(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={fundsLoading}
+              onClick={() => void handleSaveFundGoals()}
+            >
+              Save goals
+            </button>
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Record a cost</h2>
+            <p className="muted">
+              When you pay the VM or domain bill, record the amount so the public bars show what
+              remains in the fund.
+            </p>
+            <label htmlFor="cost-fund">Fund</label>
+            <select
+              id="cost-fund"
+              value={costFund}
+              onChange={(e) => setCostFund(e.target.value as "domain" | "cloud_vm")}
+            >
+              <option value="cloud_vm">Cloud VM</option>
+              <option value="domain">Domain</option>
+            </select>
+            <label htmlFor="cost-amount">Amount (USD)</label>
+            <input
+              id="cost-amount"
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={costAmount}
+              onChange={(e) => setCostAmount(e.target.value)}
+            />
+            <label htmlFor="cost-note">Note (optional)</label>
+            <input
+              id="cost-note"
+              value={costNote}
+              onChange={(e) => setCostNote(e.target.value)}
+              placeholder="e.g. July VM invoice"
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={fundsLoading}
+              onClick={() => void handleAddFundCost()}
+            >
+              Add cost
+            </button>
+          </div>
+
+          <div className="card" style={{ gridColumn: "1 / -1" }}>
+            <h2 style={{ marginTop: 0 }}>Buy Me a Coffee sync</h2>
+            <p className="muted">
+              Matches supporter notes containing the Domain / Cloud VM donation messages. Only
+              donations after tracking started are counted.
+              {donateFunds?.tracking_started_at
+                ? ` Tracking since ${donateFunds.tracking_started_at}.`
+                : ""}
+            </p>
+            <p className="muted" style={{ fontSize: "0.9rem" }}>
+              Sync configured: {donateFunds?.sync_configured ? "yes" : "no (set BUYMEACOFFEE_ACCESS_TOKEN)"}
+              {donateFunds?.last_sync_at ? ` · Last sync ${donateFunds.last_sync_at}` : ""}
+            </p>
+            {donateFunds?.last_sync_error ? (
+              <p className="error">Last sync error: {donateFunds.last_sync_error}</p>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={fundsLoading}
+              onClick={() => void handleSyncDonateFunds()}
+            >
+              Sync now
+            </button>
+            {fundsError ? <p className="error">{fundsError}</p> : null}
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Recent costs</h2>
+            <ul style={{ paddingLeft: "1.2rem" }}>
+              {(donateFunds?.costs ?? []).map((c) => (
+                <li key={c.id} style={{ marginBottom: "0.75rem" }}>
+                  <strong>{c.fund === "cloud_vm" ? "Cloud VM" : "Domain"}</strong> — ${c.amount}
+                  {c.note ? ` · ${c.note}` : ""}
+                  <div className="muted" style={{ fontSize: "0.85rem" }}>
+                    {c.paid_at ? new Date(c.paid_at).toLocaleString() : ""}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ marginTop: "0.35rem" }}
+                    disabled={fundsLoading}
+                    onClick={() => void handleDeleteFundCost(c.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+              {(donateFunds?.costs ?? []).length === 0 && (
+                <li className="muted">No costs recorded yet</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Recent matched donations</h2>
+            <ul style={{ paddingLeft: "1.2rem" }}>
+              {(donateFunds?.entries ?? []).map((e) => (
+                <li key={e.id} style={{ marginBottom: "0.75rem" }}>
+                  <strong>{e.fund === "cloud_vm" ? "Cloud VM" : "Domain"}</strong> — ${e.amount}{" "}
+                  {e.currency}
+                  {e.supporter_name ? ` · ${e.supporter_name}` : ""}
+                  <div className="muted" style={{ fontSize: "0.85rem" }}>
+                    {e.support_note}
+                  </div>
+                  <div className="muted" style={{ fontSize: "0.85rem" }}>
+                    {e.donated_at ? new Date(e.donated_at).toLocaleString() : ""} · BMC #
+                    {e.bmc_support_id}
+                  </div>
+                </li>
+              ))}
+              {(donateFunds?.entries ?? []).length === 0 && (
+                <li className="muted">No matched donations yet</li>
+              )}
+            </ul>
           </div>
         </div>
       )}

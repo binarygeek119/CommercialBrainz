@@ -758,6 +758,41 @@ code, .mono {
   color: var(--accent);
 }
 
+.donate-funds {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.donate-fund-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.donate-fund-bar-track {
+  height: 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  overflow: hidden;
+}
+
+.donate-fund-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.35s ease;
+}
+
+.donate-fund-bar-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+
 .nav-links a.nav-mod {
   color: var(--success);
 }
