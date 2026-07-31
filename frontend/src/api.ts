@@ -449,6 +449,17 @@ export interface YtdlpCookiesStatus {
   active_path?: string | null;
   env_override: boolean;
   browser_fallback: boolean;
+  expiry_known?: boolean;
+  expired?: boolean;
+  expires_at?: string | null;
+  expires_in_seconds?: number | null;
+  auth_cookie_count?: number;
+  session_cookie_count?: number;
+  needs_refresh?: boolean;
+  refresh_reason?: string | null;
+  last_validated_at?: string | null;
+  last_validation_ok?: boolean | null;
+  last_validation_error?: string | null;
 }
 
 export interface CookieDonationPublic {
@@ -1317,6 +1328,9 @@ export const api = {
     request<RegistrationInvite>(`/admin/invites/${inviteId}/revoke`, { method: "POST" }),
 
   adminYtdlpCookiesStatus: () => request<YtdlpCookiesStatus>("/admin/ytdlp-cookies"),
+
+  adminValidateYtdlpCookies: () =>
+    request<YtdlpCookiesStatus>("/admin/ytdlp-cookies/validate", { method: "POST" }),
 
   adminSetYtdlpCookies: (cookies: string) =>
     request<YtdlpCookiesStatus>("/admin/ytdlp-cookies", {

@@ -940,6 +940,18 @@ class YtdlpCookiesStatus(BaseModel):
     active_path: str | None = None
     env_override: bool = False
     browser_fallback: bool = False
+    # Expiry / validity (from file inspection and optional live probe).
+    expiry_known: bool = False
+    expired: bool = False
+    expires_at: str | None = None
+    expires_in_seconds: int | None = None
+    auth_cookie_count: int = 0
+    session_cookie_count: int = 0
+    needs_refresh: bool = False
+    refresh_reason: str | None = None
+    last_validated_at: str | None = None
+    last_validation_ok: bool | None = None
+    last_validation_error: str | None = None
 
 
 class YtdlpCookiesUpdate(BaseModel):

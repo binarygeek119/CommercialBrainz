@@ -403,6 +403,22 @@ async def admin_ytdlp_cookies_status(_admin: User = Depends(require_admin)):
     return YtdlpCookiesStatus(**cookies_status())
 
 
+@router.post("/ytdlp-cookies/validate", response_model=YtdlpCookiesStatus)
+async def admin_validate_ytdlp_cookies(_admin: User = Depends(require_admin)):
+    """
+    Live-check whether active YouTube cookies still work with yt-dlp.
+
+    Runs a metadata-only probe (no media download). Re-export cookies when this fails
+    or when expiry fields say refresh is needed — Google login cannot be automated here.
+    """
+    import asyncio
+
+    from app.services.ytdlp_cookies import probe_cookies_live
+
+    status = await asyncio.to_thread(probe_cookies_live)
+    return YtdlpCookiesStatus(**status)
+
+
 @router.put("/ytdlp-cookies", response_model=YtdlpCookiesStatus)
 async def admin_set_ytdlp_cookies(
     data: YtdlpCookiesUpdate,
