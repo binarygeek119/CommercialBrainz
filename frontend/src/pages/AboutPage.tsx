@@ -75,7 +75,15 @@ export default function AboutPage() {
             <a href="/docs" target="_blank" rel="noreferrer">
               CC0
             </a>
-            . See <a href="/docs" target="_blank" rel="noreferrer">API docs</a>.
+            . See <a href="/docs" target="_blank" rel="noreferrer">API docs</a>. Source code is on{" "}
+            <a
+              href="https://github.com/binarygeek119/CommercialBrainz"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              GitHub
+            </a>
+            .
           </p>
           <p style={{ margin: 0 }}>
             Join the community on{" "}
