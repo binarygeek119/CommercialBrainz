@@ -1,6 +1,10 @@
 # CommercialBrainz
 
+**Live site:** [https://commercialbrainz.org/](https://commercialbrainz.org/)
+
 **CommercialBrainz** is an open commercial video database modeled after [MusicBrainz](https://musicbrainz.org). Each entry represents one YouTube video of a single commercial, with rich metadata, community edits, voting, and a scrape-friendly public API.
+
+Testing / staging: [https://commercialbrainz.duckdns.org/](https://commercialbrainz.duckdns.org/)
 
 ## Features
 
