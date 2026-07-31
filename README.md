@@ -220,30 +220,24 @@ gcloud iam service-accounts keys create github-deploy-key.json \
   --iam-account="github-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-2. On **each** deploy VM, grant the SA OS Login access (once per instance).
-   Deploy also runs [`scripts/ensure-gcloud-vm-ssh.sh`](scripts/ensure-gcloud-vm-ssh.sh) automatically.
-   If Actions still gets `Permission denied (publickey)`, run this from an owner laptop:
+2. On **each** deploy VM, allow GitHub Actions SSH (metadata keys as user `runner`).
+   Deploy runs [`scripts/ensure-gcloud-vm-ssh.sh`](scripts/ensure-gcloud-vm-ssh.sh) automatically.
+   If Actions still gets `Permission denied (publickey)`, run **once from your laptop**:
 
 ```bash
-PROJECT_ID=commercialbrainz
-ZONE=us-central1-b   # testing VM zone (use the org VM zone for public)
+# Login first (browser)
+gcloud auth login
+gcloud config set project commercialbrainz
 
-# Testing
-gcloud compute instances add-iam-policy-binding commercialbrainz-vm \
-  --zone="$ZONE" \
-  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/compute.osAdminLogin"
-gcloud compute instances remove-metadata commercialbrainz-vm \
-  --zone="$ZONE" --keys=block-project-ssh-keys
-gcloud compute instances add-metadata commercialbrainz-vm \
-  --zone="$ZONE" --metadata=enable-oslogin=TRUE
+# Testing VM
+./scripts/fix-deploy-ssh-from-laptop.sh
 
-# Public (after setup-cloudflare-vm.sh / Setup GCE VM)
-gcloud compute instances add-iam-policy-binding commercialbrainz-public \
-  --zone=YOUR_ZONE \
-  --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/compute.osAdminLogin"
+# Public VM (after it exists)
+VM_NAME=commercialbrainz-public ZONE=YOUR_ZONE ./scripts/fix-deploy-ssh-from-laptop.sh
 ```
+
+That script disables OS Login on the instance (CI needs metadata SSH), clears
+`block-project-ssh-keys`, ensures firewall/tag, and probes SSH.
 
 3. In the GitHub repo: **Settings → Secrets and variables → Actions**, add:
    - `GCP_PROJECT_ID` — your GCP project id (variable; default `commercialbrainz`)
