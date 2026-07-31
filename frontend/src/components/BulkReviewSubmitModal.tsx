@@ -779,9 +779,9 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
         >
           <div className="wait-overlay-card">
             <p className="wait-overlay-title">Please wait</p>
-            <p className="muted">Fetching YouTube metadata…</p>
+            <p className="muted">Waiting for prefetched YouTube metadata…</p>
             <p className="muted" style={{ marginBottom: 0, fontSize: "0.85rem" }}>
-              The form unlocks after metadata loads.
+              Metadata is fetched in the background when a video enters the review window.
             </p>
           </div>
         </div>
