@@ -204,6 +204,11 @@ class CookieDonationStatus(enum.StrEnum):
     REJECTED = "rejected"
 
 
+class DonationFund(enum.StrEnum):
+    DOMAIN = "domain"
+    CLOUD_VM = "cloud_vm"
+
+
 # Backwards-compatible aliases used during the commercial-report rollout.
 CommercialReportReason = ContentReportReason
 CommercialReportStatus = ContentReportStatus
@@ -1539,4 +1544,50 @@ class CookieDonation(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DonationFundEntry(Base):
+    """One-time Buy Me a Coffee tip matched to a Domain or Cloud VM fund."""
+
+    __tablename__ = "donation_fund_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    fund: Mapped[DonationFund] = mapped_column(
+        pg_enum(DonationFund, name="donationfund"),
+        index=True,
+    )
+    bmc_support_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(16), default="USD")
+    support_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supporter_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    donated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DonationFundCost(Base):
+    """Admin-recorded payout when the domain or cloud VM bill is paid."""
+
+    __tablename__ = "donation_fund_costs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    fund: Mapped[DonationFund] = mapped_column(
+        pg_enum(DonationFund, name="donationfund"),
+        index=True,
+    )
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )
