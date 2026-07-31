@@ -155,6 +155,19 @@ jobs:
             --member="$MEMBER" \
             --role="roles/compute.osAdminLogin" \
             --quiet || true
+          gcloud compute instances add-iam-policy-binding "$VM_NAME" \
+            --zone="$ZONE" \
+            --member="$MEMBER" \
+            --role="roles/compute.osLogin" \
+            --quiet || true
+          gcloud compute instances remove-metadata "$VM_NAME" \
+            --zone="$ZONE" \
+            --keys=block-project-ssh-keys \
+            --quiet 2>/dev/null || true
+          gcloud compute instances add-metadata "$VM_NAME" \
+            --zone="$ZONE" \
+            --metadata=enable-oslogin=TRUE \
+            --quiet || true
           echo ""
           echo "==> Next steps"
           if [[ "${TARGET}" == "cloudflare" ]]; then

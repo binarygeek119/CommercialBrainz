@@ -46,6 +46,11 @@ fi
 
 echo "==> Deploying to $VM_NAME ($ZONE) APP_BRANCH=${APP_BRANCH} IMAGE_TAG=${IMAGE_TAG}..."
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+chmod +x "$SCRIPT_DIR/ensure-gcloud-vm-ssh.sh"
+GCP_PROJECT_ID="$PROJECT_ID" VM_NAME="$VM_NAME" ZONE="$ZONE" \
+  bash "$SCRIPT_DIR/ensure-gcloud-vm-ssh.sh"
+
 REMOTE_TAG=$(printf '%q' "$IMAGE_TAG")
 REMOTE_BRANCH=$(printf '%q' "$APP_BRANCH")
 
