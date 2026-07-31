@@ -1,0 +1,65 @@
+# After each merge/push to cloudflare (public site), bump v1.0.0-alpha[.N]
+# and tag. Skips its own bump commits so CI/deploy still run once on the
+# versioned tip.
+name: Bump cloudflare version
+
+on:
+  push:
+    branches: [cloudflare]
+
+concurrency:
+  group: bump-cloudflare-version
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump version
+    runs-on: ubuntu-latest
+    # Ignore the commit this workflow creates (and manual skip).
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/cloudflare' &&
+      !startsWith(github.event.head_commit.message, 'chore(cloudflare): bump version')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: cloudflare
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version files
+        id: bump
+        run: |
+          set -euo pipefail
+          chmod +x scripts/bump-version.sh
+          # Capture NEXT_VERSION / NEXT_TAG from script output.
+          out="$(./scripts/bump-version.sh | tee /tmp/bump.out)"
+          next="$(grep '^NEXT_VERSION=' /tmp/bump.out | cut -d= -f2)"
+          tag="$(grep '^NEXT_TAG=' /tmp/bump.out | cut -d= -f2)"
+          echo "version=${next}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag, push
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/version.ts frontend/package.json backend/pyproject.toml
+          if git diff --cached --quiet; then
+            echo "No version file changes (already at ${VERSION}?); ensuring tag exists"
+          else
+            git commit -m "chore(cloudflare): bump version to ${VERSION}"
+          fi
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists"
+          else
+            git tag -a "${TAG}" -m "CommercialBrainz ${TAG} (cloudflare)"
+          fi
+          git push origin cloudflare
+          git push origin "${TAG}"

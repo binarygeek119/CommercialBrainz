@@ -22,6 +22,16 @@ On each deploy, `fix-gcloud-vm.sh` sets hostname / TLS from `APP_BRANCH`:
 
 Both share the **same GCE VM**; deploys are serialized. For `cloudflare`, Origin CA files must already be in `/opt/commercialbrainz/data/caddy/certs/` (see [cloudflare-domain.md](cloudflare-domain.md)).
 
+## Versioning (cloudflare / public)
+
+Each merge into **`cloudflare`** runs [.github/workflows/bump-cloudflare-version.yml](../.github/workflows/bump-cloudflare-version.yml):
+
+- Bumps from the latest `v*` tag (so merges from `google` cannot rewind the version)
+- Updates `frontend/src/version.ts`, `frontend/package.json`, `backend/pyproject.toml`
+- Creates tag `v1.0.0-alpha`, `v1.0.0-alpha.1`, `v1.0.0-alpha.2`, …
+
+The UI badge shows `v{APP_VERSION}`. Testing (`google`) does not auto-bump.
+
 ## Promote testing → public
 
 ```bash
