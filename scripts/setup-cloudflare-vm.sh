@@ -32,7 +32,7 @@ export VM_NAME="${VM_NAME:-commercialbrainz-public}"
 export REPO_BRANCH="${REPO_BRANCH:-cloudflare}"
 export CREATE_STATIC_IP="${CREATE_STATIC_IP:-1}"
 export MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
-export DISK_SIZE="${DISK_SIZE:-30GB}"
+export DISK_SIZE="${DISK_SIZE:-40GB}"
 
 # Public VM must not take DuckDNS credentials (testing VM owns DuckDNS).
 unset DUCKDNS_DOMAIN DUCKDNS_TOKEN 2>/dev/null || true
