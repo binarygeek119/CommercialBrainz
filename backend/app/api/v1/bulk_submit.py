@@ -25,7 +25,6 @@ from app.services.bulk_submit import (
     batch_to_dict,
     cancel_bulk_batch,
     create_bulk_batch,
-    schedule_bulk_metadata_and_hashes,
     enqueue_bulk_playlist_import,
     finalize_bulk_item,
     get_owner_item,
@@ -34,6 +33,7 @@ from app.services.bulk_submit import (
     list_owner_items,
     preview_playlist_duplicates,
     rehash_item,
+    schedule_bulk_metadata_and_hashes,
     skip_item,
 )
 from app.services.edit_response import build_edit_public
