@@ -31,6 +31,7 @@ function duplicateReasonLabel(reason: string | null | undefined): string {
 function buildDefaultsPayload(
   commercialType: string,
   bumperChannel: string,
+  targetChannel: string,
   decade: string,
   year: string,
   advertiser: AdvertiserSelection,
@@ -49,6 +50,9 @@ function buildDefaultsPayload(
     ...(commercialType ? { commercial_type: commercialType } : {}),
     ...(isBumperType(commercialType) && bumperChannel.trim()
       ? { bumper_channel: bumperChannel.trim() }
+      : {}),
+    ...(commercialType === "general_ad" && targetChannel.trim()
+      ? { target_channel: targetChannel.trim() }
       : {}),
     ...(decade ? { decade: parseInt(decade, 10) } : {}),
     ...(year ? { year: parseInt(year, 10) } : {}),
@@ -79,6 +83,7 @@ export default function BulkSubmitPage() {
 
   const [commercialType, setCommercialType] = useState("");
   const [bumperChannel, setBumperChannel] = useState("");
+  const [targetChannel, setTargetChannel] = useState("");
   const [decade, setDecade] = useState("");
   const [year, setYear] = useState("");
   const [advertiser, setAdvertiser] = useState<AdvertiserSelection>({});
@@ -95,6 +100,7 @@ export default function BulkSubmitPage() {
       buildDefaultsPayload(
         commercialType,
         bumperChannel,
+        targetChannel,
         decade,
         year,
         advertiser,
@@ -107,6 +113,7 @@ export default function BulkSubmitPage() {
     [
       commercialType,
       bumperChannel,
+      targetChannel,
       decade,
       year,
       advertiser,
@@ -264,8 +271,10 @@ export default function BulkSubmitPage() {
             id="bulk-default-type"
             value={commercialType}
             onChange={(e) => {
-              setCommercialType(e.target.value);
-              if (e.target.value !== "bumper") setBumperChannel("");
+              const next = e.target.value;
+              setCommercialType(next);
+              if (next !== "bumper") setBumperChannel("");
+              if (next !== "general_ad") setTargetChannel("");
             }}
           >
             <option value="">Unknown / not sure</option>
@@ -285,6 +294,18 @@ export default function BulkSubmitPage() {
               value={bumperChannel}
               onChange={(e) => setBumperChannel(e.target.value)}
               placeholder="e.g. Cartoon Network, Nickelodeon"
+            />
+          </div>
+        )}
+
+        {commercialType === "general_ad" && (
+          <div className="form-group">
+            <label htmlFor="bulk-default-target-channel">Channel</label>
+            <input
+              id="bulk-default-target-channel"
+              value={targetChannel}
+              onChange={(e) => setTargetChannel(e.target.value)}
+              placeholder="e.g. Nickelodeon, ESPN, local news"
             />
           </div>
         )}

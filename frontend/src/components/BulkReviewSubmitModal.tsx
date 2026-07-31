@@ -97,6 +97,15 @@ function advertiserFromDefaults(defaults?: BulkPlaylistDefaults | null): Adverti
   return {};
 }
 
+function genresFromDefaults(defaults?: BulkPlaylistDefaults | null): SubmissionGenres {
+  const channel =
+    typeof defaults?.target_channel === "string" ? defaults.target_channel.trim() : "";
+  return {
+    ...EMPTY_SUBMISSION_GENRES,
+    ...(channel ? { target_channel: channel } : {}),
+  };
+}
+
 async function suggestAdvertiserFromChannel(channel: string): Promise<AdvertiserSelection> {
   const trimmed = channel.trim();
   if (!trimmed) return {};
@@ -160,7 +169,7 @@ export default function BulkReviewSubmitModal({ item, onClose, onSubmitted }: Pr
     setYtLoading(true);
     setYtError(null);
     setForm({ ...EMPTY_FORM });
-    setGenres({ ...EMPTY_SUBMISSION_GENRES });
+    setGenres(genresFromDefaults(item.batch_defaults));
     setCatalogSelections({ store: {}, service: {}, event: {}, holiday: {} });
     setRegionSelection({});
     setAdvertiser({});

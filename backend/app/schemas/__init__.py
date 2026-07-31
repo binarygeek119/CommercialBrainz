@@ -222,6 +222,7 @@ class BulkPlaylistDefaults(BaseModel):
 
     commercial_type: CommercialTypeValue | None = None
     bumper_channel: str | None = Field(default=None, max_length=255)
+    target_channel: str | None = Field(default=None, max_length=255)
     decade: int | None = Field(default=None, ge=1900, le=2100)
     year: int | None = Field(default=None, ge=1900, le=2100)
     advertiser_id: UUID | None = None
@@ -247,6 +248,12 @@ class BulkPlaylistDefaults(BaseModel):
         )
         self.commercial_type = commercial_type
         self.bumper_channel = bumper_channel
+        # Target channel (genres) is for general ads; drop when type is something else.
+        if self.commercial_type != "general_ad":
+            self.target_channel = None
+        elif self.target_channel is not None:
+            channel = self.target_channel.strip() or None
+            self.target_channel = channel
         return self
 
 

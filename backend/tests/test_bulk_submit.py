@@ -240,6 +240,27 @@ def test_normalize_bulk_defaults_strips_empty():
     }
 
 
+def test_bulk_playlist_defaults_keeps_target_channel_for_general_ad():
+    from app.schemas import BulkPlaylistDefaults
+
+    defaults = BulkPlaylistDefaults(
+        commercial_type="general_ad",
+        target_channel="  ESPN  ",
+    )
+    assert defaults.target_channel == "ESPN"
+    assert defaults.bumper_channel is None
+
+
+def test_bulk_playlist_defaults_drops_target_channel_when_not_general_ad():
+    from app.schemas import BulkPlaylistDefaults
+
+    defaults = BulkPlaylistDefaults(
+        commercial_type="psa",
+        target_channel="ESPN",
+    )
+    assert defaults.target_channel is None
+
+
 @pytest.mark.asyncio
 async def test_cancel_bulk_batch_deletes_preview_fingerprints(monkeypatch):
     from app.services import bulk_submit as bs
