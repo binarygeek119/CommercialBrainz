@@ -17,7 +17,7 @@
 #     ./scripts/setup-cloudflare-domain.sh
 #
 # Optional:
-#   VM_NAME=commercialbrainz-org   # public VM (default)
+#   VM_NAME=commercialbrainz-public   # public VM (default)
 #   DOMAIN_ALIASES=www.commercialbrainz.org
 #   KEEP_DUCKDNS=0                 # default 0 on public VM
 #   CADDY_TLS_MODE=origin          # default; use "auto" only for grey-cloud Let's Encrypt
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-}"
-VM_NAME="${VM_NAME:-commercialbrainz-org}"
+VM_NAME="${VM_NAME:-commercialbrainz-public}"
 DOMAIN="${DOMAIN:-commercialbrainz.org}"
 ACME_EMAIL="${ACME_EMAIL:-}"
 DOMAIN_ALIASES="${DOMAIN_ALIASES:-www.${DOMAIN}}"

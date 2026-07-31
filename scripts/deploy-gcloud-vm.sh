@@ -9,7 +9,7 @@
 #
 # Branches / default VMs:
 #   google     → commercialbrainz-vm   (DuckDNS testing)
-#   cloudflare → commercialbrainz-org  (public site)
+#   cloudflare → commercialbrainz-public  (public site)
 # See docs/branches.md
 #
 set -euo pipefail
@@ -20,7 +20,7 @@ APP_BRANCH="${APP_BRANCH:-google}"
 
 if [[ -z "${VM_NAME:-}" ]]; then
   case "$APP_BRANCH" in
-    cloudflare) VM_NAME="${VM_NAME_CLOUDFLARE:-commercialbrainz-org}" ;;
+    cloudflare) VM_NAME="${VM_NAME_CLOUDFLARE:-commercialbrainz-public}" ;;
     *) VM_NAME="${VM_NAME_GOOGLE:-commercialbrainz-vm}" ;;
   esac
 fi

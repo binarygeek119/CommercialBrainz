@@ -157,7 +157,7 @@ Use a **second** GCE VM for production (testing stays on DuckDNS):
 | Branch | VM | URL |
 |--------|-----|-----|
 | `google` | `commercialbrainz-vm` | https://commercialbrainz.duckdns.org/ |
-| `cloudflare` | `commercialbrainz-org` | https://commercialbrainz.org/ |
+| `cloudflare` | `commercialbrainz-public` | https://commercialbrainz.org/ |
 
 **Create the public VM once** (static IP; no DuckDNS):
 
@@ -187,7 +187,7 @@ ORIGIN_KEY=$HOME/cb-origin.key \
   ./scripts/setup-cloudflare-domain.sh
 ```
 
-**Cost:** Always Free covers one e2-micro (`commercialbrainz-vm`). The second VM is billed (still cheap). Prefer a static IP on `commercialbrainz-org` so Cloudflare A records stay stable.
+**Cost:** Always Free covers one e2-micro (`commercialbrainz-vm`). The second VM is billed (still cheap). Prefer a static IP on `commercialbrainz-public` so Cloudflare A records stay stable.
 
 See **[docs/branches.md](docs/branches.md)**. Open all PRs against **`google`**. Promote to **`cloudflare`** for the public site.
 
@@ -239,7 +239,7 @@ gcloud compute instances add-metadata commercialbrainz-vm \
   --zone="$ZONE" --metadata=enable-oslogin=TRUE
 
 # Public (after setup-cloudflare-vm.sh / Setup GCE VM)
-gcloud compute instances add-iam-policy-binding commercialbrainz-org \
+gcloud compute instances add-iam-policy-binding commercialbrainz-public \
   --zone=YOUR_ZONE \
   --member="serviceAccount:github-deploy@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/compute.osAdminLogin"
@@ -254,7 +254,7 @@ Optional repository variables:
 | Variable | Default |
 |----------|---------|
 | `VM_NAME_GOOGLE` | `commercialbrainz-vm` |
-| `VM_NAME_CLOUDFLARE` | `commercialbrainz-org` |
+| `VM_NAME_CLOUDFLARE` | `commercialbrainz-public` |
 | `VM_NAME` | legacy alias for the testing VM |
 
 Manual deploy from your laptop:

@@ -19,7 +19,7 @@
 #   GCP_ZONE          Zone (default: auto — tries free-tier zones until one works)
 #   GCP_AUTO_ZONE     Set to 0 to disable automatic zone fallback (default: 1)
 #   VM_NAME           Instance name, default commercialbrainz-vm
-#                     (public site: commercialbrainz-org via setup-cloudflare-vm.sh)
+#                     (public site: commercialbrainz-public via setup-cloudflare-vm.sh)
 #   REPO_URL          Git repo to clone on VM
 #   REPO_BRANCH       Branch to deploy, default google (public: cloudflare)
 #   ADMIN_EMAIL       Seed admin on first boot (via instance metadata)
@@ -348,7 +348,7 @@ if [[ -n "${DUCKDNS_DOMAIN:-}" ]]; then
     echo "    HTTPS:        https://${DUCKDNS_DOMAIN}.duckdns.org/"
     echo "    HTTPS docs:   https://${DUCKDNS_DOMAIN}.duckdns.org/docs"
   fi
-elif [[ "$VM_NAME" == "commercialbrainz-org" || "$REPO_BRANCH" == "cloudflare" ]]; then
+elif [[ "$VM_NAME" == "commercialbrainz-public" || "$REPO_BRANCH" == "cloudflare" ]]; then
   echo ""
   echo "    Next (public / Cloudflare):"
   echo "      1. Point Cloudflare A @ and www (Proxied) at ${EXTERNAL_IP}"
