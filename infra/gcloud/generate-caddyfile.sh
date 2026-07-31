@@ -5,8 +5,10 @@
 #
 # tls-mode:
 #   auto   — Caddy Let's Encrypt (HTTP-01). Use for DuckDNS or grey-cloud DNS.
-#   origin — Cloudflare Origin CA files at /data/certs/origin.crt + origin.key
+#   origin — Cloudflare Origin CA files at /etc/caddy/certs/origin.crt + origin.key
 #            (Cloudflare Free edge SSL + Full strict; orange cloud OK).
+#   http   — hostname site blocks over HTTP only (no tls). Used when Origin CA
+#            files are not on the VM yet so Caddy can still start.
 #
 # aliases-csv example: www.commercialbrainz.org,commercialbrainz.duckdns.org
 # www.<primary> redirects to https://<primary>{uri}.
@@ -71,6 +73,15 @@ EOF
   fi
 }
 
+host_prefix() {
+  # origin/auto → bare hostnames (HTTPS); http → http://hostname
+  if [[ "$TLS_MODE" == "http" ]]; then
+    echo "http://"
+  else
+    echo ""
+  fi
+}
+
 if [[ -n "$DOMAIN" && -n "$ACME_EMAIL" && "$ACME_EMAIL" != "admin@localhost" ]]; then
   www_host=""
   under_primary=()
@@ -90,19 +101,30 @@ if [[ -n "$DOMAIN" && -n "$ACME_EMAIL" && "$ACME_EMAIL" != "admin@localhost" ]];
     fi
   done
 
+  HP="$(host_prefix)"
+
   if [[ -n "$www_host" ]]; then
-    cat >> "$OUT" <<EOF
+    if [[ "$TLS_MODE" == "http" ]]; then
+      cat >> "$OUT" <<EOF
+
+${HP}${www_host} {
+	redir http://${DOMAIN}{uri} permanent
+}
+EOF
+    else
+      cat >> "$OUT" <<EOF
 
 ${www_host} {
 $(tls_block)
 	redir https://${DOMAIN}{uri} permanent
 }
 EOF
+    fi
   fi
 
-  site_hosts="$DOMAIN"
+  site_hosts="${HP}${DOMAIN}"
   for host in "${under_primary[@]+"${under_primary[@]}"}"; do
-    site_hosts="${site_hosts}, ${host}"
+    site_hosts="${site_hosts}, ${HP}${host}"
   done
 
   cat >> "$OUT" <<EOF

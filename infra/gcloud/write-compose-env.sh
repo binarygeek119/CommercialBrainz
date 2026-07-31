@@ -32,4 +32,9 @@ DOMAIN=${DOMAIN}
 ACME_EMAIL=${ACME_EMAIL}
 EOF
 
-echo "Wrote $OUT (IMAGE_TAG=${IMAGE_TAG} DOMAIN=${DOMAIN:-none})"
+# Compose always auto-loads <project-dir>/.env for interpolation. When we use
+# --project-directory infra, keep infra/.env identical to compose.env so root
+# .env secrets (with "$") are never interpolated → no "G" / "mcpX" warnings.
+cp "$OUT" infra/.env
+
+echo "Wrote $OUT and infra/.env (IMAGE_TAG=${IMAGE_TAG} DOMAIN=${DOMAIN:-none})"
