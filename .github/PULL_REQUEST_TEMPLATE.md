@@ -8,4 +8,6 @@
 ## Notes
 <!-- Screenshots, migration/deploy notes, follow-ups -->
 
-Base branch should be **`google`** (testing). Promote to **`cloudflare`** for the public site — see [docs/branches.md](../docs/branches.md).
+Base branch should be **`google`** → https://commercialbrainz.duckdns.org/  
+Promote to **`cloudflare`** → https://commercialbrainz.org/ — see [docs/branches.md](../docs/branches.md).
+

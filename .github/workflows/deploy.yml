@@ -1,8 +1,8 @@
 # Auto-deploy CommercialBrainz to the GCE VM after CI succeeds.
 #
-# Branches:
-#   google     — testing site (DuckDNS); default PR base
-#   cloudflare — public site (commercialbrainz.org)
+# Branches / sites:
+#   google     — https://commercialbrainz.duckdns.org/  (testing; default PR base)
+#   cloudflare — https://commercialbrainz.org/            (public)
 #
 # CI pushes images to GHCR; this workflow pulls them on the VM.
 # See docs/branches.md
