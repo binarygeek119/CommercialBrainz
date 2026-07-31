@@ -61,7 +61,7 @@ resolve_startup_script() {
   local tmp
   tmp="$(mktemp)"
   curl -fsSL \
-    "https://raw.githubusercontent.com/binarygeek119/CommercialBrainz/main/infra/gcloud/vm-startup.sh" \
+    "https://raw.githubusercontent.com/binarygeek119/CommercialBrainz/google/infra/gcloud/vm-startup.sh" \
     -o "$tmp"
   echo "$tmp"
 }
