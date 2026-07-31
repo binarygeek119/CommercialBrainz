@@ -73,10 +73,10 @@ def ytdlp_error_message(stderr_or_stdout: str, *, fallback: str = "yt-dlp failed
         )
     elif any(marker in lowered for marker in _FORMAT_MARKERS):
         hint = (
-            " No matching stream formats (often missing JS runtime or cookies, "
-            "or YouTube blocked this IP’s player clients). "
-            "Ensure the API image has Node.js, cookies are set under Admin → YouTube cookies, "
-            "and try YTDLP_EXTRACTOR_ARGS / YTDLP_FORMAT if needed."
+            " No matching stream formats (often outdated player clients, missing JS "
+            "runtime/cookies, or YouTube SABR/PO-token limits on this IP). "
+            "Leave YTDLP_EXTRACTOR_ARGS empty to use yt-dlp defaults, ensure Node.js "
+            "and yt-dlp-ejs are installed, refresh Admin → YouTube cookies, and retry."
         )
     if not hint:
         return msg[:500]

@@ -24,7 +24,7 @@ def _settings(
     cookies_file: str = "",
     managed: str = "",
     browser: str = "",
-    extractor_args: str = "youtube:player_client=android,web,mweb",
+    extractor_args: str = "",
     cookie_seed: str = "test-cookie-seed-value-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 ):
     class S:
@@ -116,7 +116,7 @@ def test_ytdlp_js_runtime_args_prefers_node():
         assert ytdlp_js_runtime_args() == ["--js-runtimes", "node"]
 
 
-def test_ytdlp_common_args_includes_extractor_and_js(tmp_path: Path):
+def test_ytdlp_common_args_includes_js_omits_empty_extractor(tmp_path: Path):
     cookies = tmp_path / "cookies.txt"
     cookies.write_text("# Netscape\n.youtube.com\tTRUE\t/\tFALSE\t0\tA\tb\n", encoding="utf-8")
     settings = _settings(cookies_file=str(cookies), managed=str(tmp_path / "other.txt"))
@@ -132,8 +132,29 @@ def test_ytdlp_common_args_includes_extractor_and_js(tmp_path: Path):
         args = ytdlp_common_args()
     assert args[:3] == ["--cookies", str(cookies), "--js-runtimes"]
     assert "node" in args
+    assert "--extractor-args" not in args
+
+
+def test_ytdlp_common_args_includes_explicit_extractor(tmp_path: Path):
+    cookies = tmp_path / "cookies.txt"
+    cookies.write_text("# Netscape\n.youtube.com\tTRUE\t/\tFALSE\t0\tA\tb\n", encoding="utf-8")
+    settings = _settings(
+        cookies_file=str(cookies),
+        managed=str(tmp_path / "other.txt"),
+        extractor_args="youtube:player_client=android_vr",
+    )
+
+    def which(name: str):
+        return "/bin/node" if name == "node" else None
+
+    with (
+        patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
+        patch("app.services.ytdlp_auth.get_settings", return_value=settings),
+        patch("app.services.ytdlp_auth.shutil.which", side_effect=which),
+    ):
+        args = ytdlp_common_args()
     assert "--extractor-args" in args
-    assert "youtube:player_client=android,web,mweb" in args
+    assert "youtube:player_client=android_vr" in args
 
 
 def test_save_and_clear_cookies(tmp_path: Path):
