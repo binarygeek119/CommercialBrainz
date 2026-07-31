@@ -197,6 +197,13 @@ class ContentReportStatus(enum.StrEnum):
     DISMISSED = "dismissed"
 
 
+class CookieDonationStatus(enum.StrEnum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    EXHAUSTED = "exhausted"
+    REJECTED = "rejected"
+
+
 # Backwards-compatible aliases used during the commercial-report rollout.
 CommercialReportReason = ContentReportReason
 CommercialReportStatus = ContentReportStatus
@@ -1470,3 +1477,41 @@ class BulkSubmissionItem(Base):
     )
 
     batch: Mapped["BulkSubmissionBatch"] = relationship(back_populates="items")
+
+
+class CookieDonation(Base):
+    """Community-donated YouTube cookies.txt backlog for yt-dlp auth."""
+
+    __tablename__ = "cookie_donations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    status: Mapped[CookieDonationStatus] = mapped_column(
+        pg_enum(CookieDonationStatus, name="cookiedonationstatus"),
+        default=CookieDonationStatus.PENDING,
+        index=True,
+    )
+    cookies_text: Mapped[str] = mapped_column(Text)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    agreement_accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+    donor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    donor_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    exhausted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

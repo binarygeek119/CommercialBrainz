@@ -943,6 +943,34 @@ class YtdlpCookiesUpdate(BaseModel):
     cookies: str = Field(..., min_length=1, max_length=2 * 1024 * 1024)
 
 
+class CookieDonationSubmit(BaseModel):
+    cookies: str = Field(..., min_length=1, max_length=2 * 1024 * 1024)
+    agreement_accepted: bool = False
+    donor_note: str | None = Field(None, max_length=500)
+
+
+class CookieDonationSubmitResult(BaseModel):
+    id: UUID
+    status: str
+    message: str
+
+
+class CookieDonationPublic(BaseModel):
+    id: UUID
+    status: str
+    size_bytes: int = 0
+    agreement_accepted: bool = False
+    donor_note: str | None = None
+    activated_at: datetime | None = None
+    exhausted_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CookieDonationReject(BaseModel):
+    notes: str | None = Field(None, max_length=1000)
+
+
 class ModStats(BaseModel):
     open_edits: int
     dmca_submitted: int
