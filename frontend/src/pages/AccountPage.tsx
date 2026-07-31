@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth, isEmailVerified } from "../auth";
 import { api, type ApiToken, type ApiTokenCreated } from "../api";

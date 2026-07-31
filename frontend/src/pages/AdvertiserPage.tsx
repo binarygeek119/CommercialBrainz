@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api } from "../api";
 import { useAuth, canSubmit } from "../auth";
 import BrandLogoUpload from "../components/BrandLogoUpload";

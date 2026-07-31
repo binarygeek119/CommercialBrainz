@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { type Video } from "../api";
 import { formatRegionDisplay } from "../data/regions";
 import { commercialUrl } from "../utils/commercialUrls";

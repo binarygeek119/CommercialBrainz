@@ -1,4 +1,4 @@
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 # npm's nested tar in this image is vulnerable to CVE-2026-59873 (critical gzip-bomb DoS)
 # until the base image updates. Replace the copy npm uses for pack/extract without

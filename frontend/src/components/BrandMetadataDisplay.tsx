@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import {
   BRAND_METADATA_FIELDS,
   SOCIAL_FIELDS,
