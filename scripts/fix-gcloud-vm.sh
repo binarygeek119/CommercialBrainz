@@ -25,9 +25,11 @@ write_compose_env() {
 write_compose_env
 
 if [[ "$(id -u)" -eq 0 ]]; then
-  COMPOSE="docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
+  # --project-directory infra avoids loading repo-root .env for Compose
+  # interpolation (secrets with "$" caused "G" / "mcpX" variable warnings).
+  COMPOSE="docker compose --project-directory infra --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 else
-  COMPOSE="sudo docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
+  COMPOSE="sudo docker compose --project-directory infra --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml"
 fi
 
 # Sync first, then re-exec so the remainder of this run uses the new script
@@ -174,6 +176,15 @@ WEB_IMAGE="ghcr.io/binarygeek119/commercialbrainz-web:${IMAGE_TAG}"
 MAINT_IMAGE="ghcr.io/binarygeek119/commercialbrainz-maintenance:${IMAGE_TAG}"
 if [[ "$(id -u)" -eq 0 ]]; then DOCKER=docker; else DOCKER="sudo docker"; fi
 
+echo "==> Free disk space (unused Docker images/cache; keeps named volumes)"
+df -h / 2>/dev/null | tail -1 || true
+$DOCKER builder prune -af >/dev/null 2>&1 || true
+$DOCKER image prune -af >/dev/null 2>&1 || true
+$DOCKER container prune -f >/dev/null 2>&1 || true
+$DOCKER system prune -af >/dev/null 2>&1 || true
+df -h / 2>/dev/null | tail -1 || true
+$DOCKER system df 2>/dev/null || true
+
 echo "==> Enable maintenance gate (UPDATE_IN_PROGRESS)"
 touch "$MAINT_FLAG"
 
@@ -203,9 +214,17 @@ if $DOCKER pull "$API_IMAGE" && $DOCKER pull "$WEB_IMAGE" && $DOCKER pull "$MAIN
     sleep 2
   done
   $COMPOSE up -d --pull missing --force-recreate --no-build --no-deps caddy
-  sleep 3
+  # Caddy can take a few seconds after recreate before :80 answers.
+  for i in $(seq 1 20); do
+    if curl -s -o /dev/null -w '' --max-time 2 http://127.0.0.1/ >/dev/null 2>&1 \
+      || curl -s -o /dev/null -w '' --max-time 2 http://127.0.0.1/health >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  sleep 2
   echo "==> Expect maintenance page while flag is set"
-  _code="$(curl -s -o /tmp/cb-maint.html -w '%{http_code}' http://127.0.0.1/ || true)"
+  _code="$(curl -s -o /tmp/cb-maint.html -w '%{http_code}' --max-time 5 http://127.0.0.1/ || true)"
   echo "GET / -> HTTP ${_code}"
   if [[ "${_code}" != "503" ]]; then
     echo "WARN: expected 503 maintenance page during update (got ${_code})"

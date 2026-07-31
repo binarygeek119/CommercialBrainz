@@ -76,7 +76,7 @@ VM_NAME="${VM_NAME:-commercialbrainz-vm}"
 REPO_URL="${REPO_URL:-https://github.com/binarygeek119/CommercialBrainz.git}"
 REPO_BRANCH="${REPO_BRANCH:-google}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
-DISK_SIZE="${DISK_SIZE:-30GB}"
+DISK_SIZE="${DISK_SIZE:-40GB}"
 FIREWALL_TAG="${FIREWALL_TAG:-commercialbrainz-server}"
 STARTUP_SCRIPT="$(resolve_startup_script)"
 
