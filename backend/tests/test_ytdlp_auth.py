@@ -113,8 +113,12 @@ def test_ytdlp_js_runtime_args_prefers_node():
     def which(name: str):
         return "/usr/bin/node" if name == "node" else None
 
-    with patch("app.services.ytdlp_auth.shutil.which", side_effect=which):
-        assert ytdlp_js_runtime_args() == ["--js-runtimes", "node"]
+    with (
+        patch("app.services.ytdlp_auth.shutil.which", side_effect=which),
+        patch("app.services.ytdlp_auth.Path.is_file", return_value=True),
+        patch("app.services.ytdlp_auth.os.access", return_value=True),
+    ):
+        assert ytdlp_js_runtime_args() == ["--js-runtimes", "node:/usr/bin/node"]
 
 
 def test_ytdlp_common_args_includes_js_omits_empty_extractor(tmp_path: Path):
@@ -129,10 +133,12 @@ def test_ytdlp_common_args_includes_js_omits_empty_extractor(tmp_path: Path):
         patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
         patch("app.services.ytdlp_auth.get_settings", return_value=settings),
         patch("app.services.ytdlp_auth.shutil.which", side_effect=which),
+        patch("app.services.ytdlp_auth.Path.is_file", return_value=True),
+        patch("app.services.ytdlp_auth.os.access", return_value=True),
     ):
         args = ytdlp_common_args()
-    assert args[:3] == ["--cookies", str(cookies), "--js-runtimes"]
-    assert "node" in args
+    assert args[:2] == ["--cookies", str(cookies)]
+    assert args[2:4] == ["--js-runtimes", "node:/bin/node"]
     assert "--extractor-args" not in args
 
 
@@ -152,6 +158,8 @@ def test_ytdlp_common_args_includes_explicit_extractor(tmp_path: Path):
         patch("app.services.ytdlp_cookies.get_settings", return_value=settings),
         patch("app.services.ytdlp_auth.get_settings", return_value=settings),
         patch("app.services.ytdlp_auth.shutil.which", side_effect=which),
+        patch("app.services.ytdlp_auth.Path.is_file", return_value=True),
+        patch("app.services.ytdlp_auth.os.access", return_value=True),
     ):
         args = ytdlp_common_args()
     assert "--extractor-args" in args

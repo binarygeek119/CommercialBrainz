@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+from pathlib import Path
 
 from app.config import get_settings
 from app.services.ytdlp_cookies import resolve_cookies_path
@@ -18,6 +20,9 @@ _FORMAT_MARKERS = (
     "requested format is not available",
     "format is not available",
     "only images are available",
+    "no video formats found",
+    "no matching stream formats",
+    "n challenge solving failed",
 )
 
 
@@ -34,10 +39,27 @@ def ytdlp_auth_args() -> list[str]:
 
 
 def ytdlp_js_runtime_args() -> list[str]:
-    """Enable an available JS runtime so yt-dlp can solve YouTube challenges."""
-    for name in ("node", "deno"):
-        if shutil.which(name):
-            return ["--js-runtimes", name]
+    """Enable a JS runtime so yt-dlp/EJS can solve YouTube n/PO challenges.
+
+    Recent yt-dlp only enables deno by default; Node must be requested explicitly.
+    """
+    candidates: list[tuple[str, str]] = []
+    for name in ("node", "nodejs", "deno"):
+        found = shutil.which(name)
+        if found:
+            candidates.append((name, found))
+    for path in ("/usr/bin/node", "/usr/local/bin/node", "/usr/bin/nodejs"):
+        if path not in {p for _, p in candidates}:
+            candidates.append(("node", path))
+
+    for name, path in candidates:
+        try:
+            if not (Path(path).is_file() and os.access(path, os.X_OK)):
+                continue
+        except OSError:
+            continue
+        runtime = "node" if name in {"node", "nodejs"} else name
+        return ["--js-runtimes", f"{runtime}:{path}"]
     return []
 
 

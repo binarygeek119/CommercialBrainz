@@ -344,6 +344,7 @@ def probe_cookies_live(*, youtube_id: str = _VALIDATE_VIDEO_ID) -> dict:
         "--skip-download",
         "--no-warnings",
         "-J",
+        "--",
         url,
     ]
     try:
