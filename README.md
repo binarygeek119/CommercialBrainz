@@ -1,6 +1,10 @@
 # CommercialBrainz
 
+**Live site:** [https://commercialbrainz.org/](https://commercialbrainz.org/)
+
 **CommercialBrainz** is an open commercial video database modeled after [MusicBrainz](https://musicbrainz.org). Each entry represents one YouTube video of a single commercial, with rich metadata, community edits, voting, and a scrape-friendly public API.
+
+Testing / staging: [https://commercialbrainz.duckdns.org/](https://commercialbrainz.duckdns.org/)
 
 ## Features
 
@@ -10,6 +14,10 @@
 - **Roles** — Users, mods (auto-editors), and admins
 - **DMCA takedown system** — Link suppression with audit trail and mod review queue
 - **Scrape-friendly API** — Versioned JSON, ETags, rate limits, nightly dumps (CC0)
+
+## Site docs (edit on GitHub)
+
+Public help pages (`/about`, `/help`, `/help/basic-usage`, `/help/api`, `/help/become-a-mod`, `/donate`, `/terms` overview, `/dmca` policy) are Markdown under [`docs/site/`](docs/site/). The web UI mirrors them at build time. Click **Edit on GitHub** on any of those pages, or see [`docs/site/README.md`](docs/site/README.md).
 
 ## Quick start (Docker)
 

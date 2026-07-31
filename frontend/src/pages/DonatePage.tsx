@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import donateMd from "@site-docs/donate.md?raw";
 import { api, type DonateFundsPublic, type DonationFundTotals } from "../api";
+import SiteDocMarkdown from "../components/SiteDocMarkdown";
 
 type ModalKind = "cookies" | null;
 
@@ -186,126 +187,58 @@ export default function DonatePage() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h1 className="page-title">Donate</h1>
-      <p className="muted" style={{ marginBottom: "1.5rem" }}>
-        CommercialBrainz is a volunteer project. Money, spare YouTube cookies, and your time all
-        help keep the archive online and growing.
-      </p>
+      <SiteDocMarkdown source={donateMd} file="donate.md" className="card" />
 
       {funds && (
-        <section className="donate-funds" aria-label="Fund progress">
+        <section
+          className="donate-funds"
+          aria-label="Fund progress"
+          style={{ marginTop: "1.25rem" }}
+        >
           <FundBar label="Cloud VM" totals={funds.cloud_vm} />
           <FundBar label="Domain" totals={funds.domain} />
         </section>
       )}
 
       {flash && (
-        <div className="card" style={{ marginBottom: "1.25rem", borderColor: "var(--success)" }}>
+        <div className="card" style={{ marginTop: "1.25rem", borderColor: "var(--success)" }}>
           <p style={{ margin: 0 }}>{flash}</p>
         </div>
       )}
 
-      <section className="card" style={{ marginBottom: "1.25rem" }}>
-        <h2 style={{ marginTop: 0 }}>Domain</h2>
-        <p>
-          Help cover domain registration and DNS so the site name stays ours year after year.
-        </p>
+      <section className="card" style={{ marginTop: "1.25rem" }}>
+        <h2 style={{ marginTop: 0 }}>Donate now</h2>
         <p className="muted" style={{ fontSize: "0.9rem" }}>
-          Opens Buy Me a Coffee and copies{" "}
-          <code>{DOMAIN_MESSAGE}</code> so it can go in “Say something nice…” — that tags your gift
-          for the Domain fund bar.
+          Buttons open Buy Me a Coffee and copy the matching fund note to your clipboard. Cookie
+          donations use the form below.
         </p>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void openBuyMeACoffee(DOMAIN_MESSAGE)}
-        >
-          Donate toward the domain
-        </button>
-      </section>
-
-      <section className="card" style={{ marginBottom: "1.25rem" }}>
-        <h2 style={{ marginTop: 0 }}>Cloud VM</h2>
-        <p>
-          Donate toward the cloud virtual machine that runs the site — API, workers, database, and
-          storage for hashes and thumbnails.
-        </p>
-        <p className="muted" style={{ fontSize: "0.9rem" }}>
-          Opens Buy Me a Coffee and copies{" "}
-          <code>{VM_MESSAGE}</code> so it can go in “Say something nice…” — that tags your gift for
-          the Cloud VM fund bar.
-        </p>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void openBuyMeACoffee(VM_MESSAGE)}
-        >
-          Donate toward the VM
-        </button>
-      </section>
-
-      <section className="card" style={{ marginBottom: "1.25rem" }}>
-        <h2 style={{ marginTop: 0 }}>YouTube cookies</h2>
-        <p>
-          YouTube often blocks anonymous scrapers. We use logged-in cookies so yt-dlp can pull
-          metadata and download media for fingerprints. When a cookie jar expires, we move to the
-          next one in the backlog.
-        </p>
-        <p>
-          Please only donate cookies from a dummy account: created just for YouTube login, no
-          payment methods, no personal mail, no identity documents. Submissions are encrypted at
-          rest with a site seed (<code>COOKIE_ENCRYPTION_SEED</code>). We will behave and keep
-          them as safe as we can — but you choose what you send.
-        </p>
-        {pendingCookies != null && (
-          <p className="muted" style={{ fontSize: "0.9rem" }}>
-            Backlog currently holds {pendingCookies} usable donation
-            {pendingCookies === 1 ? "" : "s"} (pending or active).
-          </p>
-        )}
-        <button type="button" className="btn btn-primary" onClick={() => setModal("cookies")}>
-          Donate cookies
-        </button>
-        <p className="muted" style={{ marginBottom: 0, marginTop: "0.75rem", fontSize: "0.85rem" }}>
-          <a
-            href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
-            target="_blank"
-            rel="noreferrer"
+        <div className="stack" style={{ gap: "0.75rem" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void openBuyMeACoffee(DOMAIN_MESSAGE)}
           >
-            How to export cookies.txt
-          </a>
-        </p>
-      </section>
-
-      <section className="card" style={{ marginBottom: "1.25rem" }}>
-        <h2 style={{ marginTop: 0 }}>Donate time</h2>
-        <p>Not everyone can give money or cookies. Time helps just as much:</p>
-        <ul style={{ paddingLeft: "1.2rem" }}>
-          <li>
-            Improve <Link to="/browse">metadata</Link> — titles, brands, decades, regions.
-          </li>
-          <li>
-            <Link to="/voting">Vote</Link> on open edits so good submissions land faster.
-          </li>
-          <li>
-            Grow into moderation — help review reports and keep quality high (ask a mod/admin after
-            you have a track record).
-          </li>
-          <li>Write or fix documentation for contributors and API users.</li>
-          <li>
-            Help with coding. Much of the codebase is AI-assisted and needs human audit — and in
-            places, replacement. If you enjoy FastAPI, React, Postgres, or yt-dlp plumbing, we would
-            love a hand.
-          </li>
-        </ul>
-        <p style={{ marginBottom: 0 }}>
-          Start by <Link to="/register">registering</Link>, reading the{" "}
-          <Link to="/terms">Terms</Link>, and saying hello on{" "}
-          <a href="https://discord.gg/AEhVjqX4Af" target="_blank" rel="noreferrer noopener">
-            Discord
-          </a>
-          .
-        </p>
+            Donate toward the domain
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void openBuyMeACoffee(VM_MESSAGE)}
+          >
+            Donate toward the VM
+          </button>
+          <div>
+            <button type="button" className="btn btn-primary" onClick={() => setModal("cookies")}>
+              Donate cookies
+            </button>
+            {pendingCookies != null && (
+              <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 0, marginTop: "0.5rem" }}>
+                Backlog currently holds {pendingCookies} usable donation
+                {pendingCookies === 1 ? "" : "s"} (pending or active).
+              </p>
+            )}
+          </div>
+        </div>
       </section>
 
       {modal === "cookies" && (
