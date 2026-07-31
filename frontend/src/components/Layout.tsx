@@ -62,6 +62,7 @@ export default function Layout() {
               </NavLink>
             )}
             <NavLink to="/about">About</NavLink>
+            <NavLink to="/help">Help</NavLink>
             <NavLink to="/donate">Donate</NavLink>
             <a
               href="https://discord.gg/AEhVjqX4Af"
@@ -69,6 +70,13 @@ export default function Layout() {
               rel="noreferrer noopener"
             >
               Discord
+            </a>
+            <a
+              href="https://github.com/binarygeek119/CommercialBrainz"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              GitHub
             </a>
             <NavLink to="/terms">Terms</NavLink>
             <NavLink to="/dmca">DMCA</NavLink>
@@ -124,9 +132,16 @@ export default function Layout() {
       <main className="container">
         <Outlet />
       </main>
-      <div className="version-box" aria-label={`CommercialBrainz version ${APP_VERSION}`}>
+      <a
+        className="version-box"
+        href="https://github.com/binarygeek119/CommercialBrainz"
+        target="_blank"
+        rel="noreferrer noopener"
+        aria-label={`CommercialBrainz version ${APP_VERSION} — view source on GitHub`}
+        title="View source on GitHub"
+      >
         v{APP_VERSION}
-      </div>
+      </a>
     </>
   );
 }

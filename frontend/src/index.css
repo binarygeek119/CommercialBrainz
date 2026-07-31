@@ -1059,6 +1059,82 @@ code, .mono {
   font-family: var(--mono);
   font-size: 0.72rem;
   letter-spacing: 0.02em;
-  pointer-events: none;
+  text-decoration: none;
   user-select: none;
+}
+
+.version-box:hover,
+.version-box:focus-visible {
+  color: var(--text);
+  border-color: var(--text-muted);
+  outline: none;
+}
+
+/* docs/site Markdown mirrored into the UI */
+.site-doc-edit {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+}
+
+.site-doc-body > :first-child {
+  margin-top: 0;
+}
+
+.site-doc-body h1 {
+  font-size: 1.75rem;
+  margin: 0 0 0.75rem;
+}
+
+.site-doc-body h2 {
+  font-size: 1.2rem;
+  margin: 1.5rem 0 0.65rem;
+}
+
+.site-doc-body h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.site-doc-body p,
+.site-doc-body ul,
+.site-doc-body ol {
+  margin: 0 0 0.85rem;
+  line-height: 1.55;
+}
+
+.site-doc-body ul,
+.site-doc-body ol {
+  padding-left: 1.2rem;
+}
+
+.site-doc-body li + li {
+  margin-top: 0.35rem;
+}
+
+.site-doc-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+}
+
+.site-doc-body th,
+.site-doc-body td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.site-doc-body th {
+  background: color-mix(in srgb, var(--surface) 70%, var(--border));
+}
+
+.site-doc-body code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+}
+
+.site-doc-body > :last-child {
+  margin-bottom: 0;
 }

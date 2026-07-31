@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router";
+import dmcaMd from "@site-docs/dmca.md?raw";
 import { api } from "../api";
+import SiteDocMarkdown from "../components/SiteDocMarkdown";
 
 export default function DMCAPage() {
   const [params] = useSearchParams();
@@ -36,14 +38,15 @@ export default function DMCAPage() {
   }
 
   return (
-    <div>
-      <h1 className="page-title">DMCA Takedown Notice</h1>
-      <p className="muted" style={{ marginBottom: "1.5rem" }}>
-        Submit a DMCA takedown request to hide a YouTube link from public view.
-        Metadata is preserved for archival purposes. Contact: commercialbrainz@outlook.com
-      </p>
+    <div style={{ maxWidth: 760 }}>
+      <SiteDocMarkdown source={dmcaMd} file="dmca.md" className="card" />
 
-      <form onSubmit={handleSubmit} className="card" style={{ maxWidth: 600 }}>
+      <form
+        onSubmit={handleSubmit}
+        className="card"
+        style={{ maxWidth: 600, marginTop: "1.25rem" }}
+      >
+        <h2 style={{ marginTop: 0 }}>Submit a notice</h2>
         <div className="form-group">
           <label>Video CBID *</label>
           <input

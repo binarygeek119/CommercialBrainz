@@ -24,6 +24,7 @@ import EditDetailPage from "./pages/EditDetailPage";
 import DMCAPage from "./pages/DMCAPage";
 import DonatePage from "./pages/DonatePage";
 import AboutPage from "./pages/AboutPage";
+import HelpPage from "./pages/HelpPage";
 import TermsPage from "./pages/TermsPage";
 import ModPage from "./pages/ModPage";
 import ModRoute from "./components/ModRoute";
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="account" element={<AccountPage />} />
         <Route path="voting" element={<VotingPage />} />
         <Route path="about" element={<AboutPage />} />
+        <Route path="help" element={<HelpPage />} />
         <Route path="donate" element={<DonatePage />} />
         <Route path="terms" element={<TermsPage />} />
         <Route path="dmca" element={<DMCAPage />} />
