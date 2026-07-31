@@ -5,7 +5,7 @@ Dedicated Google Cloud **project** for https://commercialbrainz.org/ — separat
 | Env | GCP project | VM | Deploy branch |
 |-----|-------------|-----|---------------|
 | Testing | `commercialbrainz` | `commercialbrainz-vm` | `testing` |
-| Public | **`commercialbrainz-public`** | `commercialbrainz-public` | `cloudflare` |
+| Public | **`commercialbrainz-public`** | `commercialbrainz-public` | `public` |
 
 ## One-shot setup (laptop)
 
@@ -102,10 +102,12 @@ After setup, set **repository variables** (Settings → Secrets and variables �
 
 | Variable | Public project value |
 |----------|----------------------|
-| `GCP_PROJECT_ID_CLOUDFLARE` | `commercialbrainz-public` (default in workflows) |
-| `GCP_WIF_PROVIDER_CLOUDFLARE` | `projects/227542386250/.../providers/github` (default; override if project number changes) |
-| `GCP_SA_EMAIL_CLOUDFLARE` | `github-deploy@commercialbrainz-public.iam.gserviceaccount.com` (default) |
-| `VM_NAME_CLOUDFLARE` | `commercialbrainz-public` (default) |
+| `GCP_PROJECT_ID_PUBLIC` | `commercialbrainz-public` (default in workflows) |
+| `GCP_WIF_PROVIDER_PUBLIC` | `projects/227542386250/.../providers/github` (default; override if project number changes) |
+| `GCP_SA_EMAIL_PUBLIC` | `github-deploy@commercialbrainz-public.iam.gserviceaccount.com` (default) |
+| `VM_NAME_PUBLIC` | `commercialbrainz-public` (default) |
+
+Legacy aliases still accepted by workflows: `GCP_*_CLOUDFLARE`, `VM_NAME_CLOUDFLARE`.
 
 Repo variables are optional when using the stock `commercialbrainz-public` project created by `setup-public-gcp-project.sh`. Set them only if you recreate the project (new project number) or rename the SA/VM.
 
@@ -118,14 +120,14 @@ Testing (unchanged defaults):
 | `GCP_SA_EMAIL` | `github-deploy@commercialbrainz.iam.gserviceaccount.com` |
 | `VM_NAME_TESTING` | `commercialbrainz-vm` (legacy: `VM_NAME_GOOGLE`) |
 
-**Deploy** and **Setup GCE VM** pick project / WIF / SA from the branch (`testing` vs `cloudflare`).
+**Deploy** and **Setup GCE VM** pick project / WIF / SA from the branch (`testing` vs `public`).
 
 ## Deploy / DNS
 
-1. Create VM if needed: Actions → **Setup GCE VM** → `cloudflare`, or laptop `setup-cloudflare-vm.sh` with `GCP_PROJECT_ID=commercialbrainz-public`.
+1. Create VM if needed: Actions → **Setup GCE VM** → `public`, or laptop `setup-cloudflare-vm.sh` with `GCP_PROJECT_ID=commercialbrainz-public`.
 2. Point Cloudflare A `@` / `www` at the new static IP (project `commercialbrainz-public`).
 3. Origin CA + [`docs/cloudflare-domain.md`](cloudflare-domain.md).
-4. Actions → **Deploy** → `cloudflare`.
+4. Actions → **Deploy** → `public`.
 
 ## Cost
 

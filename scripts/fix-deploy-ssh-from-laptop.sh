@@ -89,7 +89,7 @@ cat <<EOF
 
 ==> Done for ${VM_NAME}
 
-Re-run GitHub Actions → Deploy → testing (or cloudflare).
+Re-run GitHub Actions → Deploy → testing (or public).
 
 If Actions still fails, the VM guest agent may need a minute after metadata
 changes — wait ~2 minutes and redeploy.

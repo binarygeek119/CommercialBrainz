@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [testing, cloudflare]
+    branches: [testing, public]
   pull_request:
-    branches: [testing, cloudflare]
+    branches: [testing, public]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -167,7 +167,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/cloudflare')
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/public')
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -217,7 +217,7 @@ jobs:
         with:
           context: .
           file: infra/Dockerfile.api
-          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/cloudflare') }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/public') }}
           tags: ${{ steps.tags.outputs.api }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
@@ -227,7 +227,7 @@ jobs:
         with:
           context: .
           file: infra/Dockerfile.web
-          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/cloudflare') }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/public') }}
           tags: ${{ steps.tags.outputs.web }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
@@ -237,13 +237,13 @@ jobs:
         with:
           context: .
           file: infra/Dockerfile.maintenance
-          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/cloudflare') }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/public') }}
           tags: ${{ steps.tags.outputs.maintenance }}
           cache-from: type=gha,scope=maintenance
           cache-to: type=gha,mode=max,scope=maintenance
 
       - name: Make GHCR packages public (anonymous VM pulls)
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/cloudflare')
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/public')
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

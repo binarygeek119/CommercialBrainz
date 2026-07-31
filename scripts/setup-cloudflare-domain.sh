@@ -146,10 +146,13 @@ echo "==> Configuring VM for ${DOMAIN} (tls=${CADDY_TLS_MODE})..."
 gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
   set -e
   cd /opt/commercialbrainz
-  sudo git fetch origin cloudflare testing
-  # Prefer cloudflare for public domain setup; fall back to testing.
-  if sudo git rev-parse --verify origin/cloudflare >/dev/null 2>&1; then
-    sudo git checkout -B cloudflare origin/cloudflare
+  sudo git fetch origin public testing
+  # Prefer public for public-domain setup; fall back to testing.
+  if sudo git rev-parse --verify origin/public >/dev/null 2>&1; then
+    sudo git checkout -B public origin/public
+    sudo git reset --hard origin/public
+  elif sudo git rev-parse --verify origin/cloudflare >/dev/null 2>&1; then
+    sudo git checkout -B public origin/cloudflare
     sudo git reset --hard origin/cloudflare
   elif sudo git rev-parse --verify origin/testing >/dev/null 2>&1; then
     sudo git checkout -B testing origin/testing

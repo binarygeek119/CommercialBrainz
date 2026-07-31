@@ -1,8 +1,8 @@
 # Auto-deploy CommercialBrainz to the matching GCE VM after CI succeeds.
 #
 # Branches / sites / VMs:
-#   testing    — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
-#   cloudflare — https://commercialbrainz.org/            → commercialbrainz-public
+#   testing — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
+#   public  — https://commercialbrainz.org/            → commercialbrainz-public
 #
 # CI pushes images to GHCR; this workflow pulls them on the target VM.
 # See docs/branches.md
@@ -11,11 +11,11 @@
 #   Testing (testing):
 #     GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
 #     VM_NAME_TESTING (or legacy VM_NAME_GOOGLE / VM_NAME) — default commercialbrainz-vm
-#   Public (cloudflare) — separate GCP project:
-#     GCP_PROJECT_ID_CLOUDFLARE   — default commercialbrainz-public
-#     GCP_WIF_PROVIDER_CLOUDFLARE — default projects/227542386250/.../providers/github
-#     GCP_SA_EMAIL_CLOUDFLARE     — default github-deploy@commercialbrainz-public…
-#     VM_NAME_CLOUDFLARE          — default commercialbrainz-public
+#   Public (public) — separate GCP project:
+#     GCP_PROJECT_ID_PUBLIC   (legacy: GCP_PROJECT_ID_CLOUDFLARE) — default commercialbrainz-public
+#     GCP_WIF_PROVIDER_PUBLIC (legacy: GCP_WIF_PROVIDER_CLOUDFLARE)
+#     GCP_SA_EMAIL_PUBLIC     (legacy: GCP_SA_EMAIL_CLOUDFLARE)
+#     VM_NAME_PUBLIC          (legacy: VM_NAME_CLOUDFLARE) — default commercialbrainz-public
 #   See docs/public-gcp-project.md
 #
 name: Deploy
@@ -24,17 +24,17 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [testing, cloudflare]
+    branches: [testing, public]
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch to deploy (testing or cloudflare)"
+        description: "Branch to deploy (testing or public)"
         required: true
         default: testing
         type: choice
         options:
           - testing
-          - cloudflare
+          - public
 
 concurrency:
   group: deploy-gce-${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch || 'unknown' }}
@@ -47,7 +47,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        (github.event.workflow_run.head_branch == 'testing' ||
-        github.event.workflow_run.head_branch == 'cloudflare'))
+        github.event.workflow_run.head_branch == 'public'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -72,14 +72,30 @@ jobs:
         run: |
           set -euo pipefail
           branch="${{ steps.target.outputs.branch }}"
+          # Legacy alias: cloudflare → public
           if [[ "$branch" == "cloudflare" ]]; then
-            name="${{ vars.VM_NAME_CLOUDFLARE }}"
+            branch=public
+          fi
+          if [[ "$branch" == "public" ]]; then
+            name="${{ vars.VM_NAME_PUBLIC }}"
+            if [[ -z "$name" ]]; then
+              name="${{ vars.VM_NAME_CLOUDFLARE }}"
+            fi
             name="${name:-commercialbrainz-public}"
-            project="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            project="${{ vars.GCP_PROJECT_ID_PUBLIC }}"
+            if [[ -z "$project" ]]; then
+              project="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            fi
             project="${project:-commercialbrainz-public}"
-            wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            wif="${{ vars.GCP_WIF_PROVIDER_PUBLIC }}"
+            if [[ -z "$wif" ]]; then
+              wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            fi
             wif="${wif:-projects/227542386250/locations/global/workloadIdentityPools/github-actions/providers/github}"
-            sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            sa="${{ vars.GCP_SA_EMAIL_PUBLIC }}"
+            if [[ -z "$sa" ]]; then
+              sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            fi
             sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
           else
             # testing branch → DuckDNS VM (legacy vars: VM_NAME_GOOGLE, VM_NAME)
@@ -103,6 +119,7 @@ jobs:
             echo "project=${project}"
             echo "wif=${wif}"
             echo "sa=${sa}"
+            echo "branch=${branch}"
           } >> "$GITHUB_OUTPUT"
           echo "Target VM=${name} project=${project} branch=${branch}"
 
@@ -125,15 +142,18 @@ jobs:
           GCP_PROJECT_ID: ${{ steps.vm.outputs.project }}
           VM_NAME: ${{ steps.vm.outputs.name }}
           IMAGE_TAG: ${{ steps.target.outputs.sha }}
-          APP_BRANCH: ${{ steps.target.outputs.branch }}
+          APP_BRANCH: ${{ steps.vm.outputs.branch }}
           CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           set -euo pipefail
           chmod +x scripts/deploy-gcloud-vm.sh
-          # Legacy branch names map to testing.
+          # Legacy branch names.
           if [[ "${APP_BRANCH}" == "google" || "${APP_BRANCH}" == "main" ]]; then
             echo "WARN: APP_BRANCH=${APP_BRANCH} is retired; using testing"
             APP_BRANCH=testing
+          elif [[ "${APP_BRANCH}" == "cloudflare" ]]; then
+            echo "WARN: APP_BRANCH=cloudflare is retired; using public"
+            APP_BRANCH=public
           fi
           echo "Deploying APP_BRANCH=${APP_BRANCH} project=${GCP_PROJECT_ID} VM_NAME=${VM_NAME} IMAGE_TAG=${IMAGE_TAG}"
           ./scripts/deploy-gcloud-vm.sh

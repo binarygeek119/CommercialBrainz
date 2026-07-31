@@ -10,10 +10,13 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/commercialbrainz}"
 APP_BRANCH="${APP_BRANCH:-testing}"
-# main / google were renamed; map leftovers to testing.
+# Legacy branch names.
 if [[ "$APP_BRANCH" == "main" || "$APP_BRANCH" == "google" ]]; then
   echo "WARN: APP_BRANCH=${APP_BRANCH} is retired; using testing"
   APP_BRANCH=testing
+elif [[ "$APP_BRANCH" == "public" ]]; then
+  echo "WARN: APP_BRANCH=cloudflare is retired; using public"
+  APP_BRANCH=public
 fi
 cd "$APP_DIR"
 
@@ -73,7 +76,7 @@ $COMPOSE ps -a
 echo ""
 echo "==> Apply site env for branch ${APP_BRANCH}"
 # testing → https://commercialbrainz.duckdns.org/  (Let's Encrypt)
-# cloudflare → https://commercialbrainz.org/       (Cloudflare Origin CA)
+# public    → https://commercialbrainz.org/       (Cloudflare Origin CA)
 set_env() {
   local key="$1" value="$2"
   if grep -q "^${key}=" .env 2>/dev/null; then
@@ -94,7 +97,7 @@ set_env() {
 ACME_EMAIL="$(grep '^ACME_EMAIL=' .env 2>/dev/null | cut -d= -f2- || true)"
 ACME_EMAIL="${ACME_EMAIL:-commercialbrainz@outlook.com}"
 
-if [[ "$APP_BRANCH" == "cloudflare" ]]; then
+if [[ "$APP_BRANCH" == "public" ]]; then
   set_env DOMAIN "commercialbrainz.org"
   set_env DOMAIN_ALIASES "www.commercialbrainz.org"
   set_env CADDY_TLS_MODE "origin"

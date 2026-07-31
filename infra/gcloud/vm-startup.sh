@@ -21,6 +21,9 @@ REPO_BRANCH="${REPO_BRANCH:-testing}"
 if [[ "$REPO_BRANCH" == "main" || "$REPO_BRANCH" == "google" ]]; then
   echo "WARN: repo-branch=${REPO_BRANCH} is retired; using testing"
   REPO_BRANCH=testing
+elif [[ "$REPO_BRANCH" == "cloudflare" ]]; then
+  echo "WARN: repo-branch=cloudflare is retired; using public"
+  REPO_BRANCH=public
 fi
 WEB_PORT="${WEB_PORT:-80}"
 

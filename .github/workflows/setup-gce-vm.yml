@@ -4,8 +4,8 @@
 # Run from Actions → Setup GCE VM.
 #
 # Targets:
-#   cloudflare — project commercialbrainz-public, VM commercialbrainz-public
-#   testing    — project commercialbrainz, VM commercialbrainz-vm (+ DuckDNS secrets)
+#   public  — project commercialbrainz-public, VM commercialbrainz-public
+#   testing — project commercialbrainz, VM commercialbrainz-vm (+ DuckDNS secrets)
 #
 # Optional secrets:
 #   VM_ADMIN_EMAIL / VM_ADMIN_USERNAME / VM_ADMIN_PASSWORD — seed admin on first boot
@@ -14,8 +14,8 @@
 #
 # Optional variables: see docs/public-gcp-project.md
 #   GCP_PROJECT_ID / GCP_WIF_PROVIDER / GCP_SA_EMAIL
-#   GCP_PROJECT_ID_CLOUDFLARE / GCP_WIF_PROVIDER_CLOUDFLARE / GCP_SA_EMAIL_CLOUDFLARE
-#   VM_NAME_CLOUDFLARE / VM_NAME_TESTING (legacy: VM_NAME_GOOGLE)
+#   GCP_PROJECT_ID_PUBLIC (legacy *_CLOUDFLARE) / GCP_WIF_PROVIDER_PUBLIC / GCP_SA_EMAIL_PUBLIC
+#   VM_NAME_PUBLIC (legacy VM_NAME_CLOUDFLARE) / VM_NAME_TESTING (legacy: VM_NAME_GOOGLE)
 #
 name: Setup GCE VM
 
@@ -25,10 +25,10 @@ on:
       target:
         description: "Which environment / VM to create"
         required: true
-        default: cloudflare
+        default: public
         type: choice
         options:
-          - cloudflare
+          - public
           - testing
       reset_existing:
         description: "If the VM already exists, reset it (re-run startup)"
@@ -59,14 +59,26 @@ jobs:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
-          if [[ "$TARGET" == "cloudflare" ]]; then
-            name="${{ vars.VM_NAME_CLOUDFLARE }}"
+          if [[ "$TARGET" == "public" || "$TARGET" == "cloudflare" ]]; then
+            name="${{ vars.VM_NAME_PUBLIC }}"
+            if [[ -z "$name" ]]; then
+              name="${{ vars.VM_NAME_CLOUDFLARE }}"
+            fi
             name="${name:-commercialbrainz-public}"
-            PROJECT_ID="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            PROJECT_ID="${{ vars.GCP_PROJECT_ID_PUBLIC }}"
+            if [[ -z "$PROJECT_ID" ]]; then
+              PROJECT_ID="${{ vars.GCP_PROJECT_ID_CLOUDFLARE }}"
+            fi
             PROJECT_ID="${PROJECT_ID:-commercialbrainz-public}"
-            wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            wif="${{ vars.GCP_WIF_PROVIDER_PUBLIC }}"
+            if [[ -z "$wif" ]]; then
+              wif="${{ vars.GCP_WIF_PROVIDER_CLOUDFLARE }}"
+            fi
             wif="${wif:-projects/227542386250/locations/global/workloadIdentityPools/github-actions/providers/github}"
-            sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            sa="${{ vars.GCP_SA_EMAIL_PUBLIC }}"
+            if [[ -z "$sa" ]]; then
+              sa="${{ vars.GCP_SA_EMAIL_CLOUDFLARE }}"
+            fi
             sa="${sa:-github-deploy@commercialbrainz-public.iam.gserviceaccount.com}"
             script=scripts/setup-cloudflare-vm.sh
           else
@@ -133,10 +145,10 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/setup-gcloud-vm.sh scripts/setup-cloudflare-vm.sh
-          if [[ "${TARGET}" == "cloudflare" ]]; then
-            # Public VM: force cloudflare branch + static IP; no DuckDNS.
+          if [[ "${TARGET}" == "public" || "${TARGET}" == "cloudflare" ]]; then
+            # Public VM: force public branch + static IP; no DuckDNS.
             unset DUCKDNS_DOMAIN DUCKDNS_TOKEN || true
-            export REPO_BRANCH=cloudflare
+            export REPO_BRANCH=public
             export CREATE_STATIC_IP=1
             bash scripts/setup-cloudflare-vm.sh
           else
@@ -190,12 +202,12 @@ jobs:
             --quiet || true
           echo ""
           echo "==> Next steps"
-          if [[ "${TARGET}" == "cloudflare" ]]; then
+          if [[ "${TARGET}" == "public" || "${TARGET}" == "cloudflare" ]]; then
             echo "  1. Point Cloudflare A @ and www (Proxied) at ${IP}"
             echo "  2. SSL Full (strict) + Origin CA cert"
             echo "  3. From a laptop with gcloud: run scripts/setup-cloudflare-domain.sh"
             echo "     (needs ORIGIN_CERT / ORIGIN_KEY files — see docs/cloudflare-domain.md)"
-            echo "  4. Deploy: Actions → Deploy → branch cloudflare"
+            echo "  4. Deploy: Actions → Deploy → branch public"
           else
             echo "  1. Wait for startup (~10–20 min), then check https://commercialbrainz.duckdns.org/"
             echo "  2. Deploy: Actions → Deploy → branch testing"
