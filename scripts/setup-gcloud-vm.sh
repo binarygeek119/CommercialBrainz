@@ -143,6 +143,10 @@ find_existing_vm_zone() {
 }
 
 if [[ -z "$PROJECT_ID" ]]; then
+  if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || "${CLOUDSDK_CORE_DISABLE_PROMPTS:-}" == "1" ]]; then
+    echo "ERROR: GCP_PROJECT_ID must be set in CI"
+    exit 1
+  fi
   read -rp "GCP Project ID: " PROJECT_ID
 fi
 
@@ -176,8 +180,12 @@ if [[ -n "$ZONE" ]] && ! zone_in_free_tier "$ZONE"; then
   echo ""
   echo "WARNING: Zone $ZONE is not in a documented Always Free region."
   echo "         Free-tier e2-micro applies to: us-west1, us-central1, us-east1"
-  read -rp "Continue anyway? [y/N] " confirm
-  [[ "${confirm,,}" == "y" ]] || exit 1
+  if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || "${CLOUDSDK_CORE_DISABLE_PROMPTS:-}" == "1" ]]; then
+    echo "         Continuing non-interactively (CI)."
+  else
+    read -rp "Continue anyway? [y/N] " confirm
+    [[ "${confirm,,}" == "y" ]] || exit 1
+  fi
 fi
 
 gcloud config set project "$PROJECT_ID"

@@ -20,7 +20,13 @@ On each deploy, `fix-gcloud-vm.sh` sets hostname / TLS from `APP_BRANCH`:
 | `google` | `commercialbrainz-vm` | `commercialbrainz.duckdns.org` | Let's Encrypt (`auto`) |
 | `cloudflare` | `commercialbrainz-org` | `commercialbrainz.org` (+ `www`) | Cloudflare Origin CA (`origin`) |
 
-Create the public VM once with [`scripts/setup-cloudflare-vm.sh`](../scripts/setup-cloudflare-vm.sh), then Cloudflare DNS + Origin CA via [`docs/cloudflare-domain.md`](cloudflare-domain.md).
+Create the public VM once:
+
+- **GitHub Actions (recommended):** Actions → **Setup GCE VM** → target `cloudflare` → Run workflow  
+  (uses the same Workload Identity as Deploy; prints the static IP in the job log)
+- **Laptop:** [`scripts/setup-cloudflare-vm.sh`](../scripts/setup-cloudflare-vm.sh)
+
+Then Cloudflare DNS + Origin CA via [`docs/cloudflare-domain.md`](cloudflare-domain.md).
 
 **Cost note:** GCP Always Free includes only one e2-micro. The second VM (`commercialbrainz-org`) is billed (still low on e2-micro). Use a static IP on the public VM so Cloudflare A records stay stable.
 
