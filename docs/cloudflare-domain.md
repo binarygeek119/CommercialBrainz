@@ -26,7 +26,7 @@ New public project: [public-gcp-project.md](public-gcp-project.md). See [branche
 Browser --HTTPS--> Cloudflare (Free SSL) --HTTPS--> Caddy on commercialbrainz-public (Origin CA) --> api/web
 ```
 
-SSL/TLS mode on Cloudflare: **Full (strict)**.  
+SSL/TLS on Cloudflare: leave **Automatic SSL/TLS (recommended)** on (it will move to Full strict once Origin CA is on Caddy). Or set **Custom → Full (strict)** yourself.  
 DNS: **Proxied** (orange cloud) — Cloudflare terminates visitor SSL.
 
 ## Steps
@@ -108,7 +108,8 @@ gcloud compute instances add-iam-policy-binding commercialbrainz-public \
 
    Do **not** point these at `commercialbrainz-vm`.
 
-4. **SSL/TLS → Overview** → **Full (strict)**.
+4. **SSL/TLS → Overview** → leave **Automatic SSL/TLS (recommended)** enabled  
+   (or **Custom → Full (strict)** after Origin CA is installed). Without Origin CA, Automatic may not reach Full strict / can show **526**.
 5. **SSL/TLS → Origin Server → Create Certificate**:
    - Hostnames: `commercialbrainz.org` and `*.commercialbrainz.org`
    - Validity: 15 years is fine
@@ -163,11 +164,11 @@ After CI, [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) pick
 
 ## Why not Flexible SSL?
 
-**Flexible** (HTTPS to Cloudflare, HTTP to origin) is weaker and fights Caddy’s HTTPS redirects. Prefer **Full (strict) + Origin CA** — still $0 on Cloudflare.
+**Flexible** (HTTPS to Cloudflare, HTTP to origin) is weaker and fights Caddy’s HTTPS redirects. Prefer **Automatic SSL/TLS** or **Custom Full (strict)** with Origin CA — still $0 on Cloudflare.
 
 ## Troubleshooting
 
-- **526 Invalid SSL certificate:** Origin CA missing/expired, or SSL mode not Full (strict); check `data/caddy/certs/` on **commercialbrainz-public**.
+- **526 Invalid SSL certificate:** Origin CA missing/expired, or Automatic/Custom mode expects a valid origin cert; check `data/caddy/certs/` on **commercialbrainz-public**.
 - **522 / 523:** firewall or VM down — ports **80** and **443** must allow Cloudflare; confirm A records use the **org** VM IP.
 - **Wrong IP:** update Cloudflare A records to the static IP on `commercialbrainz-public-ip`.
 - **Deploy can’t SSH:** grant `github-deploy` `roles/compute.osAdminLogin` on **commercialbrainz-public** (step 1).
