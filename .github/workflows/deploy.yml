@@ -1,16 +1,17 @@
-# Auto-deploy CommercialBrainz to the GCE VM after CI succeeds.
+# Auto-deploy CommercialBrainz to the matching GCE VM after CI succeeds.
 #
-# Branches / sites:
-#   google     — https://commercialbrainz.duckdns.org/  (testing; default PR base)
-#   cloudflare — https://commercialbrainz.org/            (public)
+# Branches / sites / VMs:
+#   google     — https://commercialbrainz.duckdns.org/  → commercialbrainz-vm
+#   cloudflare — https://commercialbrainz.org/            → commercialbrainz-org
 #
-# CI pushes images to GHCR; this workflow pulls them on the VM.
+# CI pushes images to GHCR; this workflow pulls them on the target VM.
 # See docs/branches.md
 #
-# Auth: Workload Identity Federation (no JSON key secret).
 # Optional repository variables:
-#   GCP_PROJECT_ID  — default commercialbrainz
-#   VM_NAME         — default commercialbrainz-vm
+#   GCP_PROJECT_ID       — default commercialbrainz
+#   VM_NAME_GOOGLE       — default commercialbrainz-vm
+#   VM_NAME_CLOUDFLARE   — default commercialbrainz-org
+#   VM_NAME              — legacy alias for the google/testing VM
 #
 name: Deploy
 
@@ -31,7 +32,7 @@ on:
           - cloudflare
 
 concurrency:
-  group: deploy-gce-vm
+  group: deploy-gce-${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch || 'unknown' }}
   cancel-in-progress: false
 
 jobs:
@@ -61,6 +62,24 @@ jobs:
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve target VM
+        id: vm
+        run: |
+          set -euo pipefail
+          branch="${{ steps.target.outputs.branch }}"
+          if [[ "$branch" == "cloudflare" ]]; then
+            name="${{ vars.VM_NAME_CLOUDFLARE }}"
+            name="${name:-commercialbrainz-org}"
+          else
+            name="${{ vars.VM_NAME_GOOGLE }}"
+            if [[ -z "$name" ]]; then
+              name="${{ vars.VM_NAME }}"
+            fi
+            name="${name:-commercialbrainz-vm}"
+          fi
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Target VM: ${name} (branch=${branch})"
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -78,12 +97,12 @@ jobs:
       - name: Deploy
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'commercialbrainz' }}
-          VM_NAME: ${{ vars.VM_NAME || 'commercialbrainz-vm' }}
+          VM_NAME: ${{ steps.vm.outputs.name }}
           IMAGE_TAG: ${{ steps.target.outputs.sha }}
           APP_BRANCH: ${{ steps.target.outputs.branch }}
           CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           set -euo pipefail
           chmod +x scripts/deploy-gcloud-vm.sh
-          echo "Deploying APP_BRANCH=${APP_BRANCH} IMAGE_TAG=${IMAGE_TAG}"
+          echo "Deploying APP_BRANCH=${APP_BRANCH} VM_NAME=${VM_NAME} IMAGE_TAG=${IMAGE_TAG}"
           ./scripts/deploy-gcloud-vm.sh

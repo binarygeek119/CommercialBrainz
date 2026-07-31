@@ -85,13 +85,13 @@ ACME_EMAIL="${ACME_EMAIL:-commercialbrainz@outlook.com}"
 
 if [[ "$APP_BRANCH" == "cloudflare" ]]; then
   set_env DOMAIN "commercialbrainz.org"
-  set_env DOMAIN_ALIASES "www.commercialbrainz.org,commercialbrainz.duckdns.org"
+  set_env DOMAIN_ALIASES "www.commercialbrainz.org"
   set_env CADDY_TLS_MODE "origin"
   set_env APP_PUBLIC_URL "https://commercialbrainz.org"
   set_env API_PUBLIC_URL "https://commercialbrainz.org"
-  set_env CORS_ORIGINS "https://commercialbrainz.org,https://www.commercialbrainz.org,https://commercialbrainz.duckdns.org"
+  set_env CORS_ORIGINS "https://commercialbrainz.org,https://www.commercialbrainz.org"
   set_env ACME_EMAIL "$ACME_EMAIL"
-  echo "    Public site: https://commercialbrainz.org/ (Origin CA)"
+  echo "    Public site: https://commercialbrainz.org/ (Origin CA on commercialbrainz-org)"
 elif [[ "$APP_BRANCH" == "google" ]]; then
   set_env DOMAIN "commercialbrainz.duckdns.org"
   set_env DOMAIN_ALIASES ""
@@ -100,7 +100,7 @@ elif [[ "$APP_BRANCH" == "google" ]]; then
   set_env API_PUBLIC_URL "https://commercialbrainz.duckdns.org"
   set_env CORS_ORIGINS "https://commercialbrainz.duckdns.org"
   set_env ACME_EMAIL "$ACME_EMAIL"
-  echo "    Testing site: https://commercialbrainz.duckdns.org/ (Let's Encrypt)"
+  echo "    Testing site: https://commercialbrainz.duckdns.org/ (Let's Encrypt on commercialbrainz-vm)"
 else
   echo "    WARN: unknown APP_BRANCH=${APP_BRANCH}; leaving DOMAIN settings in .env unchanged"
 fi
