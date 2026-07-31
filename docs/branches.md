@@ -24,11 +24,16 @@ Both share the **same GCE VM**; deploys are serialized. For `cloudflare`, Origin
 
 ## Versioning (cloudflare / public)
 
+Format: **`major.minor.bug`** (e.g. `1.0.0`, `1.0.1`, `1.2.0`).
+
 Each merge into **`cloudflare`** runs [.github/workflows/bump-cloudflare-version.yml](../.github/workflows/bump-cloudflare-version.yml):
 
-- Bumps from the latest `v*` tag (so merges from `google` cannot rewind the version)
+- Bumps from the latest `v*` tag (merges from `google` cannot rewind the version)
+- Default bump is **bug** (+1 on the last number)
 - Updates `frontend/src/version.ts`, `frontend/package.json`, `backend/pyproject.toml`
-- Creates tag `v1.0.0-alpha`, `v1.0.0-alpha.1`, `v1.0.0-alpha.2`, …
+- Creates tag `v1.0.1`, `v1.0.2`, …
+
+Manual / larger bumps: Actions → **Bump cloudflare version** → choose `bug`, `minor`, or `major`.
 
 The UI badge shows `v{APP_VERSION}`. Testing (`google`) does not auto-bump.
 
