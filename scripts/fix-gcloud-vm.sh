@@ -34,21 +34,26 @@ fi
 # inode (bash keeps reading the old file after `git reset` replaces it).
 if [[ "${CB_REPO_SYNCED:-}" != "1" ]]; then
   echo "==> Sync to origin/${APP_BRANCH} (discard local tracked changes; keep .env)"
-  if [[ "$(id -u)" -eq 0 ]]; then
-    git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    git fetch origin "$APP_BRANCH"
-    git checkout -B "$APP_BRANCH" "origin/$APP_BRANCH"
-    git reset --hard "origin/$APP_BRANCH"
-    git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
-    git rev-parse --short HEAD
+  run_git() {
+    if [[ "$(id -u)" -eq 0 ]]; then
+      "$@"
+    else
+      sudo "$@"
+    fi
+  }
+  run_git git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+  # Heal single-branch clones left over from the deleted main branch.
+  run_git git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' || true
+  run_git git fetch origin "refs/heads/${APP_BRANCH}:refs/remotes/origin/${APP_BRANCH}"
+  if run_git git rev-parse --verify "origin/${APP_BRANCH}" >/dev/null 2>&1; then
+    run_git git checkout -B "$APP_BRANCH" "origin/${APP_BRANCH}"
+    run_git git reset --hard "origin/${APP_BRANCH}"
   else
-    sudo git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    sudo git fetch origin "$APP_BRANCH"
-    sudo git checkout -B "$APP_BRANCH" "origin/$APP_BRANCH"
-    sudo git reset --hard "origin/$APP_BRANCH"
-    sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
-    sudo git rev-parse --short HEAD
+    run_git git checkout -B "$APP_BRANCH" FETCH_HEAD
+    run_git git reset --hard FETCH_HEAD
   fi
+  run_git git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
+  run_git git rev-parse --short HEAD
   export CB_REPO_SYNCED=1
   echo "==> Re-executing deploy script from synced tree"
   if [[ "$(id -u)" -eq 0 ]]; then

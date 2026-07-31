@@ -67,10 +67,17 @@ gcloud compute ssh "$VM_NAME" \
     APP_BRANCH=google
   fi
   sudo git config --global --add safe.directory /opt/commercialbrainz 2>/dev/null || true
+  # Single-branch clones (old main) may lack origin/<branch> tracking refs.
+  sudo git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' || true
   echo \"==> Bootstrap sync to origin/\${APP_BRANCH}\"
-  sudo git fetch origin \"\$APP_BRANCH\"
-  sudo git checkout -B \"\$APP_BRANCH\" \"origin/\$APP_BRANCH\"
-  sudo git reset --hard \"origin/\$APP_BRANCH\"
+  sudo git fetch origin \"refs/heads/\${APP_BRANCH}:refs/remotes/origin/\${APP_BRANCH}\"
+  if sudo git rev-parse --verify \"origin/\${APP_BRANCH}\" >/dev/null 2>&1; then
+    sudo git checkout -B \"\$APP_BRANCH\" \"origin/\$APP_BRANCH\"
+    sudo git reset --hard \"origin/\$APP_BRANCH\"
+  else
+    sudo git checkout -B \"\$APP_BRANCH\" FETCH_HEAD
+    sudo git reset --hard FETCH_HEAD
+  fi
   sudo git clean -fd -e .env -e infra/caddy/Caddyfile.runtime -e infra/compose.env -e data/maintenance -e data/caddy
   sudo git rev-parse --short HEAD
   # CB_REPO_SYNCED=1 skips the in-script sync (already done); sudo env keeps vars.
