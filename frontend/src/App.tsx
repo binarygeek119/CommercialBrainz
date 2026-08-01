@@ -19,6 +19,7 @@ import AdvertiserPage from "./pages/AdvertiserPage";
 import SubmitPage from "./pages/SubmitPage";
 import SubmitUpgradePage from "./pages/SubmitUpgradePage";
 import VotingPage from "./pages/VotingPage";
+import DuplicatesPage from "./pages/DuplicatesPage";
 import EditsPage from "./pages/EditsPage";
 import EditDetailPage from "./pages/EditDetailPage";
 import DMCAPage from "./pages/DMCAPage";
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="user/:username" element={<UserProfilePage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="voting" element={<VotingPage />} />
+        <Route path="duplicates" element={<DuplicatesPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="plugins" element={<PluginsPage />} />
         <Route path="help" element={<HelpPage />} />

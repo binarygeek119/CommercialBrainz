@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     hash_job_timeout_sec: int = 1800
     # Max Hamming distance for perceptual-hash duplicate / lookup matches (64-bit pHash).
     phash_duplicate_threshold: int = 8
+    # Community votes needed on the same (action, subject) to resolve a duplicate issue.
+    duplicate_vote_threshold: int = 3
     fingerprint_max_retries: int = 3
     fingerprint_retry_delay_minutes: int = 15
     # Reclaim PROCESSING fingerprints stuck after worker crash / aborted job.

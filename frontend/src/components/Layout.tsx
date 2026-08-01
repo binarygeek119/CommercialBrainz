@@ -52,6 +52,7 @@ export default function Layout() {
             <NavLink to="/holidays">Holidays</NavLink>
             <NavLink to="/search">Search</NavLink>
             <NavLink to="/voting">Vote</NavLink>
+            <NavLink to="/duplicates">Duplicates</NavLink>
             <NavLink to="/submit">Submit</NavLink>
             {user && (user.bulk_submit_enabled || user.can_bulk_submit) && (
               <NavLink to="/submit/bulk">Bulk</NavLink>
