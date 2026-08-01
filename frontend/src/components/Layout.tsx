@@ -62,6 +62,7 @@ export default function Layout() {
               </NavLink>
             )}
             <NavLink to="/about">About</NavLink>
+            <NavLink to="/plugins">Plugins</NavLink>
             <NavLink to="/help">Help</NavLink>
             <NavLink to="/help/basic-usage">Guide</NavLink>
             <NavLink to="/donate">Donate</NavLink>
