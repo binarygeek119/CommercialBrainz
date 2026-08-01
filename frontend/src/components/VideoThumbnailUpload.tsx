@@ -1,17 +1,22 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, type Edit } from "../api";
 
 interface Props {
   videoSbid: string;
+  thumbnailFetchStatus?: string | null;
 }
 
-export default function VideoThumbnailUpload({ videoSbid }: Props) {
+export default function VideoThumbnailUpload({ videoSbid, thumbnailFetchStatus }: Props) {
+  const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [refreshMsg, setRefreshMsg] = useState("");
   const [result, setResult] = useState<Edit | null>(null);
 
   const onFileChange = (file: File | undefined) => {
@@ -57,9 +62,54 @@ export default function VideoThumbnailUpload({ videoSbid }: Props) {
     }
   };
 
+  const handleForceRefresh = async () => {
+    setRefreshing(true);
+    setError("");
+    setRefreshMsg("");
+    try {
+      await api.refreshVideoThumbnail(videoSbid);
+      setRefreshMsg(
+        "Queued: trying YouTube thumbnail again, then a random padded frame from the stream if needed."
+      );
+      await queryClient.invalidateQueries({ queryKey: ["video", videoSbid] });
+      await queryClient.invalidateQueries({ queryKey: ["commercial"] });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const fetchBusy =
+    thumbnailFetchStatus === "pending" || thumbnailFetchStatus === "retry";
+
   return (
     <div className="card" style={{ marginTop: "1rem" }}>
-      <h3>Custom thumbnail</h3>
+      <h3>Thumbnail</h3>
+      <p className="muted" style={{ marginBottom: "0.75rem" }}>
+        Re-grab from YouTube, or upload a custom image for the edit queue.
+      </p>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={handleForceRefresh}
+          disabled={refreshing || fetchBusy}
+        >
+          {refreshing || fetchBusy ? "Refreshing thumbnail…" : "Force re-grab thumbnail"}
+        </button>
+        <p className="muted" style={{ marginTop: "0.5rem", marginBottom: 0, fontSize: "0.85rem" }}>
+          Tries the YouTube thumbnail again. If that fails, streams the video and grabs a random
+          frame with padding at the start and end.
+          {thumbnailFetchStatus ? ` Status: ${thumbnailFetchStatus}.` : ""}
+        </p>
+        {refreshMsg && <p style={{ marginTop: "0.5rem", marginBottom: 0 }}>{refreshMsg}</p>}
+      </div>
+
+      <hr style={{ border: 0, borderTop: "1px solid var(--border, #ddd)", margin: "1rem 0" }} />
+
+      <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.95rem" }}>Custom thumbnail</h4>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
         Upload a replacement thumbnail (JPEG, PNG, or WebP, max 2 MB). It enters the edit queue for
         voting like other changes.
