@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type AdminUser, type AdminFingerprint, type ArchiveExportStatus, type CookieDonationPublic, type RegistrationInvite, type YtdlpCookiesStatus } from "../api";
+import BackgroundTasksPanel from "../components/BackgroundTasksPanel";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 
 type Tab =
@@ -9,6 +10,7 @@ type Tab =
   | "users"
   | "fingerprints"
   | "fp-queue"
+  | "tasks"
   | "registration"
   | "exports"
   | "ytdlp"
@@ -141,6 +143,7 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     queryClient.invalidateQueries({ queryKey: ["admin-fingerprints"] });
     queryClient.invalidateQueries({ queryKey: ["fingerprint-queue"] });
+    queryClient.invalidateQueries({ queryKey: ["background-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["admin-registration-settings"] });
     queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
     queryClient.invalidateQueries({ queryKey: ["registration-settings"] });
@@ -510,6 +513,7 @@ export default function AdminPage() {
             ["users", "Users"],
             ["fingerprints", "Fingerprints"],
             ["fp-queue", "Fingerprint queue"],
+            ["tasks", "Tasks"],
             ["registration", "Registration"],
             ["ytdlp", "YouTube cookies"],
             ["funds", "Funds"],
@@ -726,6 +730,13 @@ export default function AdminPage() {
             await api.adminRetryFingerprint(id);
             queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
           }}
+        />
+      )}
+
+      {tab === "tasks" && (
+        <BackgroundTasksPanel
+          queryKey="admin"
+          fetchTasks={() => api.adminBackgroundTasks()}
         />
       )}
 

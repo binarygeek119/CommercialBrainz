@@ -22,6 +22,7 @@ from app.models import (
 from app.schemas import (
     AccountDeletionRequestPublic,
     AccountDeletionReview,
+    BackgroundTasksStatus,
     DeadLinkPublic,
     EditPublic,
     FingerprintQueueStatus,
@@ -34,6 +35,7 @@ from app.services.account_settings import (
     list_pending_deletion_requests,
     reject_deletion_request,
 )
+from app.services.background_tasks_status import get_background_tasks_status
 from app.services.commercial_reports import count_open_reports
 from app.services.edit_response import build_edit_public
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
@@ -123,6 +125,15 @@ async def mod_fingerprint_queue(
     _mod: User = Depends(require_mod),
 ):
     return FingerprintQueueStatus(**await get_fingerprint_queue_status(db))
+
+
+@router.get("/background-tasks", response_model=BackgroundTasksStatus)
+async def mod_background_tasks(
+    db: AsyncSession = Depends(get_db),
+    _mod: User = Depends(require_mod),
+):
+    """Non-fingerprint worker task overview (thumbnails, bulk, archive, dumps, …)."""
+    return BackgroundTasksStatus(**await get_background_tasks_status(db))
 
 
 @router.post("/edits/{edit_id}/apply", response_model=EditPublic)
