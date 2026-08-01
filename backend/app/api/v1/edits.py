@@ -45,10 +45,19 @@ async def _schedule_hash_job(job_id: UUID) -> None:
     await enqueue_hash_job(job_id)
 
 
+async def _schedule_thumbnail_job(video_id: UUID) -> None:
+    from app.services.thumbnail_queue import enqueue_thumbnail_job
+
+    await enqueue_thumbnail_job(video_id)
+
+
 def _schedule_pending_hash(background_tasks: BackgroundTasks, edit: Edit) -> None:
     pending = getattr(edit, "_pending_hash_job", None)
     if pending is not None:
         background_tasks.add_task(_schedule_hash_job, pending)
+    pending_thumb = getattr(edit, "_pending_thumbnail_video", None)
+    if pending_thumb is not None:
+        background_tasks.add_task(_schedule_thumbnail_job, pending_thumb)
 
 
 @router.post("", response_model=EditPublic, status_code=status.HTTP_201_CREATED)

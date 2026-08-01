@@ -135,3 +135,19 @@ def is_hosted_thumbnail(url: str | None) -> bool:
     if not url:
         return False
     return "/api/v1/media/thumbnails/" in url
+
+
+def save_video_thumbnail(video_sbid: UUID, data: bytes, content_type: str | None = None) -> str:
+    """Write a permanent hosted thumbnail for a video. Returns public media URL."""
+    image_type = validate_thumbnail_bytes(data, content_type)
+    ext = EXTENSION_BY_TYPE[image_type]
+    root = _upload_root()
+    final_name = f"{video_sbid}{ext}"
+    final_path = root / final_name
+
+    for old in root.glob(f"{video_sbid}.*"):
+        if old.is_file() and old != final_path:
+            old.unlink()
+
+    final_path.write_bytes(data)
+    return thumbnail_media_url(final_name)

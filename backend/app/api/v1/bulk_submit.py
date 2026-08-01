@@ -215,6 +215,11 @@ async def submit_item(
             staged_item_ids=enrich_ids,
             fingerprint_ids=fingerprint_ids,
         )
+        pending_thumb = getattr(edit, "_pending_thumbnail_video", None)
+        if pending_thumb is not None:
+            from app.services.thumbnail_queue import enqueue_thumbnail_job
+
+            await enqueue_thumbnail_job(pending_thumb)
 
     background_tasks.add_task(_schedule_after_submit)
 
