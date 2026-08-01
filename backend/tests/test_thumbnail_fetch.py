@@ -90,7 +90,7 @@ def test_mark_thumbnail_force_refresh_resets_hosted_url():
         extra_data={},
     )
     mark_thumbnail_force_refresh(video)
-    assert "i.ytimg.com" in (video.thumbnail_url or "")
+    assert video.thumbnail_url == "https://i.ytimg.com/vi/5uaYHYs4ubw/hqdefault.jpg"
     meta = video.extra_data["thumbnail_fetch"]
     assert meta["status"] == "pending"
     assert meta["force"] is True
