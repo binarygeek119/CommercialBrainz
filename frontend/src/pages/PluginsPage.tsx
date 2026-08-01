@@ -1,4 +1,21 @@
-const PLUGINS = [
+type RelatedLink = {
+  label: string;
+  url: string;
+  description: string;
+};
+
+type PluginListing = {
+  id: string;
+  name: string;
+  summary: string;
+  requirements: string;
+  repoUrl: string;
+  installHint: string;
+  note?: string;
+  relatedLinks?: RelatedLink[];
+};
+
+const PLUGINS: PluginListing[] = [
   {
     id: "jellyfin",
     name: "Jellyfin",
@@ -8,6 +25,14 @@ const PLUGINS = [
     repoUrl: "https://github.com/binarygeek119/CommercialBrainz-jellyfin-plugin",
     installHint:
       "Dashboard → Plugins → Repositories → add the CommercialBrainz manifest, then install from Catalog.",
+    relatedLinks: [
+      {
+        label: "Jellyfin+",
+        url: "https://github.com/binarygeek119/jellyfinplus",
+        description:
+          "Docker image based on jellyfin/jellyfin:unstable with yt-dlp and fpcalc bundled for CommercialBrainz YouTube streaming and audio fingerprinting.",
+      },
+    ],
   },
   {
     id: "plex",
@@ -30,7 +55,7 @@ const PLUGINS = [
       "Extract the release zip into Emby’s plugins folder, restart, then enable CommercialBrainz on your library.",
     note: "Emby support is untested against a live server; builds and unit tests pass.",
   },
-] as const;
+];
 
 export default function PluginsPage() {
   return (
@@ -46,7 +71,7 @@ export default function PluginsPage() {
         {PLUGINS.map((plugin) => (
           <section key={plugin.id} className="card" aria-labelledby={`plugin-${plugin.id}`}>
             <div className="flex-between" style={{ alignItems: "flex-start" }}>
-              <div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <h2 id={`plugin-${plugin.id}`} style={{ margin: "0 0 0.5rem" }}>
                   {plugin.name}
                 </h2>
@@ -57,10 +82,27 @@ export default function PluginsPage() {
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
                   <strong>Install:</strong> {plugin.installHint}
                 </p>
-                {"note" in plugin && plugin.note ? (
+                {plugin.note ? (
                   <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
                     {plugin.note}
                   </p>
+                ) : null}
+                {plugin.relatedLinks && plugin.relatedLinks.length > 0 ? (
+                  <div style={{ marginTop: "1rem" }}>
+                    <h3 style={{ margin: "0 0 0.5rem", fontSize: "0.95rem" }}>Also useful</h3>
+                    <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                      {plugin.relatedLinks.map((link) => (
+                        <li key={link.url} style={{ marginBottom: "0.5rem" }}>
+                          <a href={link.url} target="_blank" rel="noreferrer noopener">
+                            {link.label}
+                          </a>
+                          <span className="muted" style={{ display: "block", fontSize: "0.9rem" }}>
+                            {link.description}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
               </div>
               <a
@@ -68,6 +110,7 @@ export default function PluginsPage() {
                 className="btn btn-primary"
                 target="_blank"
                 rel="noreferrer noopener"
+                style={{ flexShrink: 0 }}
               >
                 GitHub
               </a>
