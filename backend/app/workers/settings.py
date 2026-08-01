@@ -2,10 +2,16 @@ import logging
 
 from arq import cron
 from arq.connections import RedisSettings
+from arq.worker import func
 
 from app.config import get_settings
 from app.database import async_session_factory
-from app.services.hash_queue import enqueue_hash_job, hash_media, process_pending_queue
+from app.services.hash_queue import (
+    enqueue_hash_job,
+    hash_media,
+    process_pending_queue,
+    reclaim_processing_fingerprints,
+)
 from app.services.thumbnail_queue import (
     enqueue_thumbnail_job,
     ensure_thumbnail,
@@ -91,6 +97,12 @@ async def backfill_bulk_batch_metadata(ctx, batch_id: str):
 
 async def startup(ctx):
     logger.info("CommercialBrainz worker started")
+    # Anything left PROCESSING was interrupted by a previous worker crash/redeploy.
+    reclaimed = await reclaim_processing_fingerprints()
+    for fp_id in reclaimed:
+        await enqueue_hash_job(fp_id)
+    if reclaimed:
+        logger.info("Re-queued %d interrupted fingerprint job(s) on startup", len(reclaimed))
 
 
 async def shutdown(ctx):
@@ -103,7 +115,8 @@ class WorkerSettings:
         expire_edits,
         generate_dump,
         export_to_archive_org,
-        hash_media,
+        # Default ARQ timeout is 300s; fingerprint downloads often need longer.
+        func(hash_media, timeout=settings.hash_job_timeout_sec),
         process_pending_queue,
         ensure_thumbnail,
         process_thumbnail_retries,
@@ -121,5 +134,7 @@ class WorkerSettings:
         cron(check_public_youtube_links, day=1, hour=4, minute=0),
     ]
     max_jobs = 1
+    # Keep default job_timeout for short jobs; hash_media uses per-function timeout.
+    job_timeout = 600
     on_startup = startup
     on_shutdown = shutdown
