@@ -1222,6 +1222,70 @@ class FingerprintQueueStatus(BaseModel):
     pending: list[FingerprintQueueItem]
 
 
+class BackgroundTaskThumbnailSample(BaseModel):
+    video_id: UUID
+    youtube_id: str | None = None
+    status: str
+    attempts: int = 0
+    last_error: str | None = None
+    last_attempt_at: str | None = None
+    force: bool = False
+
+
+class BackgroundTaskThumbnails(BaseModel):
+    pending_count: int = 0
+    retry_count: int = 0
+    failed_count: int = 0
+    active_count: int = 0
+    sample: list[BackgroundTaskThumbnailSample] = []
+
+
+class BackgroundTaskArchiveExport(BaseModel):
+    status: str = "idle"
+    configured: bool = False
+    stage: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+    identifier: str | None = None
+    item_url: str | None = None
+
+
+class BackgroundTaskBulkSubmit(BaseModel):
+    importing_batches: int = 0
+    active_items: int = 0
+    items_by_status: dict[str, int] = {}
+
+
+class BackgroundTaskLinkCheck(BaseModel):
+    flagged_count: int = 0
+    last_checked_at: str | None = None
+    cron: str | None = None
+
+
+class BackgroundTaskDumps(BaseModel):
+    available: bool = False
+    filename: str | None = None
+    size_bytes: int | None = None
+    cron: str | None = None
+
+
+class BackgroundTaskCronInfo(BaseModel):
+    cron: str | None = None
+
+
+class BackgroundTasksStatus(BaseModel):
+    redis_queue_depth: int = 0
+    worker_max_jobs: int = 1
+    note: str | None = None
+    archive_export: BackgroundTaskArchiveExport
+    thumbnails: BackgroundTaskThumbnails
+    bulk_submit: BackgroundTaskBulkSubmit
+    link_check: BackgroundTaskLinkCheck
+    dumps: BackgroundTaskDumps
+    expire_edits: BackgroundTaskCronInfo
+
+
 class AdminFingerprintPublic(BaseModel):
     id: UUID
     edit_id: UUID | None

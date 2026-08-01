@@ -29,6 +29,7 @@ from app.schemas import (
     AdminUserActiveUpdate,
     AdminUserPublic,
     ArchiveExportStatus,
+    BackgroundTasksStatus,
     FingerprintQueueStatus,
     LoginAnnouncementAdmin,
     LoginAnnouncementUpdate,
@@ -51,6 +52,7 @@ from app.services.archive_export_queue import (
     is_archive_export_running,
 )
 from app.services.archive_org_upload import archive_org_configured
+from app.services.background_tasks_status import get_background_tasks_status
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services.hash_queue import enqueue_hash_job
 from app.services.maintenance import (
@@ -261,6 +263,15 @@ async def fingerprint_queue(
     _admin: User = Depends(require_admin),
 ):
     return FingerprintQueueStatus(**await get_fingerprint_queue_status(db))
+
+
+@router.get("/background-tasks", response_model=BackgroundTasksStatus)
+async def background_tasks(
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Non-fingerprint worker task overview (thumbnails, bulk, archive, dumps, …)."""
+    return BackgroundTasksStatus(**await get_background_tasks_status(db))
 
 
 @router.get("/fingerprints", response_model=PaginatedResponse)

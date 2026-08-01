@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Edit } from "../api";
+import BackgroundTasksPanel from "../components/BackgroundTasksPanel";
 import FingerprintQueuePanel from "../components/FingerprintQueuePanel";
 import { REPORT_REASONS } from "../components/ReportContentDialog";
 
@@ -10,6 +11,7 @@ type Tab =
   | "dmca"
   | "edits"
   | "fp-queue"
+  | "tasks"
   | "deletions"
   | "dead-links"
   | "reports";
@@ -64,6 +66,7 @@ export default function ModPage() {
     queryClient.invalidateQueries({ queryKey: ["dmca-queue"] });
     queryClient.invalidateQueries({ queryKey: ["open-edits"] });
     queryClient.invalidateQueries({ queryKey: ["fingerprint-queue"] });
+    queryClient.invalidateQueries({ queryKey: ["background-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["mod-deletion-requests"] });
     queryClient.invalidateQueries({ queryKey: ["mod-dead-links"] });
     queryClient.invalidateQueries({ queryKey: ["mod-content-reports"] });
@@ -170,6 +173,7 @@ export default function ModPage() {
             ["dead-links", "Dead links"],
             ["reports", "Reports"],
             ["fp-queue", "Fingerprint queue"],
+            ["tasks", "Tasks"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -390,6 +394,10 @@ export default function ModPage() {
 
       {tab === "fp-queue" && (
         <FingerprintQueuePanel queryKey="mod" fetchQueue={() => api.modFingerprintQueue()} />
+      )}
+
+      {tab === "tasks" && (
+        <BackgroundTasksPanel queryKey="mod" fetchTasks={() => api.modBackgroundTasks()} />
       )}
 
       {tab === "deletions" && (
