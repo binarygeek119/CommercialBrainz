@@ -1,16 +1,24 @@
 # VM override: Caddy TLS on 80/443 → forward_auth(maintenance) → api/web
+# All app services must restart after host reboot (Docker starts on boot).
 services:
   postgres:
     ports: !reset []
+    restart: unless-stopped
 
   redis:
     ports: !reset []
+    restart: unless-stopped
 
   web:
     ports: !reset []
+    restart: unless-stopped
 
   api:
     ports: !reset []
+    restart: unless-stopped
+
+  worker:
+    restart: unless-stopped
 
   maintenance:
     image: ghcr.io/binarygeek119/commercialbrainz-maintenance:${IMAGE_TAG:-latest}
@@ -31,6 +39,16 @@ services:
         condition: service_started
       web:
         condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/_maintenance/alive",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
   caddy:
     image: caddy:2-alpine
