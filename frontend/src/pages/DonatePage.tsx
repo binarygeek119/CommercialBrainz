@@ -187,18 +187,16 @@ export default function DonatePage() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <SiteDocMarkdown source={donateMd} file="donate.md" className="card" />
-
       {funds && (
-        <section
-          className="donate-funds"
-          aria-label="Fund progress"
-          style={{ marginTop: "1.25rem" }}
-        >
+        <section className="donate-funds" aria-label="Fund progress">
           <FundBar label="Cloud VM" totals={funds.cloud_vm} />
           <FundBar label="Domain" totals={funds.domain} />
         </section>
       )}
+
+      <div style={funds ? { marginTop: "1.25rem" } : undefined}>
+        <SiteDocMarkdown source={donateMd} file="donate.md" className="card" />
+      </div>
 
       {flash && (
         <div className="card" style={{ marginTop: "1.25rem", borderColor: "var(--success)" }}>
