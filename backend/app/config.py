@@ -82,10 +82,17 @@ class Settings(BaseSettings):
     buymeacoffee_access_token: str = ""
     buymeacoffee_webhook_secret: str = ""
     hash_max_file_mb: int = 200
+    # Per yt-dlp download attempt; prevents a hung download from blocking the worker forever.
+    hash_download_timeout_sec: int = 600
+    hash_fpcalc_timeout_sec: int = 180
+    # ARQ max run time for hash_media (must cover download + fingerprint).
+    hash_job_timeout_sec: int = 1800
     # Max Hamming distance for perceptual-hash duplicate / lookup matches (64-bit pHash).
     phash_duplicate_threshold: int = 8
     fingerprint_max_retries: int = 3
     fingerprint_retry_delay_minutes: int = 15
+    # Reclaim PROCESSING fingerprints stuck after worker crash / aborted job.
+    fingerprint_stale_processing_minutes: int = 15
     # YouTube CDN thumbnails: verify after submit; retry, then extract a frame.
     thumbnail_max_retries: int = 3
     thumbnail_retry_delay_minutes: int = 15
