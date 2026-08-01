@@ -10,6 +10,7 @@ from app.api.v1 import (
     dmca,
     donate,
     dumps,
+    duplicates,
     edits,
     hashes,
     media,
@@ -30,6 +31,7 @@ api_router.include_router(advertiser_logos.router)
 api_router.include_router(catalog.router)
 api_router.include_router(commercial_videos.router)
 api_router.include_router(edits.router)
+api_router.include_router(duplicates.router)
 api_router.include_router(dmca.router)
 api_router.include_router(donate.router)
 api_router.include_router(reports.router)

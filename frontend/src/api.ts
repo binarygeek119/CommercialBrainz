@@ -401,6 +401,31 @@ export interface FingerprintQueueStatus {
   pending: FingerprintQueueItem[];
 }
 
+export type DuplicateVoteChoice =
+  | "add_as_sub_link"
+  | "remove_from_database"
+  | "make_master_link";
+
+export interface DuplicateIssue {
+  id: string;
+  status: string;
+  generation: number;
+  match_types: string[];
+  best_match_type?: string | null;
+  hamming_distance?: number | null;
+  vote_threshold: number;
+  tallies: Array<{ choice: string; subject_video_id: string; count: number }>;
+  my_vote?: { choice: string; subject_video_id: string } | null;
+  vote_count: number;
+  video_a?: Video | null;
+  video_b?: Video | null;
+  resolved_choice?: string | null;
+  resolved_subject_video_id?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
 export interface BackgroundTasksStatus {
   redis_queue_depth: number;
   worker_max_jobs: number;
@@ -1328,6 +1353,20 @@ export const api = {
 
   openEdits: (offset = 0, limit = 25) =>
     request<Paginated<Edit>>(`/edits/open?offset=${offset}&limit=${limit}`),
+
+  listDuplicateIssues: (offset = 0, limit = 25) =>
+    request<Paginated<DuplicateIssue>>(`/duplicates?offset=${offset}&limit=${limit}`),
+
+  getDuplicateIssue: (id: string) => request<DuplicateIssue>(`/duplicates/${id}`),
+
+  voteDuplicateIssue: (id: string, choice: DuplicateVoteChoice, subjectVideoId: string) =>
+    request<DuplicateIssue>(`/duplicates/${id}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ choice, subject_video_id: subjectVideoId }),
+    }),
+
+  clearDuplicateVote: (id: string) =>
+    request<DuplicateIssue>(`/duplicates/${id}/vote`, { method: "DELETE" }),
 
   getUserProfile: (username: string) =>
     request<UserProfile>(`/users/${encodeURIComponent(username)}`),

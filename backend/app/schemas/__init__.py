@@ -781,6 +781,42 @@ class DuplicateMatchPublic(BaseModel):
     visibility: str | None = None
 
 
+class DuplicateIssueTally(BaseModel):
+    choice: str
+    subject_video_id: str
+    count: int
+
+
+class DuplicateIssueMyVote(BaseModel):
+    choice: str
+    subject_video_id: str
+
+
+class DuplicateIssuePublic(BaseModel):
+    id: UUID
+    status: str
+    generation: int
+    match_types: list[str] = []
+    best_match_type: str | None = None
+    hamming_distance: int | None = None
+    vote_threshold: int
+    tallies: list[DuplicateIssueTally] = []
+    my_vote: DuplicateIssueMyVote | None = None
+    vote_count: int = 0
+    video_a: dict | None = None
+    video_b: dict | None = None
+    resolved_choice: str | None = None
+    resolved_subject_video_id: UUID | None = None
+    resolved_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class DuplicateIssueVoteCreate(BaseModel):
+    choice: str
+    subject_video_id: UUID
+
+
 class HashLookupRequest(BaseModel):
     phash: str | None = Field(default=None, max_length=32)
     file_sha256: str | None = Field(default=None, max_length=128)
