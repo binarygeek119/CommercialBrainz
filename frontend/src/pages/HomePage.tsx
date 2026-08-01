@@ -31,6 +31,9 @@ export default function HomePage() {
           <Link to="/submit" className="btn btn-secondary">
             Submit a video
           </Link>
+          <Link to="/plugins" className="btn btn-secondary">
+            Media server plugins
+          </Link>
           <a href="/docs" className="btn btn-secondary" target="_blank" rel="noreferrer">
             API docs
           </a>
