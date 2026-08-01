@@ -401,6 +401,81 @@ export interface FingerprintQueueStatus {
   pending: FingerprintQueueItem[];
 }
 
+export type DuplicateVoteChoice =
+  | "add_as_sub_link"
+  | "remove_from_database"
+  | "make_master_link";
+
+export interface DuplicateIssue {
+  id: string;
+  status: string;
+  generation: number;
+  match_types: string[];
+  best_match_type?: string | null;
+  hamming_distance?: number | null;
+  vote_threshold: number;
+  tallies: Array<{ choice: string; subject_video_id: string; count: number }>;
+  my_vote?: { choice: string; subject_video_id: string } | null;
+  vote_count: number;
+  video_a?: Video | null;
+  video_b?: Video | null;
+  resolved_choice?: string | null;
+  resolved_subject_video_id?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface BackgroundTasksStatus {
+  redis_queue_depth: number;
+  worker_max_jobs: number;
+  note?: string | null;
+  archive_export: {
+    status: string;
+    configured: boolean;
+    stage?: string | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+    error?: string | null;
+    identifier?: string | null;
+    item_url?: string | null;
+  };
+  thumbnails: {
+    pending_count: number;
+    retry_count: number;
+    failed_count: number;
+    active_count: number;
+    sample: Array<{
+      video_id: string;
+      youtube_id?: string | null;
+      status: string;
+      attempts: number;
+      last_error?: string | null;
+      last_attempt_at?: string | null;
+      force?: boolean;
+    }>;
+  };
+  bulk_submit: {
+    importing_batches: number;
+    active_items: number;
+    items_by_status: Record<string, number>;
+  };
+  link_check: {
+    flagged_count: number;
+    last_checked_at?: string | null;
+    cron?: string | null;
+  };
+  dumps: {
+    available: boolean;
+    filename?: string | null;
+    size_bytes?: number | null;
+    cron?: string | null;
+  };
+  expire_edits: {
+    cron?: string | null;
+  };
+}
+
 export interface RegistrationSettings {
   invite_only: boolean;
 }
@@ -1279,6 +1354,20 @@ export const api = {
   openEdits: (offset = 0, limit = 25) =>
     request<Paginated<Edit>>(`/edits/open?offset=${offset}&limit=${limit}`),
 
+  listDuplicateIssues: (offset = 0, limit = 25) =>
+    request<Paginated<DuplicateIssue>>(`/duplicates?offset=${offset}&limit=${limit}`),
+
+  getDuplicateIssue: (id: string) => request<DuplicateIssue>(`/duplicates/${id}`),
+
+  voteDuplicateIssue: (id: string, choice: DuplicateVoteChoice, subjectVideoId: string) =>
+    request<DuplicateIssue>(`/duplicates/${id}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ choice, subject_video_id: subjectVideoId }),
+    }),
+
+  clearDuplicateVote: (id: string) =>
+    request<DuplicateIssue>(`/duplicates/${id}/vote`, { method: "DELETE" }),
+
   getUserProfile: (username: string) =>
     request<UserProfile>(`/users/${encodeURIComponent(username)}`),
 
@@ -1383,6 +1472,8 @@ export const api = {
     ),
 
   adminFingerprintQueue: () => request<FingerprintQueueStatus>("/admin/fingerprint-queue"),
+
+  adminBackgroundTasks: () => request<BackgroundTasksStatus>("/admin/background-tasks"),
 
   adminRetryFingerprint: (id: string) =>
     request<{ status: string }>(`/admin/fingerprints/${id}/retry`, { method: "POST" }),
@@ -1530,6 +1621,8 @@ export const api = {
   modStats: () => request<ModStats>("/mod/stats"),
 
   modFingerprintQueue: () => request<FingerprintQueueStatus>("/mod/fingerprint-queue"),
+
+  modBackgroundTasks: () => request<BackgroundTasksStatus>("/mod/background-tasks"),
 
   modApplyEdit: (editId: string) =>
     request<Edit>(`/mod/edits/${editId}/apply`, { method: "POST" }),

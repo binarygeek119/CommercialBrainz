@@ -197,6 +197,18 @@ class ContentReportStatus(enum.StrEnum):
     DISMISSED = "dismissed"
 
 
+class DuplicateIssueStatus(enum.StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    SUPERSEDED = "superseded"
+
+
+class DuplicateVoteChoice(enum.StrEnum):
+    ADD_AS_SUB_LINK = "add_as_sub_link"
+    REMOVE_FROM_DATABASE = "remove_from_database"
+    MAKE_MASTER_LINK = "make_master_link"
+
+
 class CookieDonationStatus(enum.StrEnum):
     PENDING = "pending"
     ACTIVE = "active"
@@ -1507,6 +1519,92 @@ class BulkSubmissionItem(Base):
     )
 
     batch: Mapped["BulkSubmissionBatch"] = relationship(back_populates="items")
+
+
+class DuplicateIssue(Base):
+    """Open community vote: are these two videos the same commercial upload?"""
+
+    __tablename__ = "duplicate_issues"
+    __table_args__ = (
+        UniqueConstraint(
+            "video_a_id",
+            "video_b_id",
+            "generation",
+            name="uq_duplicate_issue_pair_generation",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    status: Mapped[DuplicateIssueStatus] = mapped_column(
+        pg_enum(DuplicateIssueStatus, name="duplicateissuestatus"),
+        default=DuplicateIssueStatus.OPEN,
+        index=True,
+    )
+    # Canonical order: video_a_id < video_b_id
+    video_a_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid", ondelete="CASCADE"), index=True
+    )
+    video_b_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid", ondelete="CASCADE"), index=True
+    )
+    match_types: Mapped[list] = mapped_column(JSONB, default=list)
+    best_match_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hamming_distance: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    generation: Mapped[int] = mapped_column(Integer, default=1)
+    resolved_choice: Mapped[DuplicateVoteChoice | None] = mapped_column(
+        pg_enum(DuplicateVoteChoice, name="duplicatevotechoice"),
+        nullable=True,
+    )
+    resolved_subject_video_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid", ondelete="SET NULL"), nullable=True
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    votes: Mapped[list["DuplicateIssueVote"]] = relationship(
+        back_populates="issue", cascade="all, delete-orphan"
+    )
+    video_a: Mapped["Video"] = relationship(foreign_keys=[video_a_id])
+    video_b: Mapped["Video"] = relationship(foreign_keys=[video_b_id])
+
+
+class DuplicateIssueVote(Base):
+    __tablename__ = "duplicate_issue_votes"
+    __table_args__ = (
+        UniqueConstraint("issue_id", "voter_id", name="uq_duplicate_issue_voter"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    issue_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("duplicate_issues.id", ondelete="CASCADE"),
+        index=True,
+    )
+    voter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    choice: Mapped[DuplicateVoteChoice] = mapped_column(
+        pg_enum(DuplicateVoteChoice, name="duplicatevotechoice")
+    )
+    # Video the action applies to (the other is the reference / keep target).
+    subject_video_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.sbid", ondelete="CASCADE")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    issue: Mapped["DuplicateIssue"] = relationship(back_populates="votes")
+    voter: Mapped["User"] = relationship()
 
 
 class CookieDonation(Base):

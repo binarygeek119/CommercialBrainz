@@ -408,6 +408,9 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
 
             if fp.video_id:
                 await _copy_to_video(db, fp.video_id, fp)
+                from app.services.duplicate_issues import register_duplicates_for_video
+
+                await register_duplicates_for_video(db, fp.video_id)
 
             await db.commit()
             logger.info("Completed fingerprint job %s for %s", fingerprint_id, fp.youtube_id)
