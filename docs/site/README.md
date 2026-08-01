@@ -11,6 +11,7 @@ The React app imports these files at build time and renders them on the site.
 | [become-a-mod.md](become-a-mod.md) | `/help/become-a-mod` |
 | [about.md](about.md) | `/about` |
 | [donate.md](donate.md) | `/donate` (copy; donation buttons stay in the app) |
+| [plugins.md](plugins.md) | `/plugins` |
 | [terms-overview.md](terms-overview.md) | `/terms` (intro; versioned submission terms stay in the API) |
 | [dmca.md](dmca.md) | `/dmca` (policy text; form stays in the app) |
 

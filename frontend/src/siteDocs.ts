@@ -10,6 +10,7 @@ export type SiteDocId =
   | "dmca"
   | "terms-overview"
   | "donate"
+  | "plugins"
   | "help"
   | "basic-usage"
   | "api"
@@ -67,6 +68,13 @@ export const SITE_DOCS: SiteDocMeta[] = [
     title: "Donate",
     route: "/donate",
     summary: "Domain, VM, cookies, and volunteering",
+  },
+  {
+    id: "plugins",
+    file: "plugins.md",
+    title: "Media server plugins",
+    route: "/plugins",
+    summary: "Jellyfin, Plex, and Emby metadata providers",
   },
   {
     id: "terms-overview",

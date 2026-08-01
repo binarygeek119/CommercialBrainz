@@ -16,6 +16,7 @@ Public help pages are written as Markdown in the GitHub repository and mirrored 
 |-------|-------------|------------------|
 | About CommercialBrainz | [/about](/about) | [`about.md`](https://github.com/binarygeek119/CommercialBrainz/blob/testing/docs/site/about.md) |
 | Donate | [/donate](/donate) | [`donate.md`](https://github.com/binarygeek119/CommercialBrainz/blob/testing/docs/site/donate.md) |
+| Media server plugins | [/plugins](/plugins) | [`plugins.md`](https://github.com/binarygeek119/CommercialBrainz/blob/testing/docs/site/plugins.md) |
 | Terms overview | [/terms](/terms) | [`terms-overview.md`](https://github.com/binarygeek119/CommercialBrainz/blob/testing/docs/site/terms-overview.md) |
 | DMCA policy | [/dmca](/dmca) | [`dmca.md`](https://github.com/binarygeek119/CommercialBrainz/blob/testing/docs/site/dmca.md) |
 | This help index | [/help](/help) | [`help.md`](https://github.com/binarygeek119/CommercialBrainz/blob/testing/docs/site/help.md) |
