@@ -103,11 +103,11 @@ async def reclaim_processing_fingerprints(
                     video.hash_status = VideoHashStatus.PENDING
         await db.commit()
     if stale_ids:
-        logger.info(
-            "Reclaimed %d PROCESSING fingerprint(s)%s",
-            len(stale_ids),
-            f" older than {older_than_minutes}m" if older_than_minutes is not None else " on startup",
-        )
+        if older_than_minutes is not None:
+            suffix = f" older than {older_than_minutes}m"
+        else:
+            suffix = " on startup"
+        logger.info("Reclaimed %d PROCESSING fingerprint(s)%s", len(stale_ids), suffix)
     return stale_ids
 
 
