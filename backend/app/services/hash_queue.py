@@ -66,12 +66,59 @@ async def create_preview_fingerprint(edit_id: UUID, youtube_id: str) -> MediaFin
     return fp
 
 
+async def reclaim_processing_fingerprints(
+    *,
+    older_than_minutes: int | None = None,
+) -> list[UUID]:
+    """
+    Reset PROCESSING fingerprints to PENDING and return their IDs.
+
+    When older_than_minutes is None, reclaim every PROCESSING row (worker restart).
+    """
+    async with async_session_factory() as db:
+        query = select(MediaFingerprint.id).where(
+            MediaFingerprint.status == FingerprintStatus.PROCESSING,
+        )
+        if older_than_minutes is not None:
+            stale_before = datetime.now(UTC) - timedelta(minutes=older_than_minutes)
+            query = query.where(MediaFingerprint.started_at < stale_before)
+        result = await db.execute(query)
+        stale_ids = [row[0] for row in result.all()]
+        for fp_id in stale_ids:
+            fp = await db.get(MediaFingerprint, fp_id)
+            if not fp:
+                continue
+            fp.status = FingerprintStatus.PENDING
+            fp.started_at = None
+            fp.error_message = (
+                f"Reclaimed after {older_than_minutes or 0}+ minutes in PROCESSING; will retry"
+                if older_than_minutes is not None
+                else "Reclaimed after worker restart; will retry"
+            )[:2000]
+            if fp.video_id:
+                from app.models import Video, VideoHashStatus
+
+                video = await db.get(Video, fp.video_id)
+                if video:
+                    video.hash_status = VideoHashStatus.PENDING
+        await db.commit()
+    if stale_ids:
+        logger.info(
+            "Reclaimed %d PROCESSING fingerprint(s)%s",
+            len(stale_ids),
+            f" older than {older_than_minutes}m" if older_than_minutes is not None else " on startup",
+        )
+    return stale_ids
+
+
 async def process_pending_queue(ctx) -> int:
     """Enqueue pending fingerprint jobs and retry eligible failures (cron safety net)."""
-    stale_before = datetime.now(UTC) - timedelta(minutes=30)
     retry_before = datetime.now(UTC) - timedelta(minutes=settings.fingerprint_retry_delay_minutes)
     count = 0
     retry_ids: list[UUID] = []
+    stale_ids = await reclaim_processing_fingerprints(
+        older_than_minutes=settings.fingerprint_stale_processing_minutes,
+    )
     async with async_session_factory() as db:
         result = await db.execute(
             select(MediaFingerprint.id).where(
@@ -79,14 +126,6 @@ async def process_pending_queue(ctx) -> int:
             ).order_by(MediaFingerprint.created_at).limit(20)
         )
         pending_ids = [row[0] for row in result.all()]
-
-        stale_result = await db.execute(
-            select(MediaFingerprint.id).where(
-                MediaFingerprint.status == FingerprintStatus.PROCESSING,
-                MediaFingerprint.started_at < stale_before,
-            )
-        )
-        stale_ids = [row[0] for row in stale_result.all()]
 
         failed_result = await db.execute(
             select(MediaFingerprint.id).where(
@@ -98,23 +137,28 @@ async def process_pending_queue(ctx) -> int:
         )
         failed_ids = [row[0] for row in failed_result.all()]
 
-        for fp_id in stale_ids + failed_ids:
+        for fp_id in failed_ids:
             fp = await db.get(MediaFingerprint, fp_id)
             if not fp:
                 continue
             fp.status = FingerprintStatus.PENDING
             fp.started_at = None
-            if fp_id in failed_ids:
-                retry_ids.append(fp_id)
-                if fp.video_id:
-                    from app.models import Video, VideoHashStatus
+            retry_ids.append(fp_id)
+            if fp.video_id:
+                from app.models import Video, VideoHashStatus
 
-                    video = await db.get(Video, fp.video_id)
-                    if video:
-                        video.hash_status = VideoHashStatus.PENDING
+                video = await db.get(Video, fp.video_id)
+                if video:
+                    video.hash_status = VideoHashStatus.PENDING
         await db.commit()
 
+    # stale_ids were already set to PENDING; skip re-enqueueing them via pending_ids
+    # by using the list returned from reclaim (they may also appear in pending_ids).
+    seen: set[UUID] = set()
     for fp_id in pending_ids + stale_ids + failed_ids:
+        if fp_id in seen:
+            continue
+        seen.add(fp_id)
         await enqueue_hash_job(fp_id)
         count += 1
     if retry_ids:

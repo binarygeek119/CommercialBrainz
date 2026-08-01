@@ -1,5 +1,6 @@
 """Tests for yt-dlp download format fallback logic."""
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -120,3 +121,32 @@ def test_download_youtube_raises_after_all_formats_fail(tmp_path):
     ), patch("app.services.media_hash._ytdlp_version", return_value="2024.04.08"):
         with pytest.raises(RuntimeError, match="Requested format is not available"):
             media_hash.download_youtube("5uaYHYs4ubw", tmp_path)
+
+
+def test_run_ytdlp_download_returns_timeout_result():
+    def fake_run(cmd, **kwargs):
+        assert kwargs.get("timeout") == media_hash.settings.hash_download_timeout_sec
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+
+    with patch("app.services.media_hash.subprocess.run", side_effect=fake_run):
+        result = media_hash._run_ytdlp_download(
+            url="https://www.youtube.com/watch?v=5uaYHYs4ubw",
+            output_template="/tmp/%(id)s.%(ext)s",
+            fmt="best",
+            max_filesize_mb=None,
+            merge_output_format=None,
+        )
+    assert result.returncode == 124
+    assert "timed out" in (result.stderr or "").lower()
+
+
+def test_fpcalc_fingerprint_times_out(tmp_path):
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"x")
+
+    with patch(
+        "app.services.media_hash.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd=["fpcalc"], timeout=1),
+    ):
+        with pytest.raises(RuntimeError, match="fpcalc timed out"):
+            media_hash.fpcalc_fingerprint(video)

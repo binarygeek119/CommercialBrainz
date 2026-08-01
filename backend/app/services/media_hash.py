@@ -43,7 +43,18 @@ def sha256_file(path: Path) -> str:
 
 def fpcalc_fingerprint(path: Path) -> str:
     cmd = ["fpcalc", "-json", str(path)]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=settings.hash_fpcalc_timeout_sec,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"fpcalc timed out after {settings.hash_fpcalc_timeout_sec}s"
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(result.stderr or "fpcalc failed")
     data = json.loads(result.stdout)
@@ -97,9 +108,35 @@ def _run_ytdlp_download(
         cmd.extend(["--max-filesize", f"{max_filesize_mb}M"])
     if merge_output_format:
         cmd.extend(["--merge-output-format", merge_output_format])
+    # Fail hung sockets instead of blocking the single worker indefinitely.
+    socket_timeout = max(15, min(60, settings.hash_download_timeout_sec // 10))
+    cmd.extend(["--socket-timeout", str(socket_timeout)])
     # "--" so video IDs / URLs starting with "-" are not parsed as flags.
     cmd.extend(["--", url])
-    return subprocess.run(cmd, capture_output=True, text=True, check=False)
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=settings.hash_download_timeout_sec,
+        )
+    except subprocess.TimeoutExpired as exc:
+        logger.warning(
+            "yt-dlp timed out after %ss for %s (format=%r)",
+            settings.hash_download_timeout_sec,
+            url,
+            fmt,
+        )
+        return subprocess.CompletedProcess(
+            args=list(exc.cmd) if exc.cmd else cmd,
+            returncode=124,
+            stdout=(exc.stdout or "") if isinstance(exc.stdout, str) else "",
+            stderr=(
+                f"yt-dlp timed out after {settings.hash_download_timeout_sec}s"
+                + (f": {exc.stderr}" if isinstance(exc.stderr, str) and exc.stderr else "")
+            ),
+        )
 
 
 def _format_attempts() -> list[tuple[str | None, int | None, str | None]]:
@@ -310,6 +347,22 @@ async def _rotate_donated_cookies_if_available() -> bool:
         return True
 
 
+async def _mark_fingerprint_interrupted(fingerprint_id: UUID, message: str) -> None:
+    """Reset PROCESSING → PENDING when the worker job is cancelled/timed out."""
+    async with async_session_factory() as db:
+        fp = await db.get(MediaFingerprint, fingerprint_id)
+        if not fp or fp.status != FingerprintStatus.PROCESSING:
+            return
+        fp.status = FingerprintStatus.PENDING
+        fp.started_at = None
+        fp.error_message = message[:2000]
+        if fp.video_id:
+            video = await db.get(Video, fp.video_id)
+            if video and video.hash_status == VideoHashStatus.PROCESSING:
+                video.hash_status = VideoHashStatus.PENDING
+        await db.commit()
+
+
 async def run_fingerprint_job(fingerprint_id: UUID) -> None:
     temp_dir = Path(settings.hash_temp_dir) / str(fingerprint_id)
     async with async_session_factory() as db:
@@ -359,29 +412,43 @@ async def run_fingerprint_job(fingerprint_id: UUID) -> None:
             await db.commit()
             logger.info("Completed fingerprint job %s for %s", fingerprint_id, fp.youtube_id)
 
-    except Exception as exc:
-        logger.exception("Fingerprint job %s failed", fingerprint_id)
-        error_text = str(exc)[:2000]
-        async with async_session_factory() as db:
-            fp = await db.get(MediaFingerprint, fingerprint_id)
-            if fp:
-                fp.retry_count += 1
-                fp.error_message = error_text
-                fp.completed_at = datetime.now(UTC)
-                permanent = fp.retry_count >= settings.fingerprint_max_retries
-                fp.status = FingerprintStatus.FAILED
-                if fp.video_id:
-                    video = await db.get(Video, fp.video_id)
-                    if video:
-                        _set_video_hash_error(video, error_text, permanent=permanent)
-                await db.commit()
-                if not permanent:
-                    logger.info(
-                        "Fingerprint job %s failed (attempt %d/%d); cron will retry",
-                        fingerprint_id,
-                        fp.retry_count,
-                        settings.fingerprint_max_retries,
-                    )
+    except BaseException as exc:
+        # CancelledError / KeyboardInterrupt inherit BaseException, not Exception.
+        # Without this, ARQ job abort leaves rows stuck in PROCESSING.
+        if isinstance(exc, Exception):
+            logger.exception("Fingerprint job %s failed", fingerprint_id)
+            error_text = str(exc)[:2000]
+            async with async_session_factory() as db:
+                fp = await db.get(MediaFingerprint, fingerprint_id)
+                if fp:
+                    fp.retry_count += 1
+                    fp.error_message = error_text
+                    fp.completed_at = datetime.now(UTC)
+                    permanent = fp.retry_count >= settings.fingerprint_max_retries
+                    fp.status = FingerprintStatus.FAILED
+                    if fp.video_id:
+                        video = await db.get(Video, fp.video_id)
+                        if video:
+                            _set_video_hash_error(video, error_text, permanent=permanent)
+                    await db.commit()
+                    if not permanent:
+                        logger.info(
+                            "Fingerprint job %s failed (attempt %d/%d); cron will retry",
+                            fingerprint_id,
+                            fp.retry_count,
+                            settings.fingerprint_max_retries,
+                        )
+        else:
+            logger.warning(
+                "Fingerprint job %s interrupted (%s); resetting to PENDING",
+                fingerprint_id,
+                type(exc).__name__,
+            )
+            await _mark_fingerprint_interrupted(
+                fingerprint_id,
+                f"Interrupted ({type(exc).__name__}); will retry",
+            )
+            raise
     finally:
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
