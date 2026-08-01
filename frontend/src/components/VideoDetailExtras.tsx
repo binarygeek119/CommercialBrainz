@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import { Link } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { useAuth, canSubmit } from "../auth";
 import VideoThumbnailUpload from "./VideoThumbnailUpload";
@@ -9,14 +10,40 @@ interface Props {
   videoSbid: string;
 }
 
+function thumbnailFetchMeta(
+  metadata: Record<string, unknown> | null | undefined
+): { status?: string; last_attempt_at?: string } | null {
+  const raw = metadata?.thumbnail_fetch;
+  if (!raw || typeof raw !== "object") return null;
+  return raw as { status?: string; last_attempt_at?: string };
+}
+
 export default function VideoDetailExtras({ videoSbid }: Props) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["video", videoSbid],
     queryFn: () => api.getVideo(videoSbid),
-    refetchInterval: (query) =>
-      query.state.data?.hash_status === "pending" ? 10000 : false,
+    refetchInterval: (query) => {
+      const thumbStatus = thumbnailFetchMeta(query.state.data?.metadata)?.status ?? null;
+      if (query.state.data?.hash_status === "pending") return 10000;
+      if (thumbStatus === "pending" || thumbStatus === "retry") return 8000;
+      return false;
+    },
   });
+
+  const thumbFetch = thumbnailFetchMeta(data?.metadata ?? null);
+
+  useEffect(() => {
+    if (!thumbFetch?.status) return;
+    if (
+      thumbFetch.status === "ok" ||
+      thumbFetch.status === "exhausted_frame" ||
+      thumbFetch.status === "failed"
+    ) {
+      void queryClient.invalidateQueries({ queryKey: ["commercial"] });
+    }
+  }, [thumbFetch?.status, thumbFetch?.last_attempt_at, queryClient]);
 
   if (isLoading) return <p className="muted" style={{ fontSize: "0.85rem" }}>Loading video details…</p>;
   if (error) return <p className="error">{(error as Error).message}</p>;
@@ -41,7 +68,10 @@ export default function VideoDetailExtras({ videoSbid }: Props) {
       )}
 
       {user && canSubmit(user) && data.visibility === "public" && (
-        <VideoThumbnailUpload videoSbid={videoSbid} />
+        <VideoThumbnailUpload
+          videoSbid={videoSbid}
+          thumbnailFetchStatus={thumbFetch?.status ?? null}
+        />
       )}
 
       <div className="grid grid-2" style={{ marginTop: "0.75rem" }}>

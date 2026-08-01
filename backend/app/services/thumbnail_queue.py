@@ -23,18 +23,18 @@ async def _get_arq_pool():
     return await create_pool(RedisSettings.from_dsn(settings.redis_url))
 
 
-async def enqueue_thumbnail_job(video_id: UUID) -> None:
+async def enqueue_thumbnail_job(video_id: UUID, *, force: bool = False) -> None:
     try:
         pool = await _get_arq_pool()
-        await pool.enqueue_job("ensure_thumbnail", str(video_id))
+        await pool.enqueue_job("ensure_thumbnail", str(video_id), force)
         await pool.aclose()
     except Exception:
         logger.exception("Failed to enqueue thumbnail job %s", video_id)
 
 
-async def ensure_thumbnail(ctx, video_id: str) -> str:
+async def ensure_thumbnail(ctx, video_id: str, force: bool = False) -> str:
     async with async_session_factory() as db:
-        status = await ensure_video_thumbnail(db, UUID(video_id))
+        status = await ensure_video_thumbnail(db, UUID(video_id), force=bool(force))
         await db.commit()
     return status
 
