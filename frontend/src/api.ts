@@ -1049,6 +1049,14 @@ export const api = {
     return request<Edit>(`/videos/${sbid}/submit-thumbnail`, { method: "POST", body });
   },
 
+  refreshVideoThumbnail: (sbid: string) =>
+    request<{
+      status: string;
+      sbid: string;
+      thumbnail_url?: string | null;
+      thumbnail_fetch?: Record<string, unknown>;
+    }>(`/videos/${sbid}/refresh-thumbnail`, { method: "POST" }),
+
   submitAdvertiserLogo: (sbid: string, file: File, meta: AdvertiserLogoSubmit = {}) => {
     const body = new FormData();
     body.append("file", file);

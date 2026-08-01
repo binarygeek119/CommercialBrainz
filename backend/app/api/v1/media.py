@@ -41,6 +41,11 @@ from app.services.logo_storage import (
     resolve_logo_path,
     stage_logo,
 )
+from app.services.thumbnail_fetch import (
+    get_thumbnail_fetch_meta,
+    mark_thumbnail_force_refresh,
+)
+from app.services.thumbnail_queue import enqueue_thumbnail_job
 from app.services.thumbnail_storage import (
     discard_staged_thumbnail,
     resolve_media_path,
@@ -136,6 +141,41 @@ async def submit_video_thumbnail(
 
     await db.refresh(edit, ["votes"])
     return await build_edit_public(db, edit, editor_username=user.username)
+
+
+@router.post("/videos/{sbid}/refresh-thumbnail")
+async def refresh_video_thumbnail(
+    sbid: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_submitter),
+):
+    """
+    Force re-grab the YouTube thumbnail for a video.
+
+    Worker tries the CDN again; if that fails, streams the video and grabs a
+    random frame with padding on the start and end of the stream.
+    """
+    video = await SearchService.get_video_detail(db, sbid, include_hidden=True)
+    if not video or video.visibility == VideoVisibility.REMOVED:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.youtube_id:
+        raise HTTPException(status_code=400, detail="Video has no YouTube id")
+
+    try:
+        mark_thumbnail_force_refresh(video)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await db.flush()
+    await enqueue_thumbnail_job(video.sbid, force=True)
+
+    meta = get_thumbnail_fetch_meta(video)
+    return {
+        "status": "queued",
+        "sbid": str(video.sbid),
+        "thumbnail_url": video.thumbnail_url,
+        "thumbnail_fetch": meta,
+        "requested_by": user.username,
+    }
 
 
 @router.post("/advertisers/{sbid}/submit-logo", response_model=EditPublic, status_code=201)
