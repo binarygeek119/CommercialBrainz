@@ -6,6 +6,11 @@ from arq.connections import RedisSettings
 from app.config import get_settings
 from app.database import async_session_factory
 from app.services.hash_queue import enqueue_hash_job, hash_media, process_pending_queue
+from app.services.thumbnail_queue import (
+    enqueue_thumbnail_job,
+    ensure_thumbnail,
+    process_thumbnail_retries,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -15,10 +20,12 @@ async def expire_edits(ctx):
     from app.services import EditService
 
     async with async_session_factory() as db:
-        count, pending_jobs = await EditService.expire_open_edits(db)
+        count, pending_jobs, pending_thumbs = await EditService.expire_open_edits(db)
         await db.commit()
     for job_id in pending_jobs:
         await enqueue_hash_job(job_id)
+    for video_id in pending_thumbs:
+        await enqueue_thumbnail_job(video_id)
     logger.info("Expired %d edits", count)
     return count
 
@@ -98,6 +105,8 @@ class WorkerSettings:
         export_to_archive_org,
         hash_media,
         process_pending_queue,
+        ensure_thumbnail,
+        process_thumbnail_retries,
         check_public_youtube_links,
         import_bulk_playlist,
         enrich_bulk_item_metadata,
@@ -107,6 +116,7 @@ class WorkerSettings:
         cron(expire_edits, hour={0, 6, 12, 18}, minute=0),
         cron(generate_dump, hour=2, minute=0),
         cron(process_pending_queue, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),
+        cron(process_thumbnail_retries, minute={2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57}),
         # First day of each month at 04:00 UTC.
         cron(check_public_youtube_links, day=1, hour=4, minute=0),
     ]

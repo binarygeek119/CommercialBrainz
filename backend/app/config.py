@@ -86,6 +86,13 @@ class Settings(BaseSettings):
     phash_duplicate_threshold: int = 8
     fingerprint_max_retries: int = 3
     fingerprint_retry_delay_minutes: int = 15
+    # YouTube CDN thumbnails: verify after submit; retry, then extract a frame.
+    thumbnail_max_retries: int = 3
+    thumbnail_retry_delay_minutes: int = 15
+    # Pad start/end of the stream when picking a random frame (fraction of duration).
+    thumbnail_frame_pad_ratio: float = 0.05
+    # Minimum pad in seconds (also used when duration is short).
+    thumbnail_frame_pad_seconds: float = 2.0
     bulk_submit_min_reputation: float = 500.0
     # Hard safety cap when expanding/storing a full playlist link list.
     bulk_submit_max_playlist_items: int = 2000

@@ -149,6 +149,12 @@ async def mod_apply_edit(
 
         await enqueue_hash_job(pending_hash)
 
+    pending_thumb = getattr(edit, "_pending_thumbnail_video", None)
+    if pending_thumb is not None:
+        from app.services.thumbnail_queue import enqueue_thumbnail_job
+
+        await enqueue_thumbnail_job(pending_thumb)
+
     return await build_edit_public(db, edit)
 
 

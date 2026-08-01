@@ -355,6 +355,7 @@ class EditService:
             from app.services.video_popularity import recompute_main_video
 
             await recompute_main_video(db, video.commercial_id)
+            EditService._mark_pending_thumbnail(edit, video)
             return None
 
         # Bulk finalize may attach a preview fingerprint that is still hashing.
@@ -370,6 +371,7 @@ class EditService:
                 from app.services.video_popularity import recompute_main_video
 
                 await recompute_main_video(db, video.commercial_id)
+                EditService._mark_pending_thumbnail(edit, video)
                 return None
             if fp_bulk and fp_bulk.status in {
                 FingerprintStatus.PENDING,
@@ -382,6 +384,7 @@ class EditService:
                 from app.services.video_popularity import recompute_main_video
 
                 await recompute_main_video(db, video.commercial_id)
+                EditService._mark_pending_thumbnail(edit, video)
                 return fp_bulk.id if fp_bulk.status == FingerprintStatus.PENDING else None
 
         video.hash_status = VideoHashStatus.PENDING
@@ -397,7 +400,15 @@ class EditService:
         from app.services.video_popularity import recompute_main_video
 
         await recompute_main_video(db, video.commercial_id)
+        EditService._mark_pending_thumbnail(edit, video)
         return fp.id
+
+    @staticmethod
+    def _mark_pending_thumbnail(edit: Edit, video: Video) -> None:
+        from app.services.thumbnail_fetch import mark_thumbnail_fetch_pending
+
+        mark_thumbnail_fetch_pending(video)
+        edit._pending_thumbnail_video = video.sbid  # noqa: SLF001
 
     @staticmethod
     async def _apply_edit_video(
@@ -1046,9 +1057,10 @@ class EditService:
         return "apply"
 
     @staticmethod
-    async def expire_open_edits(db: AsyncSession) -> tuple[int, list[UUID]]:
+    async def expire_open_edits(db: AsyncSession) -> tuple[int, list[UUID], list[UUID]]:
         now = datetime.now(UTC)
         pending_jobs: list[UUID] = []
+        pending_thumbs: list[UUID] = []
         result = await db.execute(
             select(Edit).where(Edit.status == EditStatus.OPEN, Edit.expires_at <= now)
         )
@@ -1071,10 +1083,13 @@ class EditService:
                 pending_hash = await EditService._complete_applied_edit(db, edit)
                 if pending_hash is not None:
                     pending_jobs.append(pending_hash)
+                pending_thumb = getattr(edit, "_pending_thumbnail_video", None)
+                if pending_thumb is not None:
+                    pending_thumbs.append(pending_thumb)
 
             edit.closed_at = now
             count += 1
-        return count, pending_jobs
+        return count, pending_jobs, pending_thumbs
 
 
 class DMCAService:

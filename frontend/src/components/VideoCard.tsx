@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { type Video } from "../api";
 import { formatRegionDisplay } from "../data/regions";
 import { commercialUrl } from "../utils/commercialUrls";
 import { formatDurationMs } from "../utils/youtube";
 import { videoDisplayTitle } from "../utils/videoMetadata";
-import { videoThumbnailUrl } from "../utils/videoThumbnail";
+import { nextYoutubeThumbnailFallback, videoThumbnailUrl } from "../utils/videoThumbnail";
 
 export default function VideoCard({ video }: { video: Video }) {
-  const thumb = videoThumbnailUrl(video);
+  const initial = videoThumbnailUrl(video);
+  const [thumb, setThumb] = useState<string | null>(initial);
   const title = videoDisplayTitle(video);
   const duration = formatDurationMs(video.duration_ms);
   const region = formatRegionDisplay(video.region, video.sub_region);
@@ -21,7 +23,15 @@ export default function VideoCard({ video }: { video: Video }) {
     <Link to={commercialUrl(video.commercial_id, video.sbid)} className="video-card">
       <div className="video-card-thumb">
         {thumb ? (
-          <img src={thumb} alt="" loading="lazy" />
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            onError={() => {
+              const next = nextYoutubeThumbnailFallback(thumb, video.youtube_id);
+              setThumb(next);
+            }}
+          />
         ) : (
           <div className="video-card-thumb-placeholder" aria-hidden />
         )}
