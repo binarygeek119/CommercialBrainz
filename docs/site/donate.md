@@ -4,9 +4,18 @@ CommercialBrainz is a volunteer project. Money, spare YouTube cookies, and your 
 
 Use the buttons on this page for Buy Me a Coffee (domain / cloud VM) and cookie donations. Progress bars show how those funds are tracking.
 
+## Current goals
+
+| Fund | Goal | What it pays for |
+| --- | --- | --- |
+| **Domain** | **$13 / year** | Renew the CommercialBrainz domain for another year |
+| **Cloud VM** | **$50** | Upgrade from the free VM to the next more capable plan |
+
+Progress bars above use the same targets (balance toward each goal).
+
 ## Domain
 
-Help cover domain registration and DNS so the site name stays ours year after year.
+Help cover domain registration and DNS so the site name stays ours year after year. The near-term target is **$13** for the next annual renewal.
 
 When you donate via Buy Me a Coffee, put this exact note in “Say something nice…” so it tags the Domain fund:
 
@@ -14,7 +23,7 @@ When you donate via Buy Me a Coffee, put this exact note in “Say something nic
 
 ## Cloud VM
 
-Donate toward the cloud virtual machine that runs the site — API, workers, database, and storage for hashes and thumbnails.
+Donate toward the cloud virtual machine that runs the site — API, workers, database, and storage for hashes and thumbnails. We’re on a free-tier VM today; the next step up is about **$50**, which is the Cloud VM fund goal.
 
 Buy Me a Coffee note for the Cloud VM fund:
 

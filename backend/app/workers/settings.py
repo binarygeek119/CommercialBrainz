@@ -16,6 +16,7 @@ from app.services.thumbnail_queue import (
     enqueue_thumbnail_job,
     ensure_thumbnail,
     process_thumbnail_retries,
+    scan_missing_thumbnails,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +105,18 @@ async def startup(ctx):
     if reclaimed:
         logger.info("Re-queued %d interrupted fingerprint job(s) on startup", len(reclaimed))
 
+    # VM restart / site upgrade: resume pending thumbs, then force re-grab missing ones.
+    retry_queued = await process_thumbnail_retries(ctx)
+    if retry_queued:
+        logger.info("Re-queued %d pending thumbnail job(s) on startup", retry_queued)
+    missing = await scan_missing_thumbnails(ctx)
+    logger.info(
+        "Startup missing-thumbnail scan: scanned=%s candidates=%s enqueued=%s",
+        missing.get("scanned"),
+        missing.get("candidates"),
+        missing.get("enqueued"),
+    )
+
 
 async def shutdown(ctx):
     logger.info("CommercialBrainz worker stopped")
@@ -120,6 +133,7 @@ class WorkerSettings:
         process_pending_queue,
         ensure_thumbnail,
         process_thumbnail_retries,
+        scan_missing_thumbnails,
         check_public_youtube_links,
         import_bulk_playlist,
         enrich_bulk_item_metadata,
@@ -130,6 +144,8 @@ class WorkerSettings:
         cron(generate_dump, hour=2, minute=0),
         cron(process_pending_queue, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),
         cron(process_thumbnail_retries, minute={2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57}),
+        # Hourly: force re-grab missing / broken hosted thumbs (batch-limited).
+        cron(scan_missing_thumbnails, minute=20),
         # First day of each month at 04:00 UTC.
         cron(check_public_youtube_links, day=1, hour=4, minute=0),
     ]

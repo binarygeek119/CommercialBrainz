@@ -15,6 +15,7 @@ from app.services.thumbnail_fetch import (
     _is_usable_image,
     ensure_video_thumbnail,
     mark_thumbnail_force_refresh,
+    needs_force_thumbnail_regrab,
     padded_random_timestamp,
 )
 from app.services.thumbnail_storage import save_video_thumbnail, validate_thumbnail_bytes
@@ -104,6 +105,144 @@ def test_mark_thumbnail_force_refresh_requires_youtube_id():
     video = SimpleNamespace(youtube_id=None, thumbnail_url=None, extra_data={})
     with pytest.raises(ValueError, match="YouTube"):
         mark_thumbnail_force_refresh(video)
+
+
+def test_needs_force_thumbnail_regrab_empty_url():
+    video = SimpleNamespace(
+        youtube_id="abc12345678",
+        thumbnail_url=None,
+        extra_data={},
+    )
+    assert needs_force_thumbnail_regrab(video) is True
+
+
+def test_needs_force_thumbnail_regrab_skips_pending():
+    video = SimpleNamespace(
+        youtube_id="abc12345678",
+        thumbnail_url=None,
+        extra_data={"thumbnail_fetch": {"status": "pending", "force": True}},
+    )
+    assert needs_force_thumbnail_regrab(video) is False
+
+
+def test_needs_force_thumbnail_regrab_missing_hosted_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("THUMBNAIL_UPLOAD_DIR", str(tmp_path))
+    from app.config import get_settings
+    from app.services import thumbnail_fetch as tf
+    from app.services import thumbnail_storage as ts
+
+    get_settings.cache_clear()
+    ts.settings = get_settings()
+    tf.settings = get_settings()
+    try:
+        video_id = uuid4()
+        video = SimpleNamespace(
+            youtube_id="abc12345678",
+            thumbnail_url=f"/api/v1/media/thumbnails/{video_id}.jpg",
+            extra_data={"thumbnail_fetch": {"status": "ok"}},
+        )
+        assert needs_force_thumbnail_regrab(video) is True
+
+        # Create the file — should no longer need a re-grab.
+        (tmp_path / f"{video_id}.jpg").write_bytes(_jpeg_bytes())
+        assert needs_force_thumbnail_regrab(video) is False
+    finally:
+        get_settings.cache_clear()
+
+
+def test_needs_force_thumbnail_regrab_leaves_healthy_cdn_alone():
+    video = SimpleNamespace(
+        youtube_id="abc12345678",
+        thumbnail_url="https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+        extra_data={"thumbnail_fetch": {"status": "ok", "source": "youtube_cdn"}},
+    )
+    assert needs_force_thumbnail_regrab(video) is False
+
+
+def test_needs_force_thumbnail_regrab_failed_respects_cooldown(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    from app.config import get_settings
+    from app.services import thumbnail_fetch as tf
+
+    get_settings.cache_clear()
+    tf.settings = get_settings()
+    monkeypatch.setattr(tf.settings, "thumbnail_missing_scan_cooldown_hours", 6)
+
+    now = datetime(2026, 8, 2, 12, 0, tzinfo=UTC)
+    recent = (now - timedelta(hours=1)).isoformat()
+    old = (now - timedelta(hours=7)).isoformat()
+
+    recent_fail = SimpleNamespace(
+        youtube_id="abc12345678",
+        thumbnail_url="https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+        extra_data={
+            "thumbnail_fetch": {"status": "failed", "last_attempt_at": recent},
+        },
+    )
+    assert needs_force_thumbnail_regrab(recent_fail, now=now) is False
+
+    old_fail = SimpleNamespace(
+        youtube_id="abc12345678",
+        thumbnail_url="https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+        extra_data={
+            "thumbnail_fetch": {"status": "failed", "last_attempt_at": old},
+        },
+    )
+    assert needs_force_thumbnail_regrab(old_fail, now=now) is True
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_scan_missing_thumbnails_marks_and_enqueues(tmp_path, monkeypatch):
+    monkeypatch.setenv("THUMBNAIL_UPLOAD_DIR", str(tmp_path))
+    from app.config import get_settings
+    from app.services import thumbnail_fetch as tf
+    from app.services import thumbnail_queue as tq
+    from app.services import thumbnail_storage as ts
+
+    get_settings.cache_clear()
+    ts.settings = get_settings()
+    tf.settings = get_settings()
+    tq.settings = get_settings()
+    monkeypatch.setattr(tq.settings, "thumbnail_missing_scan_batch", 5)
+    monkeypatch.setattr(tq.settings, "thumbnail_missing_scan_window", 50)
+
+    video_id = uuid4()
+    video = SimpleNamespace(
+        sbid=video_id,
+        youtube_id="abc12345678",
+        thumbnail_url=None,
+        visibility="public",
+        updated_at=None,
+        extra_data={},
+    )
+
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.all.return_value = [video]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result_mock)
+    db.commit = AsyncMock()
+
+    session_cm = MagicMock()
+    session_cm.__aenter__ = AsyncMock(return_value=db)
+    session_cm.__aexit__ = AsyncMock(return_value=None)
+
+    try:
+        with (
+            patch.object(tq, "async_session_factory", return_value=session_cm),
+            patch.object(tq, "enqueue_thumbnail_job", new=AsyncMock(return_value=True)) as enqueue,
+        ):
+            summary = await tq.scan_missing_thumbnails({}, limit=5)
+
+        assert summary["scanned"] == 1
+        assert summary["candidates"] == 1
+        assert summary["enqueued"] == 1
+        assert video.extra_data["thumbnail_fetch"]["force"] is True
+        assert video.extra_data["thumbnail_fetch"]["status"] == "pending"
+        enqueue.assert_awaited_once_with(video_id, force=True)
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.asyncio

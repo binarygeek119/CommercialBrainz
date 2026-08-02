@@ -6,7 +6,7 @@ import logging
 import random
 import subprocess
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -18,7 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import Video
-from app.services.thumbnail_storage import is_hosted_thumbnail, save_video_thumbnail
+from app.services.thumbnail_storage import (
+    hosted_thumbnail_exists,
+    is_hosted_thumbnail,
+    save_video_thumbnail,
+)
 from app.services.ytdlp_auth import ytdlp_common_args, ytdlp_error_message
 from app.utils import youtube_thumbnail_url, youtube_watch_url
 
@@ -93,6 +97,58 @@ def mark_thumbnail_force_refresh(video: Video) -> None:
         last_attempt_at=None,
         requested_at=_now_iso(),
     )
+
+
+def _parse_meta_time(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def needs_force_thumbnail_regrab(
+    video: Video,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """
+    True when a public catalog video should get an automatic force re-grab.
+
+    Targets empty thumbs, hosted URLs whose file is missing on disk, and
+    recently failed fetches (subject to cooldown). Leaves healthy CDN-only
+    and on-disk hosted thumbs alone.
+    """
+    if not video.youtube_id:
+        return False
+
+    meta = get_thumbnail_fetch_meta(video)
+    status = str(meta.get("status") or "")
+    # Already queued — process_thumbnail_retries / ensure_thumbnail handle these.
+    if status in {"pending", "retry"}:
+        return False
+
+    url = (video.thumbnail_url or "").strip()
+    if not url:
+        return True
+
+    if is_hosted_thumbnail(url):
+        return not hosted_thumbnail_exists(url)
+
+    if status == "failed":
+        last = _parse_meta_time(meta.get("last_attempt_at")) or _parse_meta_time(
+            meta.get("requested_at")
+        )
+        if last is None:
+            return True
+        cooldown = timedelta(hours=settings.thumbnail_missing_scan_cooldown_hours)
+        stamp = now or datetime.now(UTC)
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=UTC)
+        return stamp - last >= cooldown
+
+    return False
 
 
 def padded_random_timestamp(

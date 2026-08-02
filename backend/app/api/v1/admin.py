@@ -43,6 +43,7 @@ from app.schemas import (
     RegistrationInviteOnlyUpdate,
     RegistrationInvitePublic,
     RegistrationSettingsPublic,
+    ThumbnailMissingScanResult,
     YtdlpCookiesStatus,
     YtdlpCookiesUpdate,
 )
@@ -53,6 +54,7 @@ from app.services.archive_export_queue import (
 )
 from app.services.archive_org_upload import archive_org_configured
 from app.services.background_tasks_status import get_background_tasks_status
+from app.services.thumbnail_queue import enqueue_missing_thumbnail_scan
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services.hash_queue import enqueue_hash_job
 from app.services.maintenance import (
@@ -272,6 +274,22 @@ async def background_tasks(
 ):
     """Non-fingerprint worker task overview (thumbnails, bulk, archive, dumps, …)."""
     return BackgroundTasksStatus(**await get_background_tasks_status(db))
+
+
+@router.post("/thumbnails/scan-missing", response_model=ThumbnailMissingScanResult)
+async def admin_trigger_missing_thumbnail_scan(
+    limit: int | None = None,
+    _admin: User = Depends(require_admin),
+):
+    """Enqueue a scan that force re-grabs missing / broken hosted thumbnails."""
+    try:
+        await enqueue_missing_thumbnail_scan(limit=limit)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return ThumbnailMissingScanResult(
+        queued=True,
+        message="Missing thumbnail scan queued on the background worker",
+    )
 
 
 @router.get("/fingerprints", response_model=PaginatedResponse)

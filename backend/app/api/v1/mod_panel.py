@@ -28,6 +28,7 @@ from app.schemas import (
     FingerprintQueueStatus,
     LinkCheckRunResult,
     ModStats,
+    ThumbnailMissingScanResult,
 )
 from app.services import EditService
 from app.services.account_settings import (
@@ -48,6 +49,7 @@ from app.services.link_check import (
     get_video_for_link_check,
     list_flagged_dead_links,
 )
+from app.services.thumbnail_queue import enqueue_missing_thumbnail_scan
 
 router = APIRouter(prefix="/mod", tags=["mod"])
 
@@ -254,6 +256,22 @@ async def mod_trigger_dead_link_check(
     return LinkCheckRunResult(
         queued=True,
         message="YouTube link check queued on the background worker",
+    )
+
+
+@router.post("/thumbnails/scan-missing", response_model=ThumbnailMissingScanResult)
+async def mod_trigger_missing_thumbnail_scan(
+    limit: int | None = None,
+    _mod: User = Depends(require_mod),
+):
+    """Enqueue a scan that force re-grabs missing / broken hosted thumbnails."""
+    try:
+        await enqueue_missing_thumbnail_scan(limit=limit)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return ThumbnailMissingScanResult(
+        queued=True,
+        message="Missing thumbnail scan queued on the background worker",
     )
 
 

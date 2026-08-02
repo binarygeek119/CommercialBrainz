@@ -67,6 +67,8 @@ async def test_get_background_tasks_status_shape():
     assert payload["archive_export"]["status"] == "idle"
     assert payload["archive_export"]["configured"] is False
     assert payload["thumbnails"]["active_count"] == 0
+    assert "cron" in payload["thumbnails"]
+    assert "missing_scan_cron" in payload["thumbnails"]
     assert payload["bulk_submit"]["importing_batches"] == 0
     assert "queued" in payload["bulk_submit"]["items_by_status"]
     assert "cron" in payload["expire_edits"]
