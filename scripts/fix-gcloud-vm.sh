@@ -14,7 +14,7 @@ APP_BRANCH="${APP_BRANCH:-testing}"
 if [[ "$APP_BRANCH" == "main" || "$APP_BRANCH" == "google" ]]; then
   echo "WARN: APP_BRANCH=${APP_BRANCH} is retired; using testing"
   APP_BRANCH=testing
-elif [[ "$APP_BRANCH" == "public" ]]; then
+elif [[ "$APP_BRANCH" == "cloudflare" ]]; then
   echo "WARN: APP_BRANCH=cloudflare is retired; using public"
   APP_BRANCH=public
 fi
