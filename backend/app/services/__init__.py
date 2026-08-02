@@ -412,6 +412,7 @@ class EditService:
 
         state = dict(state)
         staging = state.pop("thumbnail_staging_file", None)
+        state.pop("thumbnail_regrab", None)
         if staging:
             from app.services.thumbnail_storage import finalize_staged_thumbnail
 

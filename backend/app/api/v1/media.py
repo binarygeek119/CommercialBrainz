@@ -138,6 +138,61 @@ async def submit_video_thumbnail(
     return await build_edit_public(db, edit, editor_username=user.username)
 
 
+@router.post("/videos/{sbid}/regrab-thumbnail", response_model=EditPublic, status_code=201)
+async def regrab_video_thumbnail(
+    sbid: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_submitter),
+):
+    """Re-download the current YouTube thumbnail and queue it as a video edit."""
+    import httpx
+
+    from app.services.youtube_metadata import fetch_and_stage_youtube_thumbnail
+
+    video = await SearchService.get_video_detail(db, sbid, include_hidden=True)
+    if not video or video.visibility == VideoVisibility.REMOVED:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.youtube_id:
+        raise HTTPException(status_code=400, detail="Video has no YouTube ID to re-grab from")
+
+    try:
+        staging_file, preview_url, _source_url = await fetch_and_stage_youtube_thumbnail(
+            video.youtube_id
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502, detail="Could not download YouTube thumbnail"
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    before_state = {"thumbnail_url": video.thumbnail_url}
+    after_state = {
+        "thumbnail_url": preview_url,
+        "thumbnail_staging_file": staging_file,
+        "thumbnail_regrab": True,
+    }
+
+    try:
+        edit = await EditService.create_edit(
+            db,
+            user,
+            EditType.EDIT_VIDEO,
+            "video",
+            after_state,
+            before_state=before_state,
+            entity_id=video.sbid,
+            comment="Force re-grab of YouTube thumbnail.",
+            force_votable=True,
+        )
+    except ValueError as exc:
+        discard_staged_thumbnail(staging_file)
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    await db.refresh(edit, ["votes"])
+    return await build_edit_public(db, edit, editor_username=user.username)
+
+
 @router.post("/advertisers/{sbid}/submit-logo", response_model=EditPublic, status_code=201)
 async def submit_advertiser_logo(
     sbid: UUID,

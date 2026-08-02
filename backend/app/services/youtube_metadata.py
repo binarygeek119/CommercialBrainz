@@ -309,6 +309,30 @@ def fetch_youtube_thumbnail(url_or_id: str) -> str:
     return youtube_thumbnail_url(youtube_id)
 
 
+async def fetch_and_stage_youtube_thumbnail(url_or_id: str) -> tuple[str, str, str]:
+    """Download the current YouTube thumbnail and stage it for edit review.
+
+    Returns (staging_file, preview_url, source_url).
+    """
+    import asyncio
+
+    import httpx
+
+    from app.services.thumbnail_storage import stage_thumbnail
+
+    youtube_id = extract_youtube_id(url_or_id)
+    source_url = await asyncio.to_thread(fetch_youtube_thumbnail, youtube_id)
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(source_url, follow_redirects=True, timeout=30.0)
+        response.raise_for_status()
+        data = response.content
+        content_type = response.headers.get("content-type")
+
+    staging_file, preview_url = stage_thumbnail(data, content_type)
+    return staging_file, preview_url, source_url
+
+
 def fetch_youtube_metadata(url_or_id: str) -> dict[str, Any]:
     """Return submission-friendly metadata for a YouTube URL or video ID."""
     youtube_id = extract_youtube_id(url_or_id)

@@ -29,6 +29,8 @@ def edit_summary_title(edit: Edit) -> str:
     if edit_type == "edit_commercial":
         return str(state.get("title") or "Commercial metadata")
     if edit_type == "edit_video" and state.get("thumbnail_url"):
+        if state.get("thumbnail_regrab"):
+            return "Re-grabbed YouTube thumbnail"
         return "Custom thumbnail"
 
     for key, label in _CATALOG_LABELS.items():

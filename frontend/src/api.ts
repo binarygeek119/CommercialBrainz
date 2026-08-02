@@ -1049,6 +1049,9 @@ export const api = {
     return request<Edit>(`/videos/${sbid}/submit-thumbnail`, { method: "POST", body });
   },
 
+  regrabVideoThumbnail: (sbid: string) =>
+    request<Edit>(`/videos/${sbid}/regrab-thumbnail`, { method: "POST" }),
+
   submitAdvertiserLogo: (sbid: string, file: File, meta: AdvertiserLogoSubmit = {}) => {
     const body = new FormData();
     body.append("file", file);

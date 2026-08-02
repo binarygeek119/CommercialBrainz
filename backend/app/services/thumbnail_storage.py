@@ -22,8 +22,9 @@ EXTENSION_BY_TYPE = {
     "image/webp": ".webp",
 }
 SAFE_FILENAME = re.compile(r"^[a-f0-9-]{36}\.(jpg|jpeg|png|webp)$", re.I)
+# Permanent files: {video_sbid}.ext or {video_sbid}-{version}.ext (cache-busting on replace).
 SAFE_VIDEO_FILENAME = re.compile(
-    r"^[a-f0-9-]{36}\.(jpg|jpeg|png|webp)$", re.I
+    r"^[a-f0-9-]{36}(-[a-f0-9]{8,16})?\.(jpg|jpeg|png|webp)$", re.I
 )
 
 
@@ -87,11 +88,12 @@ def finalize_staged_thumbnail(staging_file: str, video_sbid: UUID) -> str:
         raise FileNotFoundError("Staged thumbnail not found")
 
     ext = pending_path.suffix.lower()
-    final_name = f"{video_sbid}{ext}"
+    # Unique suffix so replacements are not served from a stale browser/CDN cache.
+    final_name = f"{video_sbid}-{uuid.uuid4().hex[:12]}{ext}"
     final_path = root / final_name
 
-    for old in root.glob(f"{video_sbid}.*"):
-        if old.is_file():
+    for old in list(root.glob(f"{video_sbid}.*")) + list(root.glob(f"{video_sbid}-*")):
+        if old.is_file() and old != final_path:
             old.unlink()
 
     shutil.move(str(pending_path), str(final_path))
@@ -108,7 +110,7 @@ def discard_staged_thumbnail(staging_file: str) -> None:
 
 def resolve_media_path(relative: str) -> Path | None:
     """Resolve a safe relative path under the upload root."""
-    relative = relative.strip().lstrip("/")
+    relative = relative.strip().lstrip("/").split("?", 1)[0].split("#", 1)[0]
     if ".." in relative or relative.startswith("/"):
         return None
 

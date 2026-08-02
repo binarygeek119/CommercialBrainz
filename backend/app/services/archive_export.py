@@ -41,7 +41,8 @@ def _media_relative(url: str | None, marker: str) -> str | None:
     if not url or marker not in url:
         return None
     idx = url.find(marker)
-    return unquote(url[idx + len(marker) :].lstrip("/"))
+    relative = unquote(url[idx + len(marker) :].lstrip("/"))
+    return relative.split("?", 1)[0].split("#", 1)[0]
 
 
 def _thumbnail_relative(url: str | None) -> str | None:

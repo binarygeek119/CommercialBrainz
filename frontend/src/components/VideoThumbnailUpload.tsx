@@ -11,6 +11,7 @@ export default function VideoThumbnailUpload({ videoSbid }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [regrabbing, setRegrabbing] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Edit | null>(null);
 
@@ -57,16 +58,49 @@ export default function VideoThumbnailUpload({ videoSbid }: Props) {
     }
   };
 
+  const handleRegrab = async () => {
+    setRegrabbing(true);
+    setError("");
+    setResult(null);
+    try {
+      const edit = await api.regrabVideoThumbnail(videoSbid);
+      setResult(edit);
+      setPreview(null);
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRegrabbing(false);
+    }
+  };
+
+  const busy = loading || regrabbing;
+
   return (
     <div className="card" style={{ marginTop: "1rem" }}>
-      <h3>Custom thumbnail</h3>
+      <h3>Thumbnail</h3>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
-        Upload a replacement thumbnail (JPEG, PNG, or WebP, max 2 MB). It enters the edit queue for
-        voting like other changes.
+        Upload a replacement image, or force re-grab the current YouTube thumbnail. Both enter the
+        edit queue for voting like other changes.
       </p>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => void handleRegrab()}
+        >
+          {regrabbing ? "Re-grabbing…" : "Force re-grab thumbnail"}
+        </button>
+        <p className="muted" style={{ fontSize: "0.85rem", marginTop: "0.35rem", marginBottom: 0 }}>
+          Downloads a fresh copy from YouTube even if the CDN URL looks unchanged.
+        </p>
+      </div>
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="thumbnail-file">Image file</label>
+          <label htmlFor="thumbnail-file">Custom image file</label>
           <input
             ref={inputRef}
             id="thumbnail-file"
@@ -102,10 +136,27 @@ export default function VideoThumbnailUpload({ videoSbid }: Props) {
           <p style={{ marginBottom: "0.75rem" }}>
             Submitted for review —{" "}
             <Link to={`/edits/${result.id}`}>view edit #{result.id.slice(0, 8)}</Link>
+            {typeof result.after_state?.thumbnail_url === "string" && (
+              <>
+                {" "}
+                ·{" "}
+                <img
+                  src={result.after_state.thumbnail_url as string}
+                  alt="Proposed thumbnail"
+                  style={{
+                    height: 48,
+                    width: 86,
+                    objectFit: "cover",
+                    verticalAlign: "middle",
+                    borderRadius: 2,
+                  }}
+                />
+              </>
+            )}
           </p>
         )}
-        <button type="submit" className="btn btn-secondary" disabled={loading}>
-          {loading ? "Submitting…" : "Submit thumbnail for review"}
+        <button type="submit" className="btn btn-secondary" disabled={busy}>
+          {loading ? "Submitting…" : "Submit custom thumbnail for review"}
         </button>
       </form>
     </div>

@@ -50,7 +50,7 @@ export function editTitle(edit: Edit): string {
     return commercial?.title ? `Split: ${linkLabel} → ${commercial.title}` : "Split link to own commercial";
   }
   if (edit.edit_type === "edit_video" && edit.after_state.thumbnail_url) {
-    return "Custom thumbnail";
+    return edit.after_state.thumbnail_regrab ? "Re-grabbed YouTube thumbnail" : "Custom thumbnail";
   }
   return (
     (edit.after_state.title as string) ||
