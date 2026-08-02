@@ -75,6 +75,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      # Must share thumbnail/logo storage with api — worker materializes frames here.
+      - thumbnail_uploads:/data/thumbnails
+      - logo_uploads:/data/logos
       - ../data/ytdlp:/data/ytdlp
     command: ["worker"]
 
