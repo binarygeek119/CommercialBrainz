@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { Video } from "../api";
 import { commercialUrl } from "../utils/commercialUrls";
-import { nextYoutubeThumbnailFallback, videoThumbnailUrl } from "../utils/videoThumbnail";
+import { nextYoutubeThumbnailFallback, bustHostedThumbnailUrl, thumbnailFetchRequestedAt, videoThumbnailUrl } from "../utils/videoThumbnail";
 import { formatDurationMs } from "../utils/youtube";
 import {
   VIDEO_DETAIL_FIELDS,
@@ -61,26 +61,11 @@ export default function CommercialVideoEntry({
   const rows = VIDEO_DETAIL_FIELDS.filter(({ key }) => videoHasFieldValue(video, key));
   const extras = videoMetadataExtras(video);
   const linkUrl = commercialUrl(commercialSbid, video.sbid);
-  const thumbFetchRequestedAt =
-    video.metadata?.thumbnail_fetch &&
-    typeof video.metadata.thumbnail_fetch === "object" &&
-    typeof (video.metadata.thumbnail_fetch as { requested_at?: unknown }).requested_at === "string"
-      ? (video.metadata.thumbnail_fetch as { requested_at: string }).requested_at
-      : null;
+  const thumbFetchRequestedAt = thumbnailFetchRequestedAt(video.metadata ?? null);
 
   useEffect(() => {
     const next = videoThumbnailUrl(video);
-    if (!next) {
-      setThumb(null);
-      return;
-    }
-    // Bust cache after a forced re-grab so the same hosted path reloads.
-    if (thumbFetchRequestedAt && next.startsWith("/api/")) {
-      const sep = next.includes("?") ? "&" : "?";
-      setThumb(`${next}${sep}t=${encodeURIComponent(thumbFetchRequestedAt)}`);
-      return;
-    }
-    setThumb(next);
+    setThumb(bustHostedThumbnailUrl(next, thumbFetchRequestedAt));
   }, [video.thumbnail_url, video.youtube_id, thumbFetchRequestedAt]);
 
   return (

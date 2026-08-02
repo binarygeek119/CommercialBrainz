@@ -7,7 +7,7 @@ import CommercialMetadataForm from "../components/CommercialMetadataForm";
 import CommercialMetadataDisplay from "../components/CommercialMetadataDisplay";
 import CommercialVideoGallery from "../components/CommercialVideoGallery";
 import ReportContentDialog from "../components/ReportContentDialog";
-import { videoThumbnailUrl } from "../utils/videoThumbnail";
+import { bustHostedThumbnailUrl, thumbnailFetchRequestedAt, videoThumbnailUrl } from "../utils/videoThumbnail";
 import { videoDisplayTitle } from "../utils/videoMetadata";
 
 export default function CommercialPage() {
@@ -44,7 +44,12 @@ export default function CommercialPage() {
   if (error) return <p className="error">{(error as Error).message}</p>;
   if (!data) return null;
 
-  const heroThumb = selectedVideo ? videoThumbnailUrl(selectedVideo) : null;
+  const heroThumb = selectedVideo
+    ? bustHostedThumbnailUrl(
+        videoThumbnailUrl(selectedVideo),
+        thumbnailFetchRequestedAt(selectedVideo.metadata ?? null),
+      )
+    : null;
 
   return (
     <div>

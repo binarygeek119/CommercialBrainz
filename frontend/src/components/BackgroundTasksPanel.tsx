@@ -78,7 +78,7 @@ export default function BackgroundTasksPanel({
             />
           </div>
           <p className="muted" style={{ fontSize: "0.9rem" }}>
-            CDN re-fetch / padded stream frame fallback after submit or force re-grab.
+            CDN verify after submit; force re-grab streams a padded frame (CDN fallback).
           </p>
           <p style={{ margin: "0.5rem 0 0" }}>
             Active: <strong>{data.thumbnails.active_count}</strong> (pending{" "}

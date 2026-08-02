@@ -69,7 +69,7 @@ export default function VideoThumbnailUpload({ videoSbid, thumbnailFetchStatus }
     try {
       await api.refreshVideoThumbnail(videoSbid);
       setRefreshMsg(
-        "Queued: trying YouTube thumbnail again, then a random padded frame from the stream if needed."
+        "Queued: streaming a random padded frame from the video (CDN only if that fails)."
       );
       await queryClient.invalidateQueries({ queryKey: ["video", videoSbid] });
       await queryClient.invalidateQueries({ queryKey: ["commercial"] });
@@ -87,21 +87,21 @@ export default function VideoThumbnailUpload({ videoSbid, thumbnailFetchStatus }
     <div className="card" style={{ marginTop: "1rem" }}>
       <h3>Thumbnail</h3>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
-        Re-grab from YouTube, or upload a custom image for the edit queue.
+        Re-grab a fresh frame from the stream, or upload a custom image for the edit queue.
       </p>
 
       <div style={{ marginBottom: "1rem" }}>
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={handleForceRefresh}
-          disabled={refreshing || fetchBusy}
+          onClick={() => void handleForceRefresh()}
+          disabled={refreshing}
         >
-          {refreshing || fetchBusy ? "Refreshing thumbnail…" : "Force re-grab thumbnail"}
+          {refreshing ? "Queueing…" : fetchBusy ? "Re-grab running… (click to re-queue)" : "Force re-grab thumbnail"}
         </button>
         <p className="muted" style={{ marginTop: "0.5rem", marginBottom: 0, fontSize: "0.85rem" }}>
-          Tries the YouTube thumbnail again. If that fails, streams the video and grabs a random
-          frame with padding at the start and end.
+          Always grabs a random padded frame from the video stream so you get a new image. Falls
+          back to the YouTube CDN thumbnail only if streaming fails.
           {thumbnailFetchStatus ? ` Status: ${thumbnailFetchStatus}.` : ""}
         </p>
         {refreshMsg && <p style={{ marginTop: "0.5rem", marginBottom: 0 }}>{refreshMsg}</p>}
