@@ -737,6 +737,7 @@ export default function AdminPage() {
         <BackgroundTasksPanel
           queryKey="admin"
           fetchTasks={() => api.adminBackgroundTasks()}
+          scanMissingThumbnails={() => api.adminScanMissingThumbnails()}
         />
       )}
 
@@ -921,7 +922,8 @@ export default function AdminPage() {
             <h2 style={{ marginTop: 0 }}>Fund goals</h2>
             <p className="muted">
               Goals are the expected Domain / Cloud VM costs the progress bars fill toward.
-              Balance = donations matched by Buy Me a Coffee notes − costs you record when paid.
+              Defaults: domain renewal $13/year, Cloud VM upgrade $50. Balance = donations
+              matched by Buy Me a Coffee notes − costs you record when paid.
             </p>
             <div className="grid grid-2" style={{ marginBottom: "0.75rem" }}>
               <div>

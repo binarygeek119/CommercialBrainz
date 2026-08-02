@@ -327,6 +327,14 @@ export interface LinkCheckRunResult {
   message?: string | null;
 }
 
+export interface ThumbnailMissingScanResult {
+  scanned: number;
+  candidates: number;
+  enqueued: number;
+  queued: boolean;
+  message?: string | null;
+}
+
 export interface AccountDeletionRequest {
   id: string;
   status: string;
@@ -454,6 +462,8 @@ export interface BackgroundTasksStatus {
       last_attempt_at?: string | null;
       force?: boolean;
     }>;
+    cron?: string | null;
+    missing_scan_cron?: string | null;
   };
   bulk_submit: {
     importing_batches: number;
@@ -1475,6 +1485,12 @@ export const api = {
 
   adminBackgroundTasks: () => request<BackgroundTasksStatus>("/admin/background-tasks"),
 
+  adminScanMissingThumbnails: (limit?: number) =>
+    request<ThumbnailMissingScanResult>(
+      `/admin/thumbnails/scan-missing${limit != null ? `?limit=${limit}` : ""}`,
+      { method: "POST" }
+    ),
+
   adminRetryFingerprint: (id: string) =>
     request<{ status: string }>(`/admin/fingerprints/${id}/retry`, { method: "POST" }),
 
@@ -1623,6 +1639,12 @@ export const api = {
   modFingerprintQueue: () => request<FingerprintQueueStatus>("/mod/fingerprint-queue"),
 
   modBackgroundTasks: () => request<BackgroundTasksStatus>("/mod/background-tasks"),
+
+  modScanMissingThumbnails: (limit?: number) =>
+    request<ThumbnailMissingScanResult>(
+      `/mod/thumbnails/scan-missing${limit != null ? `?limit=${limit}` : ""}`,
+      { method: "POST" }
+    ),
 
   modApplyEdit: (editId: string) =>
     request<Edit>(`/mod/edits/${editId}/apply`, { method: "POST" }),

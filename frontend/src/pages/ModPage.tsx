@@ -397,7 +397,11 @@ export default function ModPage() {
       )}
 
       {tab === "tasks" && (
-        <BackgroundTasksPanel queryKey="mod" fetchTasks={() => api.modBackgroundTasks()} />
+        <BackgroundTasksPanel
+          queryKey="mod"
+          fetchTasks={() => api.modBackgroundTasks()}
+          scanMissingThumbnails={() => api.modScanMissingThumbnails()}
+        />
       )}
 
       {tab === "deletions" && (

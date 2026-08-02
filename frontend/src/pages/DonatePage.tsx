@@ -36,7 +36,15 @@ function formatMoney(n: number): string {
   });
 }
 
-function FundBar({ label, totals }: { label: string; totals: DonationFundTotals }) {
+function FundBar({
+  label,
+  totals,
+  goalInfo,
+}: {
+  label: string;
+  totals: DonationFundTotals;
+  goalInfo: string;
+}) {
   const hasGoal = totals.goal > 0;
   const pct = hasGoal ? Math.min(100, (totals.balance / totals.goal) * 100) : 0;
   return (
@@ -49,6 +57,7 @@ function FundBar({ label, totals }: { label: string; totals: DonationFundTotals 
             : `${formatMoney(totals.balance)} in fund`}
         </span>
       </div>
+      <p className="donate-fund-bar-goal">{goalInfo}</p>
       <div
         className="donate-fund-bar-track"
         role="progressbar"
@@ -189,8 +198,16 @@ export default function DonatePage() {
     <div style={{ maxWidth: 760 }}>
       {funds && (
         <section className="donate-funds" aria-label="Fund progress">
-          <FundBar label="Cloud VM" totals={funds.cloud_vm} />
-          <FundBar label="Domain" totals={funds.domain} />
+          <FundBar
+            label="Cloud VM"
+            totals={funds.cloud_vm}
+            goalInfo="Upgrade from the free VM to the next more capable plan — $50 target."
+          />
+          <FundBar
+            label="Domain"
+            totals={funds.domain}
+            goalInfo="Buy another year of the CommercialBrainz domain — $13 / year renewal."
+          />
         </section>
       )}
 

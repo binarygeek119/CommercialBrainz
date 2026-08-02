@@ -79,6 +79,11 @@ async def _thumbnail_counts(db: AsyncSession) -> dict:
         "failed_count": failed,
         "active_count": pending + retry,
         "sample": sample,
+        "cron": "Every 5 minutes (offset :02); also on worker startup",
+        "missing_scan_cron": (
+            "Hourly at :20 UTC and on worker startup "
+            "(VM restart / site upgrade; missing/broken → force re-grab)"
+        ),
     }
 
 

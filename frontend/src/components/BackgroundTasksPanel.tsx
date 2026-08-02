@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Link } from "react-router";
-import { useQuery } from "@tanstack/react-query";
-import { type BackgroundTasksStatus } from "../api";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { type BackgroundTasksStatus, type ThumbnailMissingScanResult } from "../api";
 
 function formatWhen(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -27,14 +28,33 @@ function StatusBadge({ status }: { status: string }) {
 export default function BackgroundTasksPanel({
   queryKey,
   fetchTasks,
+  scanMissingThumbnails,
 }: {
   queryKey: string;
   fetchTasks: () => Promise<BackgroundTasksStatus>;
+  scanMissingThumbnails?: () => Promise<ThumbnailMissingScanResult>;
 }) {
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["background-tasks", queryKey],
     queryFn: fetchTasks,
     refetchInterval: 8000,
+  });
+
+  const scanMutation = useMutation({
+    mutationFn: () => {
+      if (!scanMissingThumbnails) {
+        throw new Error("Missing thumbnail scan is not available");
+      }
+      return scanMissingThumbnails();
+    },
+    onSuccess: (result) => {
+      setScanMessage(result.message || "Missing thumbnail scan queued.");
+      void refetch();
+    },
+    onError: (err: Error) => {
+      setScanMessage(err.message || "Failed to queue missing thumbnail scan");
+    },
   });
 
   if (isLoading && !data) {
@@ -80,11 +100,41 @@ export default function BackgroundTasksPanel({
           <p className="muted" style={{ fontSize: "0.9rem" }}>
             CDN verify after submit; force re-grab streams a padded frame (CDN fallback).
           </p>
+          {data.thumbnails.cron && (
+            <p className="muted" style={{ fontSize: "0.85rem", margin: "0.35rem 0 0" }}>
+              Retries: {data.thumbnails.cron}
+            </p>
+          )}
+          {data.thumbnails.missing_scan_cron && (
+            <p className="muted" style={{ fontSize: "0.85rem", margin: "0.15rem 0 0" }}>
+              Missing scan: {data.thumbnails.missing_scan_cron}
+            </p>
+          )}
           <p style={{ margin: "0.5rem 0 0" }}>
             Active: <strong>{data.thumbnails.active_count}</strong> (pending{" "}
             {data.thumbnails.pending_count}, retry {data.thumbnails.retry_count}) · failed{" "}
             {data.thumbnails.failed_count}
           </p>
+          {scanMissingThumbnails && (
+            <p style={{ marginBottom: 0, marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={scanMutation.isPending}
+                onClick={() => {
+                  setScanMessage(null);
+                  scanMutation.mutate();
+                }}
+              >
+                {scanMutation.isPending ? "Queueing…" : "Scan missing thumbnails"}
+              </button>
+            </p>
+          )}
+          {scanMessage && (
+            <p className="muted" style={{ fontSize: "0.85rem", marginBottom: 0 }}>
+              {scanMessage}
+            </p>
+          )}
           {data.thumbnails.sample.length > 0 && (
             <ul style={{ margin: "0.75rem 0 0", paddingLeft: "1.1rem" }}>
               {data.thumbnails.sample.map((item) => (
@@ -209,8 +259,7 @@ export default function BackgroundTasksPanel({
             <StatusBadge status="idle" />
           </div>
           <p className="muted" style={{ fontSize: "0.9rem", marginBottom: 0 }}>
-            {data.expire_edits.cron}. Closes timed-out edits and may enqueue follow-up hash /
-            thumbnail jobs.
+            {data.expire_edits.cron}
           </p>
         </section>
       </div>

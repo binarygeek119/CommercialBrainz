@@ -774,6 +774,13 @@ code, .mono {
   flex-wrap: wrap;
 }
 
+.donate-fund-bar-goal {
+  margin: 0 0 0.45rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .donate-fund-bar-track {
   height: 0.65rem;
   border-radius: 999px;

@@ -138,6 +138,23 @@ def is_hosted_thumbnail(url: str | None) -> bool:
     return "/api/v1/media/thumbnails/" in url
 
 
+def hosted_thumbnail_relative(url: str | None) -> str | None:
+    """Extract the relative path from a hosted thumbnail media URL."""
+    if not is_hosted_thumbnail(url) or not url:
+        return None
+    marker = "/api/v1/media/thumbnails/"
+    rel = url.split(marker, 1)[1]
+    return rel.split("?", 1)[0].split("#", 1)[0]
+
+
+def hosted_thumbnail_exists(url: str | None) -> bool:
+    """True when the hosted thumbnail URL resolves to a file on disk."""
+    rel = hosted_thumbnail_relative(url)
+    if not rel:
+        return False
+    return resolve_media_path(rel) is not None
+
+
 def save_video_thumbnail(video_sbid: UUID, data: bytes, content_type: str | None = None) -> str:
     """Write a permanent hosted thumbnail for a video. Returns public media URL."""
     image_type = validate_thumbnail_bytes(data, content_type)

@@ -48,8 +48,9 @@ def default_settings_value(*, now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now(UTC)
     return {
         "tracking_started_at": now.isoformat(),
-        "domain": {"goal": 0},
-        "cloud_vm": {"goal": 0},
+        # Domain annual renewal; Cloud VM next-tier upgrade target.
+        "domain": {"goal": 13},
+        "cloud_vm": {"goal": 50},
         "last_sync_at": None,
         "last_sync_error": None,
     }
@@ -72,15 +73,24 @@ async def ensure_settings(db: AsyncSession) -> dict[str, Any]:
     if not value.get("tracking_started_at"):
         value["tracking_started_at"] = datetime.now(UTC).isoformat()
         changed = True
-    for key in ("domain", "cloud_vm"):
+    for key, default_goal in (("domain", 13), ("cloud_vm", 50)):
         bucket = value.get(key)
         if not isinstance(bucket, dict):
-            value[key] = {"goal": 0}
+            value[key] = {"goal": default_goal}
             changed = True
         elif "goal" not in bucket:
-            bucket = {**bucket, "goal": 0}
+            bucket = {**bucket, "goal": default_goal}
             value[key] = bucket
             changed = True
+        else:
+            try:
+                current = float(bucket.get("goal") or 0)
+            except (TypeError, ValueError):
+                current = 0.0
+            # Seed published targets when goals were never set.
+            if current <= 0:
+                value[key] = {**bucket, "goal": default_goal}
+                changed = True
     if "last_sync_at" not in value:
         value["last_sync_at"] = None
         changed = True

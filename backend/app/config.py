@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     thumbnail_frame_pad_ratio: float = 0.05
     # Minimum pad in seconds (also used when duration is short).
     thumbnail_frame_pad_seconds: float = 2.0
+    # Missing-thumbnail scan: how many videos to inspect / force-requeue per run.
+    thumbnail_missing_scan_window: int = 800
+    thumbnail_missing_scan_batch: int = 20
+    # Avoid re-forcing recently failed CDN-only videos too often.
+    thumbnail_missing_scan_cooldown_hours: int = 6
     bulk_submit_min_reputation: float = 500.0
     # Hard safety cap when expanding/storing a full playlist link list.
     bulk_submit_max_playlist_items: int = 2000

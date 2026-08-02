@@ -1218,6 +1218,14 @@ class LinkCheckRunResult(BaseModel):
     message: str | None = None
 
 
+class ThumbnailMissingScanResult(BaseModel):
+    scanned: int = 0
+    candidates: int = 0
+    enqueued: int = 0
+    queued: bool = False
+    message: str | None = None
+
+
 class YouTubeMetadataPreview(BaseModel):
     youtube_id: str
     youtube_url: str
@@ -1274,6 +1282,8 @@ class BackgroundTaskThumbnails(BaseModel):
     failed_count: int = 0
     active_count: int = 0
     sample: list[BackgroundTaskThumbnailSample] = []
+    cron: str | None = None
+    missing_scan_cron: str | None = None
 
 
 class BackgroundTaskArchiveExport(BaseModel):
