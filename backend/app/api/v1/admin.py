@@ -54,7 +54,6 @@ from app.services.archive_export_queue import (
 )
 from app.services.archive_org_upload import archive_org_configured
 from app.services.background_tasks_status import get_background_tasks_status
-from app.services.thumbnail_queue import enqueue_missing_thumbnail_scan
 from app.services.fingerprint_queue_status import get_fingerprint_queue_status
 from app.services.hash_queue import enqueue_hash_job
 from app.services.maintenance import (
@@ -76,6 +75,7 @@ from app.services.registration_invites import (
     revoke_registration_invite,
     set_registration_invite_only,
 )
+from app.services.thumbnail_queue import enqueue_missing_thumbnail_scan
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
