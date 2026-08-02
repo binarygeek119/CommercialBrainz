@@ -77,17 +77,12 @@ def mark_thumbnail_fetch_pending(video: Video) -> None:
 
 def mark_thumbnail_force_refresh(video: Video) -> None:
     """
-    Queue a forced re-fetch: try YouTube CDN again, then stream a padded random frame.
+    Queue a forced re-fetch: stream a padded random frame (CDN only as fallback).
 
     Resets attempt counters so ensure_video_thumbnail(force=True) runs end-to-end.
     """
     if not video.youtube_id:
         raise ValueError("Video has no YouTube id")
-    # Prefer CDN candidates over a stale hosted URL during the forced pass.
-    if is_hosted_thumbnail(video.thumbnail_url):
-        video.thumbnail_url = youtube_thumbnail_url(video.youtube_id)
-    elif not video.thumbnail_url:
-        video.thumbnail_url = youtube_thumbnail_url(video.youtube_id)
     set_thumbnail_fetch_meta(
         video,
         status="pending",
@@ -354,14 +349,20 @@ def extract_random_frame_jpeg(youtube_id: str, duration_sec: float | None = None
             return _ffmpeg_frame_from_file(clip, local_ts)
 
 
-async def _host_extracted_frame(video: Video, *, attempts: int, last_error: str | None) -> str:
+async def _host_extracted_frame(
+    video: Video,
+    *,
+    attempts: int,
+    last_error: str | None,
+    status: str = "exhausted_frame",
+) -> str:
     duration_sec = (video.duration_ms / 1000.0) if video.duration_ms else None
     frame = extract_random_frame_jpeg(video.youtube_id, duration_sec)
     hosted = save_video_thumbnail(video.sbid, frame, "image/jpeg")
     video.thumbnail_url = hosted
     set_thumbnail_fetch_meta(
         video,
-        status="exhausted_frame",
+        status=status,
         attempts=attempts,
         force=False,
         source="extracted_frame",
@@ -369,7 +370,7 @@ async def _host_extracted_frame(video: Video, *, attempts: int, last_error: str 
         last_attempt_at=_now_iso(),
     )
     logger.info("Hosted extracted-frame thumbnail for video %s", video.sbid)
-    return "exhausted_frame"
+    return status
 
 
 async def ensure_video_thumbnail(
@@ -384,8 +385,9 @@ async def ensure_video_thumbnail(
     Attempts 1–2: download CDN thumbnail.
     Attempt 3 (final): extract a random padded frame via yt-dlp streaming.
 
-    When force=True (manual re-grab): try CDN once, then immediately stream a
-    padded random frame if CDN fails — do not wait for cron retries.
+    When force=True (manual re-grab): always stream a padded random frame so the
+    UI gets a new image (CDN often returns the same file and looks like a no-op).
+    Falls back to hosting the CDN image only if frame extract fails.
 
     Returns status string: ok | retry | exhausted_frame | failed | skipped.
     """
@@ -417,39 +419,73 @@ async def ensure_video_thumbnail(
         await db.flush()
         return "failed"
 
-    if force and is_hosted_thumbnail(video.thumbnail_url):
-        # Hosted paths are skipped by download_cdn_thumbnail; point at CDN first.
-        video.thumbnail_url = youtube_thumbnail_url(video.youtube_id)
-
     attempts = int(meta.get("attempts") or 0) + 1
     max_retries = settings.thumbnail_max_retries
+
+    if force:
+        # Manual re-grab must produce a visibly new thumbnail.
+        try:
+            status = await _host_extracted_frame(
+                video,
+                attempts=attempts,
+                last_error=None,
+                status="ok",
+            )
+            await db.flush()
+            return status
+        except Exception as frame_exc:
+            error = str(frame_exc)[:500]
+            logger.warning(
+                "Force frame extract failed for %s (%s); falling back to CDN",
+                video_id,
+                error,
+            )
+            if is_hosted_thumbnail(video.thumbnail_url):
+                video.thumbnail_url = youtube_thumbnail_url(video.youtube_id)
+            data = download_cdn_thumbnail(video)
+            if data:
+                hosted = save_video_thumbnail(video.sbid, data, "image/jpeg")
+                video.thumbnail_url = hosted
+                set_thumbnail_fetch_meta(
+                    video,
+                    status="ok",
+                    attempts=attempts,
+                    force=False,
+                    source="youtube_cdn_hosted",
+                    last_error=error,
+                    last_attempt_at=_now_iso(),
+                )
+                await db.flush()
+                return "ok"
+            set_thumbnail_fetch_meta(
+                video,
+                status="failed",
+                attempts=attempts,
+                force=False,
+                last_error=f"frame extract: {error}"[:500],
+                last_attempt_at=_now_iso(),
+            )
+            await db.flush()
+            return "failed"
 
     try:
         data = download_cdn_thumbnail(video)
         if data:
-            if force:
-                # Materialize so the UI replaces a previously hosted/broken thumb.
-                hosted = save_video_thumbnail(video.sbid, data, "image/jpeg")
-                video.thumbnail_url = hosted
-                source = "youtube_cdn_hosted"
-            else:
-                if not video.thumbnail_url:
-                    video.thumbnail_url = youtube_thumbnail_url(video.youtube_id)
-                source = "youtube_cdn"
+            if not video.thumbnail_url:
+                video.thumbnail_url = youtube_thumbnail_url(video.youtube_id)
             set_thumbnail_fetch_meta(
                 video,
                 status="ok",
                 attempts=attempts,
                 force=False,
-                source=source,
+                source="youtube_cdn",
                 last_error=None,
                 last_attempt_at=_now_iso(),
             )
             await db.flush()
             return "ok"
 
-        # Forced re-grab: CDN failed → stream a padded random frame immediately.
-        if force or attempts >= max_retries:
+        if attempts >= max_retries:
             status = await _host_extracted_frame(video, attempts=attempts, last_error=None)
             await db.flush()
             return status
@@ -467,7 +503,7 @@ async def ensure_video_thumbnail(
     except Exception as exc:
         error = str(exc)[:500]
         logger.exception("Thumbnail ensure failed for video %s", video_id)
-        if force or attempts >= max_retries:
+        if attempts >= max_retries:
             try:
                 status = await _host_extracted_frame(
                     video, attempts=attempts, last_error=error

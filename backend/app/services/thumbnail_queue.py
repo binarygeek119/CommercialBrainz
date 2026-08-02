@@ -23,13 +23,15 @@ async def _get_arq_pool():
     return await create_pool(RedisSettings.from_dsn(settings.redis_url))
 
 
-async def enqueue_thumbnail_job(video_id: UUID, *, force: bool = False) -> None:
+async def enqueue_thumbnail_job(video_id: UUID, *, force: bool = False) -> bool:
     try:
         pool = await _get_arq_pool()
         await pool.enqueue_job("ensure_thumbnail", str(video_id), force)
         await pool.aclose()
+        return True
     except Exception:
         logger.exception("Failed to enqueue thumbnail job %s", video_id)
+        return False
 
 
 async def ensure_thumbnail(ctx, video_id: str, force: bool = False) -> str:
@@ -61,11 +63,13 @@ async def process_thumbnail_retries(ctx) -> int:
             .limit(200)
         )
         for video in result.scalars().all():
-            url = video.thumbnail_url or ""
-            if "/api/v1/media/thumbnails/" in url:
-                continue
             meta = get_thumbnail_fetch_meta(video)
             status = meta.get("status")
+            force = bool(meta.get("force"))
+            url = video.thumbnail_url or ""
+            # Hosted thumbs are done unless a forced re-grab is still pending.
+            if "/api/v1/media/thumbnails/" in url and not force:
+                continue
             if status not in {"pending", "retry"}:
                 continue
             attempts = int(meta.get("attempts") or 0)

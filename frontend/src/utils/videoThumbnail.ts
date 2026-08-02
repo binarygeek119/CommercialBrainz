@@ -18,6 +18,26 @@ export function videoThumbnailUrl(video: ThumbnailSource): string | null {
   return null;
 }
 
+/** Append a cache-bust query for hosted thumbs after a force re-grab. */
+export function bustHostedThumbnailUrl(
+  url: string | null,
+  version: string | null | undefined,
+): string | null {
+  if (!url) return null;
+  if (!version || !url.startsWith("/api/")) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}t=${encodeURIComponent(version)}`;
+}
+
+export function thumbnailFetchRequestedAt(
+  metadata: Record<string, unknown> | null | undefined,
+): string | null {
+  const raw = metadata?.thumbnail_fetch;
+  if (!raw || typeof raw !== "object") return null;
+  const requested = (raw as { requested_at?: unknown }).requested_at;
+  return typeof requested === "string" ? requested : null;
+}
+
 export function youtubeIdThumbnail(youtubeId: string, quality = "hqdefault"): string {
   return `https://i.ytimg.com/vi/${youtubeId}/${quality}.jpg`;
 }

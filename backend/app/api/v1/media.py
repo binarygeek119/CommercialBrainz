@@ -150,10 +150,10 @@ async def refresh_video_thumbnail(
     user: User = Depends(require_submitter),
 ):
     """
-    Force re-grab the YouTube thumbnail for a video.
+    Force re-grab a thumbnail for a video.
 
-    Worker tries the CDN again; if that fails, streams the video and grabs a
-    random frame with padding on the start and end of the stream.
+    Worker streams the video and grabs a random frame with padding on the start
+    and end. Falls back to hosting the YouTube CDN image only if extract fails.
     """
     video = await SearchService.get_video_detail(db, sbid, include_hidden=True)
     if not video or video.visibility == VideoVisibility.REMOVED:
@@ -166,7 +166,12 @@ async def refresh_video_thumbnail(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await db.flush()
-    await enqueue_thumbnail_job(video.sbid, force=True)
+    queued = await enqueue_thumbnail_job(video.sbid, force=True)
+    if not queued:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not queue thumbnail re-grab job (worker/redis unavailable)",
+        )
 
     meta = get_thumbnail_fetch_meta(video)
     return {
