@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Video } from "../api";
 import { formatRegionDisplay } from "../data/regions";
 import { commercialUrl } from "../utils/commercialUrls";
 import { formatDurationMs } from "../utils/youtube";
 import { videoDisplayTitle } from "../utils/videoMetadata";
-import { nextYoutubeThumbnailFallback, videoThumbnailUrl } from "../utils/videoThumbnail";
+import {
+  bustHostedThumbnailUrl,
+  nextYoutubeThumbnailFallback,
+  thumbnailFetchRequestedAt,
+  videoThumbnailUrl,
+} from "../utils/videoThumbnail";
 
 export default function VideoCard({ video }: { video: Video }) {
-  const initial = videoThumbnailUrl(video);
-  const [thumb, setThumb] = useState<string | null>(initial);
+  const requestedAt = thumbnailFetchRequestedAt(video.metadata ?? null);
+  const resolved = bustHostedThumbnailUrl(videoThumbnailUrl(video), requestedAt);
+  const [thumb, setThumb] = useState<string | null>(resolved);
   const title = videoDisplayTitle(video);
   const duration = formatDurationMs(video.duration_ms);
   const region = formatRegionDisplay(video.region, video.sub_region);
@@ -18,6 +24,10 @@ export default function VideoCard({ video }: { video: Video }) {
       ? video.bumper_channel
       : null;
   const meta = [typeMeta, video.channel_name, video.language, region].filter(Boolean);
+
+  useEffect(() => {
+    setThumb(bustHostedThumbnailUrl(videoThumbnailUrl(video), requestedAt));
+  }, [video.thumbnail_url, video.youtube_id, video.metadata, requestedAt]);
 
   return (
     <Link to={commercialUrl(video.commercial_id, video.sbid)} className="video-card">
@@ -28,6 +38,14 @@ export default function VideoCard({ video }: { video: Video }) {
             alt=""
             loading="lazy"
             onError={() => {
+              // Hosted path 404 → try YouTube CDN qualities; then clear.
+              if (thumb.startsWith("/api/")) {
+                const yt = video.youtube_id
+                  ? `https://i.ytimg.com/vi/${video.youtube_id}/maxresdefault.jpg`
+                  : null;
+                setThumb(yt);
+                return;
+              }
               const next = nextYoutubeThumbnailFallback(thumb, video.youtube_id);
               setThumb(next);
             }}
