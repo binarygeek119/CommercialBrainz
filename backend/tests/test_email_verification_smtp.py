@@ -38,11 +38,17 @@ def test_normalize_env_removes_quotes():
     assert email_svc._log_safe("a\nb\rc") == "a b c"
 
 
-def test_public_smtp_error_auth():
+def test_public_smtp_error_auth(monkeypatch):
     import smtplib
 
+    monkeypatch.setattr(
+        email_svc,
+        "get_settings",
+        lambda: SimpleNamespace(smtp_host="smtp.example.com", smtp_port=587),
+    )
     msg = email_svc._public_smtp_error(smtplib.SMTPAuthenticationError(535, b"fail"))
     assert "authentication failed" in msg.lower()
+    assert "smtp.example.com" in msg.lower()
 
 
 def test_public_smtp_error_microsoft_basic_auth_disabled(monkeypatch):
@@ -59,8 +65,8 @@ def test_public_smtp_error_microsoft_basic_auth_disabled(monkeypatch):
             b"5.7.139 Authentication unsuccessful, basic authentication is disabled",
         )
     )
-    assert "basic auth is disabled" in msg.lower()
-    assert "resend" in msg.lower()
+    assert "still connecting to microsoft" in msg.lower()
+    assert "smtp.resend.com" in msg.lower()
 
 
 def test_public_smtp_error_outlook_host_generic_auth(monkeypatch):
@@ -72,8 +78,21 @@ def test_public_smtp_error_outlook_host_generic_auth(monkeypatch):
         lambda: SimpleNamespace(smtp_host="smtp.office365.com", smtp_port=587),
     )
     msg = email_svc._public_smtp_error(smtplib.SMTPAuthenticationError(535, b"auth fail"))
-    assert "microsoft" in msg.lower()
-    assert "app-password" in msg.lower() or "app password" in msg.lower()
+    assert "still connecting to microsoft" in msg.lower()
+    assert "office365" in msg.lower()
+
+
+def test_public_smtp_error_resend_auth(monkeypatch):
+    import smtplib
+
+    monkeypatch.setattr(
+        email_svc,
+        "get_settings",
+        lambda: SimpleNamespace(smtp_host="smtp.resend.com", smtp_port=587),
+    )
+    msg = email_svc._public_smtp_error(smtplib.SMTPAuthenticationError(535, b"Invalid login"))
+    assert "resend.com" in msg.lower()
+    assert "microsoft" not in msg.lower()
 
 
 @pytest.mark.asyncio
@@ -148,5 +167,7 @@ def test_smtp_credential_status(monkeypatch):
     )
     status = email_svc.smtp_credential_status()
     assert status["configured"] is True
+    assert status["host"] == "smtp.office365.com"
     assert status["user_set"] is True
     assert status["password_set"] is True
+    assert status["provider_hint"] == "outlook_basic_auth_deprecated"

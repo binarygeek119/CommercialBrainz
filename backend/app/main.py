@@ -50,6 +50,9 @@ async def health(response: Response):
         "email_configured": smtp["configured"],
         "email_user_set": smtp["user_set"],
         "email_password_set": smtp["password_set"],
+        "smtp_host": smtp["host"],
+        "smtp_port": smtp["port"],
+        "smtp_from": smtp["from_addr"],
     }
     if "@" in settings.database_url:
         db_host = settings.database_url.split("@")[-1].split("/")[0]

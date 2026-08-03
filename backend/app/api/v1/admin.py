@@ -396,6 +396,9 @@ async def admin_registration_settings(
         email_configured=status["configured"],
         email_user_set=status["user_set"],
         email_password_set=status["password_set"],
+        smtp_host=status["host"],
+        smtp_port=status["port"],
+        smtp_from=status["from_addr"],
     )
 
 
@@ -414,6 +417,9 @@ async def admin_set_registration_settings(
         email_configured=status["configured"],
         email_user_set=status["user_set"],
         email_password_set=status["password_set"],
+        smtp_host=status["host"],
+        smtp_port=status["port"],
+        smtp_from=status["from_addr"],
     )
 
 
