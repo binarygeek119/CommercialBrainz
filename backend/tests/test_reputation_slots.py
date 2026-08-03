@@ -38,9 +38,9 @@ async def test_count_open_submissions_ignores_companion_brand_edits():
     db.scalar = AsyncMock(return_value=1)
     used = await count_open_submissions(db, uuid4())
     assert used == 1
-    where_clause = str(db.scalar.await_args.args[0])
+    where_clause = str(db.scalar.await_args.args[0]).lower()
     # Ensure the query excludes exempt companion create types.
-    assert "not_in" in where_clause.lower() or "NOT IN" in where_clause or "notin" in where_clause.lower()
+    assert "not_in" in where_clause or "notin" in where_clause
 
 
 @pytest.mark.asyncio
