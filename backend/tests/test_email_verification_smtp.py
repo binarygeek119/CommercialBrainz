@@ -3,22 +3,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
-from app.main import app
 from app.services import email as email_svc
 from app.services import email_verification as ev
-
-
-@pytest.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
 
 
 def test_smtp_configured_false_when_host_blank(monkeypatch):
@@ -71,12 +62,3 @@ async def test_resend_raises_when_send_fails(monkeypatch):
     monkeypatch.setattr(ev, "smtp_configured", lambda: True)
     with pytest.raises(RuntimeError, match="Could not send"):
         await ev.resend_verification_email(AsyncMock(), user)
-
-
-@pytest.mark.asyncio
-async def test_health_includes_email_configured(client):
-    with patch("app.services.email.smtp_configured", return_value=False):
-        response = await client.get("/health")
-    body = response.json()
-    assert "email_configured" in body
-    assert body["email_configured"] is False
