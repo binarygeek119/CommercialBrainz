@@ -625,8 +625,17 @@ export default function AdminPage() {
                 <p className="muted" style={{ marginTop: "0.5rem" }}>
                   Edits accepted: {u.accepted_edits_count} · Submit: {u.can_submit ? "yes" : "no"} ·
                   Reputation: {u.reputation_points.toFixed(2)}
+                  {u.submission_terms_version != null
+                    ? ` · Submit terms: v${u.submission_terms_version}${
+                        u.submission_terms_accepted_at
+                          ? ` (${new Date(u.submission_terms_accepted_at).toLocaleDateString()})`
+                          : ""
+                      }`
+                    : " · Submit terms: not accepted"}
                   {u.bulk_submit_enabled ? " · Power user" : ""}
-                  {u.power_user_terms_accepted_at ? " · terms accepted" : ""}
+                  {u.power_user_terms_accepted_at
+                    ? ` · Bulk terms: v${u.power_user_terms_version ?? "?"}`
+                    : ""}
                 </p>
                 <div className="vote-buttons" style={{ marginTop: "0.75rem" }}>
                   <button type="button" className="btn btn-secondary" onClick={() => handleRole(u.id, "user")}>
