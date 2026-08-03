@@ -44,6 +44,7 @@ Start with clear YouTube uploads, accurate brand/title/year, and a short note fo
 
 - Approvals and helpful votes award small reputation increments (on the order of **0.25** points per qualifying event).
 - More reputation → more concurrent open submit slots (base slot plus extras as you earn points, up to a site maximum).
+- Proposing a new brand or catalog name with a video does **not** use an extra slot — only the video/edit submission itself does.
 
 ## Bulk submit (power users)
 

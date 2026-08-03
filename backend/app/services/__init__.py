@@ -55,10 +55,12 @@ class EditService:
         comment: str | None = None,
         force_votable: bool = False,
     ) -> Edit:
+        from app.services.reputation import SUBMIT_SLOT_EXEMPT_EDIT_TYPES
+
         is_auto = ( editor.role in (UserRole.MOD, UserRole.ADMIN)
                    or editor.is_auto_editor ) and not force_votable
 
-        if not is_auto:
+        if not is_auto and edit_type not in SUBMIT_SLOT_EXEMPT_EDIT_TYPES:
             await assert_can_submit(db, editor)
 
         expires_at = datetime.now(

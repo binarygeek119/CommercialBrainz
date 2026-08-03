@@ -37,6 +37,19 @@ VERSION_EDIT_TYPES = {
     EditType.CREATE_COMMERCIAL,
 }
 
+# Brand / catalog "propose new name" edits are created as companions during
+# video submit. They must not consume concurrent submit slots, or a new user
+# with one slot cannot submit a first commercial with a new brand.
+SUBMIT_SLOT_EXEMPT_EDIT_TYPES = frozenset(
+    {
+        EditType.CREATE_ADVERTISER,
+        EditType.CREATE_STORE,
+        EditType.CREATE_SERVICE,
+        EditType.CREATE_EVENT,
+        EditType.CREATE_HOLIDAY,
+    }
+)
+
 
 def _points_value() -> Decimal:
     return Decimal(str(settings.reputation_point_value))
@@ -66,7 +79,11 @@ async def count_open_submissions(db: AsyncSession, user_id: UUID) -> int:
     result = await db.scalar(
         select(func.count())
         .select_from(Edit)
-        .where(Edit.editor_id == user_id, Edit.status == EditStatus.OPEN)
+        .where(
+            Edit.editor_id == user_id,
+            Edit.status == EditStatus.OPEN,
+            Edit.edit_type.not_in(SUBMIT_SLOT_EXEMPT_EDIT_TYPES),
+        )
     )
     return int(result or 0)
 
