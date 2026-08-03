@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "commercialbrainz@outlook.com"
+    # True → SMTP_SSL (typical port 465). False → STARTTLS (typical port 587).
+    smtp_use_ssl: bool = False
+    smtp_timeout_sec: int = 30
     dmca_contact: str = "commercialbrainz@outlook.com"
 
     password_reset_expire_minutes: int = 60

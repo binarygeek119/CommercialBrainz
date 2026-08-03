@@ -24,6 +24,8 @@ from app.models import (
 )
 from app.schemas import (
     AdminBulkSubmitUpdate,
+    AdminEmailTestRequest,
+    AdminEmailTestResult,
     AdminFingerprintPublic,
     AdminStats,
     AdminUserActiveUpdate,
@@ -386,11 +388,14 @@ async def admin_registration_settings(
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    from app.services.email import smtp_configured
+    from app.services.email import smtp_credential_status
 
+    status = smtp_credential_status()
     return RegistrationSettingsPublic(
         invite_only=await is_registration_invite_only(db),
-        email_configured=smtp_configured(),
+        email_configured=status["configured"],
+        email_user_set=status["user_set"],
+        email_password_set=status["password_set"],
     )
 
 
@@ -400,12 +405,36 @@ async def admin_set_registration_settings(
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    from app.services.email import smtp_configured
+    from app.services.email import smtp_credential_status
 
     enabled = await set_registration_invite_only(db, data.invite_only)
+    status = smtp_credential_status()
     return RegistrationSettingsPublic(
         invite_only=enabled,
-        email_configured=smtp_configured(),
+        email_configured=status["configured"],
+        email_user_set=status["user_set"],
+        email_password_set=status["password_set"],
+    )
+
+
+@router.post("/email/test", response_model=AdminEmailTestResult)
+async def admin_test_email(
+    data: AdminEmailTestRequest,
+    admin: User = Depends(require_admin),
+):
+    """Send a one-shot SMTP probe to the admin (or an override address)."""
+    from app.services.email import EmailSendError, send_admin_test_email, smtp_credential_status
+
+    target = (data.to or admin.email).strip()
+    status = smtp_credential_status()
+    try:
+        await send_admin_test_email(target)
+    except EmailSendError as exc:
+        return AdminEmailTestResult(ok=False, message=exc.public_message, smtp=status)
+    return AdminEmailTestResult(
+        ok=True,
+        message=f"Test email sent to {target}. Check inbox and spam.",
+        smtp=status,
     )
 
 

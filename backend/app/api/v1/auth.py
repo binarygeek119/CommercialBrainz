@@ -98,11 +98,14 @@ async def _load_terms(db: AsyncSession) -> dict:
 @router.get("/registration-settings",
      response_model=RegistrationSettingsPublic)
 async def registration_settings(db: AsyncSession = Depends(get_db)):
-    from app.services.email import smtp_configured
+    from app.services.email import smtp_credential_status
 
+    status = smtp_credential_status()
     return RegistrationSettingsPublic(
         invite_only=await is_registration_invite_only(db),
-        email_configured=smtp_configured(),
+        email_configured=status["configured"],
+        email_password_set=status["password_set"],
+        email_user_set=status["user_set"],
     )
 
 
@@ -138,7 +141,22 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     await db.flush()
     if invite is not None:
         await consume_invite(db, invite)
-    await send_verification_email_for_user(db, user)
+    from app.services.email import EmailSendError
+
+    try:
+        await send_verification_email_for_user(db, user)
+    except EmailSendError as exc:
+        safe_msg = (
+            (exc.public_message or "")
+            .replace("\r", " ")
+            .replace("\n", " ")
+            .strip()[:180]
+        )
+        logger.warning(
+            "Registered user_id=%s but verification email failed: %s",
+            user.id,
+            safe_msg,
+        )
     return await user_to_public(db, user)
 
 
@@ -198,12 +216,14 @@ async def resend_verification(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_write_access),
 ):
+    from app.services.email import EmailSendError
+
     try:
         await resend_verification_email(db, user)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
+    except EmailSendError as e:
+        raise HTTPException(status_code=503, detail=e.public_message) from e
     return MessageResponse(
         message="If your email is unverified, a new verification link has been sent."
     )

@@ -37,6 +37,18 @@ class UserCreate(BaseModel):
 class RegistrationSettingsPublic(BaseModel):
     invite_only: bool
     email_configured: bool = False
+    email_user_set: bool = False
+    email_password_set: bool = False
+
+
+class AdminEmailTestRequest(BaseModel):
+    to: EmailStr | None = None
+
+
+class AdminEmailTestResult(BaseModel):
+    ok: bool
+    message: str
+    smtp: dict = Field(default_factory=dict)
 
 
 class RegistrationInviteCreate(BaseModel):
