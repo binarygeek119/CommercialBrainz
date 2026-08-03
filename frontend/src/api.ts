@@ -491,6 +491,9 @@ export interface RegistrationSettings {
   email_configured?: boolean;
   email_user_set?: boolean;
   email_password_set?: boolean;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_from?: string | null;
 }
 
 

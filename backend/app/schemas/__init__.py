@@ -39,6 +39,9 @@ class RegistrationSettingsPublic(BaseModel):
     email_configured: bool = False
     email_user_set: bool = False
     email_password_set: bool = False
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_from: str | None = None
 
 
 class AdminEmailTestRequest(BaseModel):

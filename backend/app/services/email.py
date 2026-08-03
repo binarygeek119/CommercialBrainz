@@ -72,49 +72,53 @@ def smtp_credential_status() -> dict[str, Any]:
     user = _normalize_env(settings.smtp_user)
     password = _normalize_smtp_password(settings.smtp_password)
     from_addr = _normalize_env(settings.smtp_from)
+    host_l = host.lower()
     return {
         "configured": bool(host),
+        "host": host or None,
         "host_set": bool(host),
         "user_set": bool(user),
         "password_set": bool(password),
         "from_set": bool(from_addr),
+        "from_addr": from_addr or None,
         "port": settings.smtp_port,
         "use_ssl": bool(settings.smtp_use_ssl),
         "provider_hint": (
             "outlook_basic_auth_deprecated"
-            if any(x in host.lower() for x in ("outlook", "office365", "hotmail"))
+            if any(x in host_l for x in ("outlook", "office365", "hotmail"))
             else None
         ),
     }
 
 
+def _is_microsoft_smtp_host(host: str) -> bool:
+    host_l = (host or "").lower()
+    return any(x in host_l for x in ("outlook", "office365", "hotmail", "live.com"))
+
+
 def _public_smtp_error(exc: BaseException) -> str:
     """Map SMTP failures to actionable messages (no secrets)."""
+    host = _normalize_env(get_settings().smtp_host)
     if isinstance(exc, smtplib.SMTPAuthenticationError):
         text = _smtp_exc_text(exc)
-        if (
+        microsoft_response = (
             "basic authentication is disabled" in text
             or "5.7.139" in text
-            or "modern auth" in text
-            or "oauth" in text
-        ):
+            or "authentication unsuccessful" in text and "microsoft" in text
+        )
+        if _is_microsoft_smtp_host(host) or microsoft_response:
             return (
-                "Microsoft rejected SMTP login: basic auth is disabled for this "
-                "mailbox (app passwords no longer work for Outlook.com/Hotmail). "
-                "Use a transactional SMTP provider (Resend, Brevo, Amazon SES, "
-                "SendGrid) or Gmail with an app password — see docs/cloudflare-domain.md."
-            )
-        host = _normalize_env(get_settings().smtp_host).lower()
-        if "outlook" in host or "office365" in host or "hotmail" in host:
-            return (
-                "SMTP authentication failed against Microsoft. Outlook.com personal "
-                "mailboxes no longer accept username/app-password SMTP — switch to "
-                "Resend/Brevo/SES/Gmail, or use a Microsoft 365 mailbox with "
-                "Authenticated SMTP enabled."
+                f"Still connecting to Microsoft SMTP ({host or 'unknown host'}). "
+                "Outlook.com/Hotmail reject app-password login. Set "
+                "SMTP_HOST=smtp.resend.com (or Brevo/SES), SMTP_USER=resend, "
+                "SMTP_PASSWORD=re_…, SMTP_FROM=a verified domain address, then "
+                "restart api+worker. Confirm with "
+                "`curl -s …/health | jq .smtp_host`."
             )
         return (
-            "SMTP authentication failed. Check SMTP_USER / SMTP_PASSWORD "
-            "(remove spaces from app passwords; restart api+worker after .env changes)."
+            f"SMTP authentication failed against {host or 'SMTP_HOST'}:{get_settings().smtp_port}. "
+            "Check SMTP_USER / SMTP_PASSWORD (Resend: user `resend`, password = API key), "
+            "then restart api+worker."
         )
     if isinstance(exc, smtplib.SMTPSenderRefused):
         return (
