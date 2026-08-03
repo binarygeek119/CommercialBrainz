@@ -32,10 +32,32 @@ def _normalize_env(value: str) -> str:
     return text
 
 
+def _normalize_smtp_password(value: str) -> str:
+    """Normalize SMTP passwords; Microsoft app passwords are often shown with spaces."""
+    return _normalize_env(value).replace(" ", "")
+
+
 def _log_safe(value: str, *, max_len: int = 120) -> str:
     """Collapse control chars so log lines cannot be forged via email/subject."""
     text = (value or "").replace("\r", " ").replace("\n", " ").strip()
     return text[:max_len]
+
+
+def _smtp_exc_text(exc: BaseException) -> str:
+    """Flatten SMTP exception payload for matching (no secrets expected)."""
+    parts: list[str] = [str(exc)]
+    args = getattr(exc, "args", ()) or ()
+    for arg in args:
+        if isinstance(arg, bytes):
+            parts.append(arg.decode("utf-8", errors="replace"))
+        else:
+            parts.append(str(arg))
+    smtp_error = getattr(exc, "smtp_error", None)
+    if isinstance(smtp_error, bytes):
+        parts.append(smtp_error.decode("utf-8", errors="replace"))
+    elif smtp_error is not None:
+        parts.append(str(smtp_error))
+    return " ".join(parts).lower()
 
 
 def smtp_configured() -> bool:
@@ -48,7 +70,7 @@ def smtp_credential_status() -> dict[str, Any]:
     settings = get_settings()
     host = _normalize_env(settings.smtp_host)
     user = _normalize_env(settings.smtp_user)
-    password = _normalize_env(settings.smtp_password)
+    password = _normalize_smtp_password(settings.smtp_password)
     from_addr = _normalize_env(settings.smtp_from)
     return {
         "configured": bool(host),
@@ -58,15 +80,41 @@ def smtp_credential_status() -> dict[str, Any]:
         "from_set": bool(from_addr),
         "port": settings.smtp_port,
         "use_ssl": bool(settings.smtp_use_ssl),
+        "provider_hint": (
+            "outlook_basic_auth_deprecated"
+            if any(x in host.lower() for x in ("outlook", "office365", "hotmail"))
+            else None
+        ),
     }
 
 
 def _public_smtp_error(exc: BaseException) -> str:
     """Map SMTP failures to actionable messages (no secrets)."""
     if isinstance(exc, smtplib.SMTPAuthenticationError):
+        text = _smtp_exc_text(exc)
+        if (
+            "basic authentication is disabled" in text
+            or "5.7.139" in text
+            or "modern auth" in text
+            or "oauth" in text
+        ):
+            return (
+                "Microsoft rejected SMTP login: basic auth is disabled for this "
+                "mailbox (app passwords no longer work for Outlook.com/Hotmail). "
+                "Use a transactional SMTP provider (Resend, Brevo, Amazon SES, "
+                "SendGrid) or Gmail with an app password — see docs/cloudflare-domain.md."
+            )
+        host = _normalize_env(get_settings().smtp_host).lower()
+        if "outlook" in host or "office365" in host or "hotmail" in host:
+            return (
+                "SMTP authentication failed against Microsoft. Outlook.com personal "
+                "mailboxes no longer accept username/app-password SMTP — switch to "
+                "Resend/Brevo/SES/Gmail, or use a Microsoft 365 mailbox with "
+                "Authenticated SMTP enabled."
+            )
         return (
             "SMTP authentication failed. Check SMTP_USER / SMTP_PASSWORD "
-            "(Outlook often needs an app password, and Authenticated SMTP enabled)."
+            "(remove spaces from app passwords; restart api+worker after .env changes)."
         )
     if isinstance(exc, smtplib.SMTPSenderRefused):
         return (
@@ -100,7 +148,7 @@ def _send_email_sync(to: str, subject: str, body: str) -> None:
         )
 
     user = _normalize_env(settings.smtp_user)
-    password = _normalize_env(settings.smtp_password)
+    password = _normalize_smtp_password(settings.smtp_password)
     from_addr = _normalize_env(settings.smtp_from) or user
     if not from_addr:
         raise EmailSendError("SMTP_FROM (or SMTP_USER) must be set to send mail.")
