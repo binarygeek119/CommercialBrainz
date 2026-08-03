@@ -11,19 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import EmailVerificationToken, User
-from app.services.email import send_verification_email
+from app.services.email import send_verification_email, smtp_configured
 from app.services.password_reset import hash_reset_token
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 async def send_verification_email_for_user(
-    db: AsyncSession, user: User) -> None:
-    """Create verification token and email link. No-op if already verified."""
+    db: AsyncSession, user: User
+) -> bool:
+    """Create verification token and email link. Returns True if email was sent."""
     if user.email_verified:
-        return
+        return True
 
+    settings = get_settings()
     await db.execute(
         delete(EmailVerificationToken).where(
             EmailVerificationToken.user_id == user.id,
@@ -45,11 +46,14 @@ async def send_verification_email_for_user(
     verify_url = f"{base}/verify-email?token={raw_token}"
     sent = await send_verification_email(user.email, user.username, verify_url)
     if not sent:
+        reason = "not configured" if not smtp_configured() else "send failed"
         logger.warning(
-            "Verification email not sent (SMTP unavailable). Verify link for %s: %s",
+            "Verification email not sent (SMTP %s). Verify link for %s: %s",
+            reason,
             user.email,
             verify_url,
         )
+    return sent
 
 
 async def verify_email_with_token(db: AsyncSession, raw_token: str) -> User:
@@ -82,4 +86,13 @@ async def verify_email_with_token(db: AsyncSession, raw_token: str) -> User:
 async def resend_verification_email(db: AsyncSession, user: User) -> None:
     if user.email_verified:
         raise ValueError("Email is already verified")
-    await send_verification_email_for_user(db, user)
+    sent = await send_verification_email_for_user(db, user)
+    if not sent:
+        if not smtp_configured():
+            raise RuntimeError(
+                "Email delivery is not configured on this server. "
+                "Set SMTP_HOST (and credentials) in the app .env, then restart the API."
+            )
+        raise RuntimeError(
+            "Could not send the verification email. Try again later or contact an admin."
+        )

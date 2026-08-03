@@ -5,16 +5,22 @@ from email.message import EmailMessage
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
+
+
+def smtp_configured() -> bool:
+    """True when SMTP_HOST is set (outbound email can be attempted)."""
+    return bool(get_settings().smtp_host.strip())
 
 
 async def send_email(to: str, subject: str, body: str) -> bool:
     """Send email if SMTP is configured. Returns True on success."""
-    if not settings.smtp_host:
+    settings = get_settings()
+    if not settings.smtp_host.strip():
         logger.info(
-    "SMTP not configured; skipping email to %s: %s",
-    to,
-     subject)
+            "SMTP not configured; skipping email to %s: %s",
+            to,
+            subject,
+        )
         return False
 
     msg = EmailMessage()
@@ -36,6 +42,7 @@ async def send_email(to: str, subject: str, body: str) -> bool:
 
 
 async def notify_dmca_submitted(claimant_email: str, video_id: str) -> None:
+    settings = get_settings()
     await send_email(
         claimant_email,
         "CommercialBrainz DMCA Notice Received",
@@ -51,7 +58,8 @@ async def notify_dmca_submitted(claimant_email: str, video_id: str) -> None:
 async def notify_dmca_decision(
     claimant_email: str,
     video_id: str,
-     status: str) -> None:
+    status: str,
+) -> None:
     await send_email(
         claimant_email,
         f"CommercialBrainz DMCA Decision: {status}",
@@ -62,7 +70,9 @@ async def notify_dmca_decision(
 async def send_password_reset_email(
     to: str,
     username: str,
-     reset_url: str) -> bool:
+    reset_url: str,
+) -> bool:
+    settings = get_settings()
     minutes = settings.password_reset_expire_minutes
     body = (
         f"Hello {username},\n\n"
@@ -79,6 +89,7 @@ async def send_verification_email(
     username: str,
     verify_url: str,
 ) -> bool:
+    settings = get_settings()
     hours = settings.email_verification_expire_minutes // 60
     if hours:
         expiry = f"{hours} hours"

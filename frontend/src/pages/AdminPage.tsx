@@ -758,6 +758,14 @@ export default function AdminPage() {
               />
               <span>Require invite code to register</span>
             </label>
+            <p className="muted" style={{ fontSize: "0.9rem" }}>
+              Outbound email (verification / password reset):{" "}
+              {registrationSettings?.email_configured ? (
+                <span className="success">configured</span>
+              ) : (
+                <span className="error">not configured — set SMTP_* on the VM .env</span>
+              )}
+            </p>
             {inviteError && <p className="error">{inviteError}</p>}
           </div>
 

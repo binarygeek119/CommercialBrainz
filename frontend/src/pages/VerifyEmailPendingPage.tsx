@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { useAuth } from "../auth";
 
@@ -8,6 +9,11 @@ export default function VerifyEmailPendingPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { data: registrationSettings } = useQuery({
+    queryKey: ["registration-settings"],
+    queryFn: () => api.registrationSettings(),
+  });
+  const emailConfigured = registrationSettings?.email_configured ?? true;
 
   const handleResend = async () => {
     setError("");
@@ -64,13 +70,28 @@ export default function VerifyEmailPendingPage() {
     <div style={{ maxWidth: 480, margin: "2rem auto" }}>
       <h1 className="page-title">Check your email</h1>
       <div className="card">
-        <p>
-          We sent a verification link to <strong>{user.email}</strong>.
-        </p>
-        <p className="muted">
-          Verify your email to vote on edits and submit commercial links. You can browse the site
-          while you wait.
-        </p>
+        {emailConfigured ? (
+          <>
+            <p>
+              We sent a verification link to <strong>{user.email}</strong>.
+            </p>
+            <p className="muted">
+              Check your inbox and spam folder. Verify your email to vote on edits and submit
+              commercial links. You can browse the site while you wait.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="error" style={{ marginTop: 0 }}>
+              Email delivery is not configured on this server yet, so verification messages may not
+              arrive.
+            </p>
+            <p>
+              Your account <strong>{user.email}</strong> is registered but unverified. An admin needs
+              to set <code>SMTP_HOST</code> (and credentials) on the VM, then you can resend.
+            </p>
+          </>
+        )}
         {error && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "1rem" }}>
