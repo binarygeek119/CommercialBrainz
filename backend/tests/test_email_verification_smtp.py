@@ -10,6 +10,7 @@ import pytest
 
 from app.services import email as email_svc
 from app.services import email_verification as ev
+from app.services.email import EmailSendError
 
 
 def test_smtp_configured_false_when_host_blank(monkeypatch):
@@ -30,6 +31,19 @@ def test_smtp_configured_true_when_host_set(monkeypatch):
     assert email_svc.smtp_configured() is True
 
 
+def test_normalize_env_removes_quotes():
+    assert email_svc._normalize_env('  "secret"  ') == "secret"
+    assert email_svc._normalize_env("'secret'") == "secret"
+    assert email_svc._log_safe("a\nb\rc") == "a b c"
+
+
+def test_public_smtp_error_auth():
+    import smtplib
+
+    msg = email_svc._public_smtp_error(smtplib.SMTPAuthenticationError(535, b"fail"))
+    assert "authentication failed" in msg.lower()
+
+
 @pytest.mark.asyncio
 async def test_send_email_skips_without_host(monkeypatch):
     monkeypatch.setattr(
@@ -41,24 +55,66 @@ async def test_send_email_skips_without_host(monkeypatch):
             smtp_user="",
             smtp_password="",
             smtp_from="noreply@example.com",
+            smtp_use_ssl=False,
+            smtp_timeout_sec=30,
         ),
     )
     assert await email_svc.send_email("a@b.c", "subj", "body") is False
 
 
 @pytest.mark.asyncio
-async def test_resend_raises_when_smtp_unavailable(monkeypatch):
+async def test_send_email_raises_when_password_missing(monkeypatch):
+    monkeypatch.setattr(
+        email_svc,
+        "get_settings",
+        lambda: SimpleNamespace(
+            smtp_host="smtp.example.com",
+            smtp_port=587,
+            smtp_user="user@example.com",
+            smtp_password="",
+            smtp_from="user@example.com",
+            smtp_use_ssl=False,
+            smtp_timeout_sec=30,
+        ),
+    )
+    with pytest.raises(EmailSendError, match="SMTP_PASSWORD"):
+        await email_svc.send_email("a@b.c", "subj", "body")
+
+
+@pytest.mark.asyncio
+async def test_resend_raises_email_send_error(monkeypatch):
     user = SimpleNamespace(id=uuid4(), email_verified=False, email="a@b.c", username="u")
-    monkeypatch.setattr(ev, "send_verification_email_for_user", AsyncMock(return_value=False))
-    monkeypatch.setattr(ev, "smtp_configured", lambda: False)
-    with pytest.raises(RuntimeError, match="not configured"):
+    monkeypatch.setattr(
+        ev,
+        "send_verification_email_for_user",
+        AsyncMock(side_effect=EmailSendError("SMTP authentication failed.")),
+    )
+    with pytest.raises(EmailSendError, match="authentication failed"):
         await ev.resend_verification_email(AsyncMock(), user)
 
 
 @pytest.mark.asyncio
-async def test_resend_raises_when_send_fails(monkeypatch):
+async def test_resend_raises_when_smtp_unset(monkeypatch):
     user = SimpleNamespace(id=uuid4(), email_verified=False, email="a@b.c", username="u")
     monkeypatch.setattr(ev, "send_verification_email_for_user", AsyncMock(return_value=False))
-    monkeypatch.setattr(ev, "smtp_configured", lambda: True)
-    with pytest.raises(RuntimeError, match="Could not send"):
+    with pytest.raises(EmailSendError, match="not configured"):
         await ev.resend_verification_email(AsyncMock(), user)
+
+
+def test_smtp_credential_status(monkeypatch):
+    monkeypatch.setattr(
+        email_svc,
+        "get_settings",
+        lambda: SimpleNamespace(
+            smtp_host="smtp.office365.com",
+            smtp_port=587,
+            smtp_user="a@b.c",
+            smtp_password="x",
+            smtp_from="a@b.c",
+            smtp_use_ssl=False,
+        ),
+    )
+    status = email_svc.smtp_credential_status()
+    assert status["configured"] is True
+    assert status["user_set"] is True
+    assert status["password_set"] is True

@@ -170,7 +170,17 @@ sudo docker compose --env-file infra/compose.env \
   up -d api worker
 ```
 
-Confirm with `curl -s https://commercialbrainz.org/health | jq .email_configured` → `true`.
+Confirm with `curl -s https://commercialbrainz.org/health | jq '{email_configured,email_user_set,email_password_set}'`
+— all three should be usable (`email_configured` / `email_user_set` / `email_password_set` true).
+
+If resend still fails with an authentication error:
+
+1. Prefer an **app password** (Microsoft account → Security → App passwords), not the normal login password.
+2. In Microsoft 365 admin (work/school) enable **Authenticated SMTP** for the mailbox.
+3. Keep `SMTP_FROM` equal to `SMTP_USER` (or an allowed send-as alias).
+4. Try `SMTP_HOST=smtp-mail.outlook.com` for personal Outlook/Hotmail.
+5. As admin, open **Admin → Registration → Send test email to me** — the UI shows the SMTP error text.
+6. Check API logs: `docker compose ... logs api --tail=100 | grep -i smtp`
 
 Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounted at `/etc/caddy/certs`).  
 `fix-gcloud-vm.sh` regenerates the Caddyfile from `DOMAIN` + `DOMAIN_ALIASES` + `CADDY_TLS_MODE` on each deploy.

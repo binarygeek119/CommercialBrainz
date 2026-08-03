@@ -62,6 +62,9 @@ export default function AdminPage() {
   const [costNote, setCostNote] = useState("");
   const [fundsError, setFundsError] = useState("");
   const [fundsLoading, setFundsLoading] = useState(false);
+  const [emailTestLoading, setEmailTestLoading] = useState(false);
+  const [emailTestMessage, setEmailTestMessage] = useState("");
+  const [emailTestError, setEmailTestError] = useState("");
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -199,6 +202,25 @@ export default function AdminPage() {
       setInviteError((err as Error).message);
     } finally {
       setSettingsLoading(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    setEmailTestLoading(true);
+    setEmailTestError("");
+    setEmailTestMessage("");
+    try {
+      const result = await api.adminTestEmail();
+      if (result.ok) {
+        setEmailTestMessage(result.message);
+      } else {
+        setEmailTestError(result.message);
+      }
+      await refetchRegistrationSettings();
+    } catch (err) {
+      setEmailTestError((err as Error).message);
+    } finally {
+      setEmailTestLoading(false);
     }
   };
 
@@ -761,11 +783,30 @@ export default function AdminPage() {
             <p className="muted" style={{ fontSize: "0.9rem" }}>
               Outbound email (verification / password reset):{" "}
               {registrationSettings?.email_configured ? (
-                <span className="success">configured</span>
+                <span className="success">host set</span>
               ) : (
                 <span className="error">not configured — set SMTP_* on the VM .env</span>
               )}
+              {registrationSettings?.email_configured ? (
+                <>
+                  {" · "}
+                  user {registrationSettings.email_user_set ? "set" : "missing"}
+                  {" · "}
+                  password {registrationSettings.email_password_set ? "set" : "missing"}
+                </>
+              ) : null}
             </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: "0.5rem" }}
+              disabled={emailTestLoading}
+              onClick={() => void handleTestEmail()}
+            >
+              {emailTestLoading ? "Sending…" : "Send test email to me"}
+            </button>
+            {emailTestError && <p className="error">{emailTestError}</p>}
+            {emailTestMessage && <p className="success">{emailTestMessage}</p>}
             {inviteError && <p className="error">{inviteError}</p>}
           </div>
 
