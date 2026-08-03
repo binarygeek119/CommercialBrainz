@@ -40,7 +40,14 @@ app.include_router(api_router)
 
 @app.get("/health")
 async def health(response: Response):
-    payload: dict = {"status": "ok", "app": settings.app_name, "database": "unknown"}
+    from app.services.email import smtp_configured
+
+    payload: dict = {
+        "status": "ok",
+        "app": settings.app_name,
+        "database": "unknown",
+        "email_configured": smtp_configured(),
+    }
     if "@" in settings.database_url:
         db_host = settings.database_url.split("@")[-1].split("/")[0]
     else:

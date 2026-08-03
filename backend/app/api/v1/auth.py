@@ -98,7 +98,12 @@ async def _load_terms(db: AsyncSession) -> dict:
 @router.get("/registration-settings",
      response_model=RegistrationSettingsPublic)
 async def registration_settings(db: AsyncSession = Depends(get_db)):
-    return RegistrationSettingsPublic(invite_only=await is_registration_invite_only(db))
+    from app.services.email import smtp_configured
+
+    return RegistrationSettingsPublic(
+        invite_only=await is_registration_invite_only(db),
+        email_configured=smtp_configured(),
+    )
 
 
 @router.post("/register", response_model=UserPublic,
@@ -197,8 +202,11 @@ async def resend_verification(
         await resend_verification_email(db, user)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     return MessageResponse(
-    message="If your email is unverified, a new verification link has been sent.")
+        message="If your email is unverified, a new verification link has been sent."
+    )
 
 
 @router.get("/me", response_model=UserPublic)

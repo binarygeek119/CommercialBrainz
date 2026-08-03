@@ -488,6 +488,7 @@ export interface BackgroundTasksStatus {
 
 export interface RegistrationSettings {
   invite_only: boolean;
+  email_configured?: boolean;
 }
 
 export interface MaintenanceWindow {
