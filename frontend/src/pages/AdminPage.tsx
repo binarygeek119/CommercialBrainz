@@ -625,17 +625,36 @@ export default function AdminPage() {
                 <p className="muted" style={{ marginTop: "0.5rem" }}>
                   Edits accepted: {u.accepted_edits_count} · Submit: {u.can_submit ? "yes" : "no"} ·
                   Reputation: {u.reputation_points.toFixed(2)}
-                  {u.submission_terms_version != null
-                    ? ` · Submit terms: v${u.submission_terms_version}${
-                        u.submission_terms_accepted_at
-                          ? ` (${new Date(u.submission_terms_accepted_at).toLocaleDateString()})`
-                          : ""
-                      }`
-                    : " · Submit terms: not accepted"}
-                  {u.bulk_submit_enabled ? " · Power user" : ""}
-                  {u.power_user_terms_accepted_at
-                    ? ` · Bulk terms: v${u.power_user_terms_version ?? "?"}`
-                    : ""}
+                </p>
+                <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.9rem" }}>
+                  Submit terms:{" "}
+                  {u.submission_terms_version != null ? (
+                    <>
+                      accepted (v{u.submission_terms_version}
+                      {u.submission_terms_accepted_at
+                        ? `, ${new Date(u.submission_terms_accepted_at).toLocaleDateString()}`
+                        : ""}
+                      )
+                    </>
+                  ) : (
+                    "not accepted"
+                  )}
+                  {u.bulk_submit_enabled && (
+                    <>
+                      {" · "}Power user terms:{" "}
+                      {u.power_user_terms_version != null || u.power_user_terms_accepted_at ? (
+                        <>
+                          accepted (v{u.power_user_terms_version ?? "?"}
+                          {u.power_user_terms_accepted_at
+                            ? `, ${new Date(u.power_user_terms_accepted_at).toLocaleDateString()}`
+                            : ""}
+                          )
+                        </>
+                      ) : (
+                        "not accepted"
+                      )}
+                    </>
+                  )}
                 </p>
                 <div className="vote-buttons" style={{ marginTop: "0.75rem" }}>
                   <button type="button" className="btn btn-secondary" onClick={() => handleRole(u.id, "user")}>
