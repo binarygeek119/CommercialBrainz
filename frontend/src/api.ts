@@ -489,7 +489,10 @@ export interface BackgroundTasksStatus {
 export interface RegistrationSettings {
   invite_only: boolean;
   email_configured?: boolean;
+  email_user_set?: boolean;
+  email_password_set?: boolean;
 }
+
 
 export interface MaintenanceWindow {
   id: string;
@@ -1508,6 +1511,12 @@ export const api = {
     request<RegistrationSettings>("/admin/registration-settings", {
       method: "POST",
       body: JSON.stringify({ invite_only: inviteOnly }),
+    }),
+
+  adminTestEmail: (to?: string) =>
+    request<{ ok: boolean; message: string; smtp: Record<string, unknown> }>("/admin/email/test", {
+      method: "POST",
+      body: JSON.stringify(to ? { to } : {}),
     }),
 
   adminInvites: () => request<Paginated<RegistrationInvite>>("/admin/invites"),
