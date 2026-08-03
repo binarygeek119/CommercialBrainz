@@ -150,6 +150,28 @@ API_PUBLIC_URL=https://commercialbrainz.org
 CORS_ORIGINS=https://commercialbrainz.org,https://www.commercialbrainz.org
 ```
 
+Also set outbound mail (verification / password reset / DMCA) or users will never receive links:
+
+```env
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=commercialbrainz@outlook.com
+SMTP_PASSWORD=...app-password...
+SMTP_FROM=commercialbrainz@outlook.com
+DMCA_CONTACT=commercialbrainz@outlook.com
+```
+
+Then restart API/worker so settings reload:
+
+```bash
+cd /opt/commercialbrainz
+sudo docker compose --env-file infra/compose.env \
+  -f infra/docker-compose.yml -f infra/docker-compose.vm.yml \
+  up -d api worker
+```
+
+Confirm with `curl -s https://commercialbrainz.org/health | jq .email_configured` → `true`.
+
 Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounted at `/etc/caddy/certs`).  
 `fix-gcloud-vm.sh` regenerates the Caddyfile from `DOMAIN` + `DOMAIN_ALIASES` + `CADDY_TLS_MODE` on each deploy.
 

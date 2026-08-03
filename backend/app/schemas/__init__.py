@@ -36,6 +36,7 @@ class UserCreate(BaseModel):
 
 class RegistrationSettingsPublic(BaseModel):
     invite_only: bool
+    email_configured: bool = False
 
 
 class RegistrationInviteCreate(BaseModel):

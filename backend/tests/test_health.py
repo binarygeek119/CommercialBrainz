@@ -15,7 +15,10 @@ async def client():
 async def test_health(client):
     response = await client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "email_configured" in body
+    assert isinstance(body["email_configured"], bool)
 
 
 @pytest.mark.asyncio

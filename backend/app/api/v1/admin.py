@@ -386,7 +386,12 @@ async def admin_registration_settings(
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    return RegistrationSettingsPublic(invite_only=await is_registration_invite_only(db))
+    from app.services.email import smtp_configured
+
+    return RegistrationSettingsPublic(
+        invite_only=await is_registration_invite_only(db),
+        email_configured=smtp_configured(),
+    )
 
 
 @router.post("/registration-settings", response_model=RegistrationSettingsPublic)
@@ -395,8 +400,13 @@ async def admin_set_registration_settings(
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
+    from app.services.email import smtp_configured
+
     enabled = await set_registration_invite_only(db, data.invite_only)
-    return RegistrationSettingsPublic(invite_only=enabled)
+    return RegistrationSettingsPublic(
+        invite_only=enabled,
+        email_configured=smtp_configured(),
+    )
 
 
 @router.get("/invites", response_model=PaginatedResponse)
