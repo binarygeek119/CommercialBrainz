@@ -332,7 +332,13 @@ export default function SubmitPage() {
               },
             }
       );
-      navigate(`/edits/${edit.id}`);
+      navigate(`/edits/${edit.id}`, {
+        state: {
+          justSubmitted: true,
+          message:
+            "Submitted for community review. It will not appear in the video catalog until the edit is approved.",
+        },
+      });
       await refresh();
     } catch (err) {
       setError((err as Error).message);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth, isMod } from "../auth";
 import { api } from "../api";
@@ -17,10 +17,15 @@ import { formatLogoContext } from "../utils/brandLogos";
 
 export default function EditDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState("");
   const [voteComment, setVoteComment] = useState("");
+  const justSubmittedMessage =
+    (location.state as { justSubmitted?: boolean; message?: string } | null)?.justSubmitted
+      ? (location.state as { message?: string }).message
+      : null;
 
   const { data: edit, isLoading } = useQuery({
     queryKey: ["edit", id],
@@ -66,6 +71,11 @@ export default function EditDetailPage() {
   return (
     <div>
       <h1 className="page-title">Edit #{edit.id.slice(0, 8)}</h1>
+      {justSubmittedMessage && (
+        <div className="card" style={{ marginBottom: "1rem", borderColor: "var(--success)" }}>
+          <p style={{ margin: 0 }}>{justSubmittedMessage}</p>
+        </div>
+      )}
       <div className="card">
         <div className="flex-between">
           <span className={`badge badge-${edit.status === "open" ? "open" : edit.status}`}>
