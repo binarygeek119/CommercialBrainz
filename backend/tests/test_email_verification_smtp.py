@@ -31,9 +31,10 @@ def test_smtp_configured_true_when_host_set(monkeypatch):
     assert email_svc.smtp_configured() is True
 
 
-def test_strip_secret_removes_quotes():
-    assert email_svc._strip_secret('  "secret"  ') == "secret"
-    assert email_svc._strip_secret("'secret'") == "secret"
+def test_normalize_env_removes_quotes():
+    assert email_svc._normalize_env('  "secret"  ') == "secret"
+    assert email_svc._normalize_env("'secret'") == "secret"
+    assert email_svc._log_safe("a\nb\rc") == "a b c"
 
 
 def test_public_smtp_error_auth():

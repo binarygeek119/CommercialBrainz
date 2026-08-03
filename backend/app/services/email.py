@@ -24,7 +24,7 @@ class EmailSendError(Exception):
         super().__init__(public_message)
 
 
-def _strip_secret(value: str) -> str:
+def _normalize_env(value: str) -> str:
     """Normalize .env values that may be wrapped in quotes or padded."""
     text = (value or "").strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
@@ -32,18 +32,24 @@ def _strip_secret(value: str) -> str:
     return text
 
 
+def _log_safe(value: str, *, max_len: int = 120) -> str:
+    """Collapse control chars so log lines cannot be forged via email/subject."""
+    text = (value or "").replace("\r", " ").replace("\n", " ").strip()
+    return text[:max_len]
+
+
 def smtp_configured() -> bool:
     """True when SMTP_HOST is set (outbound email can be attempted)."""
-    return bool(_strip_secret(get_settings().smtp_host))
+    return bool(_normalize_env(get_settings().smtp_host))
 
 
 def smtp_credential_status() -> dict[str, Any]:
     """Non-secret SMTP readiness flags for health / admin UI."""
     settings = get_settings()
-    host = _strip_secret(settings.smtp_host)
-    user = _strip_secret(settings.smtp_user)
-    password = _strip_secret(settings.smtp_password)
-    from_addr = _strip_secret(settings.smtp_from)
+    host = _normalize_env(settings.smtp_host)
+    user = _normalize_env(settings.smtp_user)
+    password = _normalize_env(settings.smtp_password)
+    from_addr = _normalize_env(settings.smtp_from)
     return {
         "configured": bool(host),
         "host_set": bool(host),
@@ -86,16 +92,16 @@ def _public_smtp_error(exc: BaseException) -> str:
 
 def _send_email_sync(to: str, subject: str, body: str) -> None:
     settings = get_settings()
-    host = _strip_secret(settings.smtp_host)
+    host = _normalize_env(settings.smtp_host)
     if not host:
         raise EmailSendError(
             "Email delivery is not configured on this server. "
             "Set SMTP_HOST (and credentials) in the app .env, then restart the API."
         )
 
-    user = _strip_secret(settings.smtp_user)
-    password = _strip_secret(settings.smtp_password)
-    from_addr = _strip_secret(settings.smtp_from) or user
+    user = _normalize_env(settings.smtp_user)
+    password = _normalize_env(settings.smtp_password)
+    from_addr = _normalize_env(settings.smtp_from) or user
     if not from_addr:
         raise EmailSendError("SMTP_FROM (or SMTP_USER) must be set to send mail.")
 
@@ -137,7 +143,10 @@ def _send_email_sync(to: str, subject: str, body: str) -> None:
     except Exception as exc:
         public = _public_smtp_error(exc)
         logger.exception(
-            "Failed to send email to %s via %s:%s", to, host, settings.smtp_port
+            "Failed to send email to %s via %s:%s",
+            _log_safe(to),
+            _log_safe(host),
+            settings.smtp_port,
         )
         raise EmailSendError(public, detail=str(exc)) from exc
 
@@ -152,8 +161,8 @@ async def send_email(to: str, subject: str, body: str) -> bool:
     if not smtp_configured():
         logger.info(
             "SMTP not configured; skipping email to %s: %s",
-            to,
-            subject,
+            _log_safe(to),
+            _log_safe(subject),
         )
         return False
     await asyncio.to_thread(_send_email_sync, to, subject, body)
@@ -170,7 +179,10 @@ async def notify_dmca_submitted(claimant_email: str, video_id: str) -> None:
             "has been received and is under review.",
         )
     except EmailSendError:
-        logger.warning("DMCA claimant notification email failed for %s", claimant_email)
+        logger.warning(
+            "DMCA claimant notification email failed for %s",
+            _log_safe(claimant_email),
+        )
     try:
         await send_email(
             settings.dmca_contact,
@@ -193,7 +205,10 @@ async def notify_dmca_decision(
             f"Your DMCA request for video {video_id} has been updated to status: {status}.",
         )
     except EmailSendError:
-        logger.warning("DMCA decision email failed for %s", claimant_email)
+        logger.warning(
+            "DMCA decision email failed for %s",
+            _log_safe(claimant_email),
+        )
 
 
 async def send_password_reset_email(
@@ -213,7 +228,7 @@ async def send_password_reset_email(
     try:
         return await send_email(to, "Reset your CommercialBrainz password", body)
     except EmailSendError:
-        logger.warning("Password reset email failed for %s", to)
+        logger.warning("Password reset email failed for %s", _log_safe(to))
         return False
 
 

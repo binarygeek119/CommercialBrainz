@@ -51,16 +51,14 @@ async def send_verification_email_for_user(
         sent = await send_verification_email(user.email, user.username, verify_url)
     except EmailSendError:
         logger.warning(
-            "Verification email send failed for %s. Token link (admin logs): %s",
-            user.email,
-            verify_url,
+            "Verification email send failed for user_id=%s",
+            user.id,
         )
         raise
     if not sent:
         logger.warning(
-            "Verification email not sent (SMTP not configured). Verify link for %s: %s",
-            user.email,
-            verify_url,
+            "Verification email not sent (SMTP not configured) for user_id=%s",
+            user.id,
         )
     return sent
 

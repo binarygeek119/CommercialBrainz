@@ -146,10 +146,16 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     try:
         await send_verification_email_for_user(db, user)
     except EmailSendError as exc:
+        safe_msg = (
+            (exc.public_message or "")
+            .replace("\r", " ")
+            .replace("\n", " ")
+            .strip()[:180]
+        )
         logger.warning(
-            "Registered %s but verification email failed: %s",
-            user.email,
-            exc.public_message,
+            "Registered user_id=%s but verification email failed: %s",
+            user.id,
+            safe_msg,
         )
     return await user_to_public(db, user)
 
