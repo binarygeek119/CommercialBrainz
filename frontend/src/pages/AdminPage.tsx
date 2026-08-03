@@ -796,6 +796,18 @@ export default function AdminPage() {
                 </>
               ) : null}
             </p>
+            {registrationSettings?.smtp_host ? (
+              <p className="muted" style={{ fontSize: "0.85rem" }}>
+                Live SMTP: {registrationSettings.smtp_host}:{registrationSettings.smtp_port ?? 587}
+                {registrationSettings.smtp_from ? ` · from ${registrationSettings.smtp_from}` : ""}
+                {/outlook|office365|hotmail/i.test(registrationSettings.smtp_host) ? (
+                  <span className="error">
+                    {" "}
+                    — still Outlook; change SMTP_HOST to smtp.resend.com and restart api+worker
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
             <p className="muted" style={{ fontSize: "0.85rem" }}>
               Outlook.com / Hotmail personal mailboxes reject app-password SMTP now. Prefer
               Resend, Brevo, SES, SendGrid, or Gmail — see docs/cloudflare-domain.md.

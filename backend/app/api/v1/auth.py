@@ -106,6 +106,9 @@ async def registration_settings(db: AsyncSession = Depends(get_db)):
         email_configured=status["configured"],
         email_password_set=status["password_set"],
         email_user_set=status["user_set"],
+        smtp_host=status["host"],
+        smtp_port=status["port"],
+        smtp_from=status["from_addr"],
     )
 
 

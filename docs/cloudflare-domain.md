@@ -182,15 +182,21 @@ sudo docker compose --env-file infra/compose.env \
   up -d api worker
 ```
 
-Confirm with `curl -s https://commercialbrainz.org/health | jq '{email_configured,email_user_set,email_password_set}'`
-— all three should be usable (`email_configured` / `email_user_set` / `email_password_set` true).
+Confirm with:
+```bash
+curl -s https://commercialbrainz.org/health | jq '{email_configured,email_user_set,email_password_set,smtp_host,smtp_from}'
+```
+`smtp_host` must be `smtp.resend.com` (or Brevo/SES) — if it still shows `smtp-mail.outlook.com`,
+the VM `.env` was not updated or api/worker were not restarted.
 
 If send still fails:
 
 1. Confirm you are **not** pointing `SMTP_HOST` at `smtp-mail.outlook.com` / `smtp.office365.com` for a personal mailbox.
-2. Paste the app password **without spaces** (the app strips spaces, but avoid quotes/newlines in `.env`).
-3. As admin, open **Admin → Registration → Send test email to me** — the UI shows the SMTP error text.
-4. Check API logs: `docker compose ... logs api --tail=100 | grep -i smtp`
+2. Resend: `SMTP_USER=resend` and `SMTP_PASSWORD` = the API key (`re_…`). `SMTP_FROM` must be on a Resend-verified domain.
+3. Edit `/opt/commercialbrainz/.env` (that is what Docker loads), then restart:
+   `sudo docker compose --env-file infra/compose.env -f infra/docker-compose.yml -f infra/docker-compose.vm.yml up -d api worker`
+4. As admin, open **Admin → Registration** — it shows the live SMTP host — then **Send test email to me**.
+5. Check API logs: `docker compose ... logs api --tail=100 | grep -i smtp`
 
 Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounted at `/etc/caddy/certs`).  
 `fix-gcloud-vm.sh` regenerates the Caddyfile from `DOMAIN` + `DOMAIN_ALIASES` + `CADDY_TLS_MODE` on each deploy.
