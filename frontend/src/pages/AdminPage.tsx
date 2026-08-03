@@ -796,6 +796,10 @@ export default function AdminPage() {
                 </>
               ) : null}
             </p>
+            <p className="muted" style={{ fontSize: "0.85rem" }}>
+              Outlook.com / Hotmail personal mailboxes reject app-password SMTP now. Prefer
+              Resend, Brevo, SES, SendGrid, or Gmail — see docs/cloudflare-domain.md.
+            </p>
             <button
               type="button"
               className="btn btn-secondary"

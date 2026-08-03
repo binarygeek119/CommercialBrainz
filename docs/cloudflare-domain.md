@@ -150,16 +150,28 @@ API_PUBLIC_URL=https://commercialbrainz.org
 CORS_ORIGINS=https://commercialbrainz.org,https://www.commercialbrainz.org
 ```
 
-Also set outbound mail (verification / password reset / DMCA) or users will never receive links:
+Also set outbound mail (verification / password reset / DMCA) or users will never receive links.
+
+**Do not use Outlook.com / Hotmail personal + app password for SMTP.** Microsoft has disabled
+basic authentication for those mailboxes; app passwords still fail with
+`5.7.139 … basic authentication is disabled`. Use a transactional SMTP provider instead:
 
 ```env
-SMTP_HOST=smtp.office365.com
+# Example: Resend (https://resend.com) — verify your domain, then:
+SMTP_HOST=smtp.resend.com
 SMTP_PORT=587
-SMTP_USER=commercialbrainz@outlook.com
-SMTP_PASSWORD=...app-password...
-SMTP_FROM=commercialbrainz@outlook.com
-DMCA_CONTACT=commercialbrainz@outlook.com
+SMTP_USER=resend
+SMTP_PASSWORD=re_xxxxxxxx
+SMTP_FROM=noreply@yourdomain.com
+DMCA_CONTACT=noreply@yourdomain.com
 ```
+
+Other working options: Brevo (`smtp-relay.brevo.com`), Amazon SES, SendGrid, or Gmail
+(`smtp.gmail.com` + a Google app password). Keep `SMTP_FROM` as an address/domain the
+provider has verified.
+
+Microsoft 365 **business** mailboxes can still use SMTP AUTH if an admin enables
+**Authenticated SMTP** for the mailbox; personal `@outlook.com` / `@hotmail.com` cannot.
 
 Then restart API/worker so settings reload:
 
@@ -173,14 +185,12 @@ sudo docker compose --env-file infra/compose.env \
 Confirm with `curl -s https://commercialbrainz.org/health | jq '{email_configured,email_user_set,email_password_set}'`
 — all three should be usable (`email_configured` / `email_user_set` / `email_password_set` true).
 
-If resend still fails with an authentication error:
+If send still fails:
 
-1. Prefer an **app password** (Microsoft account → Security → App passwords), not the normal login password.
-2. In Microsoft 365 admin (work/school) enable **Authenticated SMTP** for the mailbox.
-3. Keep `SMTP_FROM` equal to `SMTP_USER` (or an allowed send-as alias).
-4. Try `SMTP_HOST=smtp-mail.outlook.com` for personal Outlook/Hotmail.
-5. As admin, open **Admin → Registration → Send test email to me** — the UI shows the SMTP error text.
-6. Check API logs: `docker compose ... logs api --tail=100 | grep -i smtp`
+1. Confirm you are **not** pointing `SMTP_HOST` at `smtp-mail.outlook.com` / `smtp.office365.com` for a personal mailbox.
+2. Paste the app password **without spaces** (the app strips spaces, but avoid quotes/newlines in `.env`).
+3. As admin, open **Admin → Registration → Send test email to me** — the UI shows the SMTP error text.
+4. Check API logs: `docker compose ... logs api --tail=100 | grep -i smtp`
 
 Origin cert files: `/opt/commercialbrainz/data/caddy/certs/` (not in git; mounted at `/etc/caddy/certs`).  
 `fix-gcloud-vm.sh` regenerates the Caddyfile from `DOMAIN` + `DOMAIN_ALIASES` + `CADDY_TLS_MODE` on each deploy.

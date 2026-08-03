@@ -34,6 +34,7 @@ def test_smtp_configured_true_when_host_set(monkeypatch):
 def test_normalize_env_removes_quotes():
     assert email_svc._normalize_env('  "secret"  ') == "secret"
     assert email_svc._normalize_env("'secret'") == "secret"
+    assert email_svc._normalize_smtp_password("abcd efgh ijkl mnop") == "abcdefghijklmnop"
     assert email_svc._log_safe("a\nb\rc") == "a b c"
 
 
@@ -42,6 +43,37 @@ def test_public_smtp_error_auth():
 
     msg = email_svc._public_smtp_error(smtplib.SMTPAuthenticationError(535, b"fail"))
     assert "authentication failed" in msg.lower()
+
+
+def test_public_smtp_error_microsoft_basic_auth_disabled(monkeypatch):
+    import smtplib
+
+    monkeypatch.setattr(
+        email_svc,
+        "get_settings",
+        lambda: SimpleNamespace(smtp_host="smtp-mail.outlook.com", smtp_port=587),
+    )
+    msg = email_svc._public_smtp_error(
+        smtplib.SMTPAuthenticationError(
+            535,
+            b"5.7.139 Authentication unsuccessful, basic authentication is disabled",
+        )
+    )
+    assert "basic auth is disabled" in msg.lower()
+    assert "resend" in msg.lower()
+
+
+def test_public_smtp_error_outlook_host_generic_auth(monkeypatch):
+    import smtplib
+
+    monkeypatch.setattr(
+        email_svc,
+        "get_settings",
+        lambda: SimpleNamespace(smtp_host="smtp.office365.com", smtp_port=587),
+    )
+    msg = email_svc._public_smtp_error(smtplib.SMTPAuthenticationError(535, b"auth fail"))
+    assert "microsoft" in msg.lower()
+    assert "app-password" in msg.lower() or "app password" in msg.lower()
 
 
 @pytest.mark.asyncio
